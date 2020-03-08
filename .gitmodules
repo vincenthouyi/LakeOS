@@ -1,0 +1,15 @@
+[submodule "pi"]
+	path = pi
+	url = https://github.com/vincenthouyi/LakeOS-pi
+[submodule "naive"]
+	path = naive
+	url = https://github.com/vincenthouyi/LakeOS-naive
+[submodule "init_thread"]
+	path = init_thread
+	url = https://github.com/vincenthouyi/LakeOS-init
+[submodule "kernel"]
+	path = kernel
+	url = https://github.com/vincenthouyi/rustyL4
+[submodule "rustyl4api"]
+	path = rustyl4api
+	url = https://github.com/vincenthouyi/librustyl4api
