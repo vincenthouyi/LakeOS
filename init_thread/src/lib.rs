@@ -5,9 +5,7 @@
 #![no_std]
 
 extern crate alloc;
-extern crate mutex;
-#[macro_use] extern crate naive;
-extern crate volatile;
+extern crate naive;
 
 mod console;
 mod gpio;
@@ -17,7 +15,7 @@ mod timer;
 use rustyl4api::init::InitCSpaceSlot::{InitL1PageTable, InitCSpace};
 use rustyl4api::object::{Capability, TcbObj, EndpointObj, RamObj};
 
-use naive::space_manager::INIT_ALLOC;
+use naive::space_manager::gsm;
 
 mod prelude {
     pub use crate::console::{print, println};
@@ -47,13 +45,13 @@ fn test_thread() -> ! {
 fn spawn_thread(entry: fn() -> !) {
     use rustyl4api::vspace::{FRAME_SIZE, Permission};
 
-    let tcb = INIT_ALLOC.alloc_object::<TcbObj>(12)
+    let tcb = gsm!().alloc_object::<TcbObj>(12)
                         .unwrap();
 
-    let stack_ram = INIT_ALLOC.alloc_object::<RamObj>(12)
+    let stack_ram = gsm!().alloc_object::<RamObj>(12)
                               .unwrap();
     
-    let stack_base = INIT_ALLOC.insert_ram(stack_ram, Permission::writable()) as usize;
+    let stack_base = gsm!().insert_ram_at(stack_ram, 0, Permission::writable()) as usize;
     tcb.configure(InitL1PageTable as usize, InitCSpace as usize)
        .expect("Error Configuring TCB");
     tcb.set_registers(0b1100,entry as usize, stack_base + FRAME_SIZE)
@@ -65,7 +63,7 @@ fn spawn_thread(entry: fn() -> !) {
 fn spawn_test() {
     spawn_thread(test_thread);
 
-    let ep_cap = INIT_ALLOC.alloc_object::<EndpointObj>(12)
+    let ep_cap = gsm!().alloc_object::<EndpointObj>(12)
                            .unwrap();
 
     unsafe {
@@ -90,7 +88,7 @@ fn vm_test() {
     }
 
     for (i, num) in vec.iter().enumerate() {
-        debug_println!("vec[{}]: {}", i, num);
+        rustyl4api::kprintln!("vec[{}]: {}", i, num);
     }
 }
 
@@ -106,7 +104,7 @@ fn timer_test() {
 
 #[no_mangle]
 pub fn main() {
-    debug_println!("Long may the sun shine!");
+    rustyl4api::kprintln!("Long may the sun shine!");
 
     gpio::init_gpio_server();
 
@@ -120,7 +118,7 @@ pub fn main() {
 
 //    spawn_test();
 
-    // naive::process::spawn_process_from_elf(&RPI3B_ELF);
+    naive::process::spawn_process_from_elf(&RPI3B_ELF);
 
     loop {
         shell::shell("test shell >");

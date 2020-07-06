@@ -11,21 +11,15 @@
 #![no_std]
 
 extern crate alloc;
-extern crate mutex;
 extern crate rustyl4api;
 
-#[macro_use] mod debug_printer;
 #[macro_use] mod utils;
-pub mod syscall;
 mod rt;
 pub mod space_manager;
 mod vm_allocator;
 pub mod process;
-
-pub use rustyl4api::*;
-pub use debug_printer::{debug_print, debug_println};
-pub use syscall::*;
+mod panic;
 
 extern "C" {
-    pub static _end: [u8; 0];
+    static _end: [u8; 0];
 }

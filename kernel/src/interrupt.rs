@@ -1,6 +1,6 @@
 use core::cell::Cell;
 
-use mutex::Mutex;
+use spin::Mutex;
 
 use crate::prelude::*;
 

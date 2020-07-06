@@ -1,5 +1,4 @@
 use alloc::vec::Vec;
-use rustyl4api::object::identify::IdentifyResult;
 use rustyl4api::object::{Capability, KernelObject, UntypedObj};
 
 #[derive(Debug)]
@@ -22,16 +21,16 @@ impl UntypedNode {
 #[derive(Debug)]
 pub struct UntypedSpaceMan {
     empty_ut: Vec<Vec<UntypedNode>>,
-    partial_ut: Vec<Vec<UntypedNode>>,
-    full_ut: Vec<Vec<UntypedNode>>,
+    // partial_ut: Vec<Vec<UntypedNode>>,
+    // full_ut: Vec<Vec<UntypedNode>>,
 }
 
 impl UntypedSpaceMan {
     pub fn new() -> Self {
         Self {
             empty_ut: Vec::new(),
-            partial_ut: Vec::new(),
-            full_ut: Vec::new(),
+            // partial_ut: Vec::new(),
+            // full_ut: Vec::new(),
         }
     }
 
@@ -46,12 +45,18 @@ impl UntypedSpaceMan {
             return;
         }
 
-        if self.empty_ut.len() <= bit_sz as usize {
-            self.empty_ut.resize_with(bit_sz as usize + 1, || Vec::new());
+        if bit_sz < 4 {
+            return;
+        }
+
+        let sz_offset = bit_sz - 4;
+
+        if self.empty_ut.len() <= sz_offset as usize {
+            self.empty_ut.resize_with(sz_offset as usize + 1, || Vec::new());
         }
 
         let cap = Capability::new(slot);
-        self.empty_ut[bit_sz as usize].push(UntypedNode::new_empty(cap, paddr));
+        self.empty_ut[sz_offset as usize].push(UntypedNode::new_empty(cap, paddr));
     }
 
     pub fn alloc_object<T: KernelObject>(&mut self, dest_slot: usize, size: usize) -> Option<Capability<T>> {

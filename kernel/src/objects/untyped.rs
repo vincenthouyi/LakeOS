@@ -1,5 +1,4 @@
 use core::cell::Cell;
-use sysapi::syscall::{SyscallOp, MsgInfo, RespInfo};
 
 use super::*;
 
@@ -101,43 +100,13 @@ impl<'a> CapRef<'a, UntypedObj> {
         Ok(())
     }
 
-    pub fn handle_invocation(&self, info: MsgInfo, tcb: &mut TcbObj) -> SysResult<()> {
-
-        match info.get_label() {
-            SyscallOp::Retype => {
-                use num_traits::FromPrimitive;
-
-                if info.get_length() < 4 {
-                    return Err(SysError::InvalidValue);
-                }
-
-                let obj_type = ObjType::from_usize(tcb.get_mr(1))
-                                        .ok_or(SysError::InvalidValue)?;
-                let bit_size = tcb.get_mr(2);
-                let slot_start = tcb.get_mr(3);
-                let slot_len = tcb.get_mr(4);
-                let cspace = tcb.cspace().unwrap();
-                let slots = &cspace[slot_start];
-
-                self.retype(obj_type, bit_size, core::slice::from_ref(slots))?;
-
-                tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
-
-                Ok(())
-            }
-            SyscallOp::CapIdentify => {
-                tcb.set_mr(1, self.cap_type() as usize);
-                tcb.set_mr(2, self.paddr());
-                tcb.set_mr(3, self.bit_size());
-                tcb.set_mr(4, self.is_device() as usize);
-                tcb.set_mr(5, self.free_offset());
-
-                tcb.set_respinfo(RespInfo::new(SysError::OK, 1));
-
-                Ok(())
-            }
-            _ => { Err(SysError::UnsupportedSyscallOp) }
-        }
+    pub fn identify(&self, tcb: &TcbObj) -> usize {
+        tcb.set_mr(1, self.cap_type() as usize);
+        tcb.set_mr(2, self.paddr());
+        tcb.set_mr(3, self.bit_size());
+        tcb.set_mr(4, self.is_device() as usize);
+        tcb.set_mr(5, self.free_offset());
+        5
     }
 
     pub fn debug_formatter(f: &mut core::fmt::DebugStruct, cap: &CapRaw) {

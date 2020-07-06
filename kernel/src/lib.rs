@@ -1,3 +1,5 @@
+#![allow(incomplete_features)]
+
 #![feature(decl_macro)]
 #![feature(optin_builtin_traits)]
 #![feature(asm)]
@@ -12,6 +14,7 @@
 #![no_std]
 #![allow(non_upper_case_globals)]
 
+#[macro_use] extern crate static_assertions;
 #[macro_use] extern crate num_derive;
 #[macro_use] mod macros;
 #[macro_use] mod console;

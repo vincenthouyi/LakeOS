@@ -4,7 +4,7 @@ use crate::syscall::{MsgInfo, SyscallOp, syscall};
 
 use super::{Capability, KernelObject};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VTableObj {}
 
 pub type VTableCap = Capability<VTableObj>;

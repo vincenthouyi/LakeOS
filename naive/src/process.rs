@@ -1,48 +1,25 @@
-use crate::debug_println as kprintln;
-use rustyl4api::object::{VTableCap, RamObj, RamCap};
+use rustyl4api::kprintln;
+use rustyl4api::object::{VTableObj, RamObj, CNodeObj, TcbObj};
 use rustyl4api::vspace::Permission;
-use hashbrown::HashMap;
+use spaceman::vspace_man::{VSpaceMan, VSpaceManError};
 
 #[derive(Debug)]
-enum VTableEntry {
-    Table(VTable),
-    Page(Page)
-}
-
-#[derive(Debug, Clone)]
-pub struct Page {
-    cap: RamCap,
-}
-
-#[derive(Debug)]
-pub struct VTable {
-    cap: VTableCap,
-    entries: HashMap<usize, VTableEntry>,
-}
-
-#[derive(Debug, Default)]
-pub struct VSpace {
-    table: Option<VTable>,
-}
-
-impl VSpace {
-    pub fn map_frame(&mut self, frame: RamCap, vaddr: usize, perm: Permission) -> Result<(), ()> {
-        unimplemented!()
-    }
-}
-
-#[derive(Debug, Default)]
 pub struct Child {
-    vspace: VSpace,
+    vspace: VSpaceMan,
 }
 
 pub fn spawn_process_from_elf(elf_file: &[u8]) -> Result<(), ()> {
     use elf_rs::{Elf, ProgramType};
     use rustyl4api::vspace::{FRAME_BIT_SIZE, FRAME_SIZE};
-    use crate::space_manager::INIT_ALLOC;
+    use crate::space_manager::gsm;
 
     let elf = Elf::from_bytes(elf_file).map_err(|_| ())?;
-    let mut child = Child::default();
+
+    let child_root_cn = gsm!().alloc_object::<CNodeObj>(16).unwrap();
+    let child_root_vn = gsm!().alloc_object::<VTableObj>(12).unwrap();
+    let mut child = Child {
+        vspace: VSpaceMan::new(child_root_vn.clone()),
+    };
 
     if let Elf::Elf64(e) = elf {
         for ph in e.program_header_iter()
@@ -68,29 +45,67 @@ pub fn spawn_process_from_elf(elf_file: &[u8]) -> Result<(), ()> {
 
                     memrange.step_by(FRAME_SIZE)
                         .map(|vaddr| {
-                            let frame_cap = INIT_ALLOC.alloc_object::<RamObj>(FRAME_BIT_SIZE).unwrap();
+                            use rustyl4api::object::RamCap;
 
-                            child.vspace.map_frame(frame_cap.clone(), vaddr, perm).unwrap();
+                            let frame_cap = gsm!().alloc_object::<RamObj>(FRAME_BIT_SIZE).unwrap();
+                            let frame_parent_slot = gsm!().cspace_alloc().unwrap();
+                            frame_cap.derive(frame_parent_slot).unwrap();
+                            let frame_parent_cap = RamCap::new(frame_parent_slot);
 
-                            let frame_addr = INIT_ALLOC.insert_ram(frame_cap.clone(), Permission::writable());
+                            while let Err(e) = child.vspace.map_frame(frame_cap.clone(), vaddr, perm, 4) {
+                                match e {
+                                    VSpaceManError::SlotOccupied{level} => {
+                                        panic!("slot occupied at level {} vaddr {:x}", level, vaddr);
+                                    }
+                                    VSpaceManError::SlotTypeError{level} => {
+                                        panic!("wrong slot type at level {} vaddr {:x}", level, vaddr);
+                                    }
+                                    VSpaceManError::PageTableMiss{level} => {
+                                        let vtable_cap = gsm!().alloc_object::<VTableObj>(12).unwrap();
+                                        kprintln!("miss table level {} addr {:x}", level, vaddr);
+                                        child.vspace.map_table(vtable_cap, vaddr, level).unwrap();
+                                    }
+                                }
+                            };
+
+                            let frame_addr = gsm!().insert_ram_at(frame_parent_cap.clone(), 0, Permission::writable());
                             let frame = unsafe {
                                 core::slice::from_raw_parts_mut(frame_addr, FRAME_SIZE)
                             };
                             frame
                         })
                         .zip(section.chunks(FRAME_SIZE).chain(core::iter::repeat(&[0u8; 4096][..])))
-                        .for_each(|(mut frame, page)| {
+                        .for_each(|(frame, page)| {
                             frame[..page.len()].copy_from_slice(page);
                         })
                 }
                 ProgramType::GNU_STACK => {
-                    for i in 0..512 {
+                    for i in 0..1 {
+                        use rustyl4api::object::RamCap;
+
                         let vaddr = 0x8000000 - FRAME_SIZE * (i + 1);
-                        let frame_cap = INIT_ALLOC.alloc_object::<RamObj>(FRAME_BIT_SIZE).unwrap();
+                        let frame_cap = gsm!().alloc_object::<RamObj>(FRAME_BIT_SIZE).unwrap();
+                        let frame_parent_slot = gsm!().cspace_alloc().unwrap();
+                        frame_cap.derive(frame_parent_slot).unwrap();
+                        let frame_parent_cap = RamCap::new(frame_parent_slot);
 
-                        child.vspace.map_frame(frame_cap.clone(), vaddr, perm).unwrap();
+                        while let Err(e) = child.vspace.map_frame(frame_cap.clone(), vaddr, perm, 4) {
+                            match e {
+                                VSpaceManError::SlotOccupied{level} => {
+                                    panic!("slot occupied at level {} vaddr {:x}", level, vaddr);
+                                }
+                                VSpaceManError::SlotTypeError{level} => {
+                                    panic!("wrong slot type at level {} vaddr {:x}", level, vaddr);
+                                }
+                                VSpaceManError::PageTableMiss{level} => {
+                                    let vtable_cap = gsm!().alloc_object::<VTableObj>(12).unwrap();
+                                    kprintln!("miss table level {} addr {:x}", level, vaddr);
+                                    child.vspace.map_table(vtable_cap, vaddr, level).unwrap();
+                                }
+                            }
+                        };
 
-                        let frame_addr = INIT_ALLOC.insert_ram(frame_cap.clone(), Permission::writable());
+                        let frame_addr = gsm!().insert_ram_at(frame_parent_cap.clone(), 0, Permission::writable());
                         let frame = unsafe {
                             core::slice::from_raw_parts_mut(frame_addr, FRAME_SIZE)
                         };
@@ -105,17 +120,22 @@ pub fn spawn_process_from_elf(elf_file: &[u8]) -> Result<(), ()> {
                 }
             }
         }
-//
-//        let start_addr = e.header().entry_point() as usize;
-//        tcb.tf.set_elr(start_addr);
-//        tcb.tf.set_sp(INIT_STACK_TOP);
-//        tcb.tf.set_spsr(0b1101 << 6 | 0 << 4 | 0b00 << 2 | 0b0 << 0); // set DAIF, AArch64, EL0t
+
+        let child_tcb = gsm!().alloc_object::<TcbObj>(12).unwrap();
+
+        let start_addr = e.header().entry_point() as usize;
+
+        child_tcb.configure(child_root_vn.slot, child_root_cn.slot)
+           .expect("Error Configuring TCB");
+        child_tcb.set_registers(0b1100, start_addr, 0x8000000)
+           .expect("Error Setting Registers");
+        kprintln!("before spawning child process");
+        child_tcb.resume()
+           .expect("Error Resuming TCB");
+        kprintln!("after spawning child process");
     } else {
         unimplemented!("Elf32 binary is not supported!");
     }
-
-
-    kprintln!("here");
 
     Ok(())
 }

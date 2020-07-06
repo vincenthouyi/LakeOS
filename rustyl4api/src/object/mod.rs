@@ -10,8 +10,8 @@ mod monitor;
 mod interrupt;
 pub mod identify;
 
-pub use cnode::{CNodeObj, CNODE_DEPTH};
-pub use tcb::TcbObj;
+pub use cnode::{CNodeObj, CNodeCap, CNODE_DEPTH};
+pub use tcb::{TcbObj, TCB_OBJ_SZ, TCB_OBJ_BIT_SZ};
 pub use ram::{RamObj, RamCap};
 pub use endpoint::EndpointObj;
 pub use untyped::UntypedObj;

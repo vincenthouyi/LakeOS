@@ -1,5 +1,5 @@
-use crate::debug_printer::*;
-use crate::space_manager::INIT_ALLOC;
+use rustyl4api::debug_printer::kprintln;
+use crate::space_manager::{gsm, gsm_init};
 
 extern "Rust" {
     fn main();
@@ -14,66 +14,50 @@ static mut INIT_ALLOC_BACKUP_MEMPOOL: InitMemPool = InitMemPool([0u8; MEMPOOL_SI
 
 fn populate_init_cspace() {
     use rustyl4api::init::{InitCSpaceSlot, INIT_CSPACE_SIZE};
-    use rustyl4api::object::{Capability, identify, VTableObj, RamObj};
-    use rustyl4api::vspace::{FRAME_SIZE};
-    use rustyl4api::object::identify::IdentifyResult;
-
-    let brk = unsafe{ crate::_end.as_ptr() as usize };
-    let brk = crate::utils::align_up(brk, FRAME_SIZE);
+    use rustyl4api::object::Capability;
+    use rustyl4api::object::identify::{cap_identify, IdentifyResult};
 
     let root_cnode = Capability::new(InitCSpaceSlot::InitCSpace as usize);
     let root_vnode = Capability::new(InitCSpaceSlot::InitL1PageTable as usize);
 
-    INIT_ALLOC.initialize(root_cnode, INIT_CSPACE_SIZE, root_vnode, brk);
+    gsm_init(root_cnode, INIT_CSPACE_SIZE, root_vnode);
 
-    INIT_ALLOC.cspace_alloc_at(0);
-    for i in 1 .. {
-        let res = identify::cap_identify(i).unwrap();
+    gsm!().cspace_alloc_at(0);
+
+    let mut cap_max = 1;
+    for i in 1 .. INIT_CSPACE_SIZE {
+        let res = cap_identify(i).unwrap();
         if let IdentifyResult::NullObj = res {
+            cap_max = i;
             break;
         }
 //        debug_println!("ret cap[{}]: {:x?}", i, res);
-        INIT_ALLOC.cspace_alloc_at(i);
+        gsm!().cspace_alloc_at(i);
     }
 
-    for i in InitCSpaceSlot::UntypedStart as usize .. INIT_CSPACE_SIZE {
-        let res = identify::cap_identify(i).unwrap();
+    for i in InitCSpaceSlot::UntypedStart as usize .. cap_max {
+        let res = cap_identify(i).unwrap();
 
         if let IdentifyResult::NullObj = res {
             break;
         }
 
-        match res {
-            IdentifyResult::VTable{mapped_vaddr, mapped_asid, level} => {
-                let table = Capability::<VTableObj>::new(i);
-                INIT_ALLOC.insert_vtable(table, mapped_vaddr, level - 1);
-            }
-            IdentifyResult::Ram {bit_sz, mapped_vaddr, mapped_asid, is_device} => {
-                let cap = Capability::<RamObj>::new(i);
-
-                INIT_ALLOC.install_ram(cap, mapped_vaddr);
-            }
-            _ => { }
-        }
+        gsm!().insert_identify(i, res);
     }
+}
 
-    for i in InitCSpaceSlot::UntypedStart as usize .. INIT_CSPACE_SIZE {
-        let res = identify::cap_identify(i).unwrap();
-        if let IdentifyResult::NullObj = res {
-            break;
-        }
-        match res {
-            IdentifyResult::Untyped{paddr, bit_sz, is_device, free_offset} => {
-                INIT_ALLOC.insert_untyped(i, paddr, bit_sz, is_device, free_offset);
-            }
-            _ => { }
-        }
-    }
+fn initialize_vmspace() {
+    use rustyl4api::vspace::{FRAME_SIZE};
+
+    let brk = unsafe{ crate::_end.as_ptr() as usize };
+    let brk = crate::utils::align_up(brk, FRAME_SIZE);
+
+    gsm!().insert_vm_range(0, brk);
 }
 
 #[no_mangle]
 pub fn _start() -> ! {
-    debug_println!("赞美太阳！");
+    kprintln!("赞美太阳！");
 
     unsafe {
         crate::vm_allocator::GLOBAL_VM_ALLOC
@@ -86,13 +70,8 @@ pub fn _start() -> ! {
 
     populate_init_cspace();
 
+    initialize_vmspace();
+
     unsafe { main(); }
     unreachable!("Init Returns!");
-}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    debug_println!("Panic! {:?}", _info);
-    loop {
-    }
 }

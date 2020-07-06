@@ -2,6 +2,7 @@
 #[repr(C)]
 pub enum SysError {
     OK = 0,
+    CSpaceNotFound,
     CapabilityTypeError,
     LookupError,
     UnableToDerive,

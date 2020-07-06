@@ -12,4 +12,3 @@ rustyl4api = { path = "../rustyl4api" }
 naive = { path = "../naive" }
 pi = { path = "../pi" }
 mutex = { git = "https://github.com/vincenthouyi/LakeOS-Mutex" }
-volatile = { git = "https://github.com/vincenthouyi/LakeOS-Volatile" }

@@ -96,9 +96,9 @@ static CONSOLE: Mutex<Console> = Mutex::new(Console::new());
 
 pub fn console_main() -> ! {
     use rustyl4api::object::{Capability, EndpointObj, InterruptObj};
-    use naive::space_manager::INIT_ALLOC;
+    use naive::space_manager::gsm;
 
-    let irq_ep = INIT_ALLOC.alloc_object::<EndpointObj>(12).unwrap();
+    let irq_ep = gsm!().alloc_object::<EndpointObj>(12).unwrap();
     let irq_cntl_cap = Capability::<InterruptObj>::new(rustyl4api::init::InitCSpaceSlot::IrqController as usize);
     irq_cntl_cap.attach_ep_to_irq(irq_ep.slot, pi::interrupt::Interrupt::Aux as usize).unwrap();
 

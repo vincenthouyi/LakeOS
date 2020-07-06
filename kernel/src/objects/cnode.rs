@@ -1,7 +1,7 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
-use sysapi::syscall::{SyscallOp, MsgInfo, RespInfo};
 use sysapi::object::CNODE_DEPTH;
+use core::mem::size_of;
 
 use super::*;
 
@@ -30,6 +30,12 @@ impl From<CNodeLookupErr> for SysError {
 pub type CNodeEntry = Cell<CapRaw>;
 
 pub type CNodeObj = [CNodeEntry];
+
+/* Asserting size of a CNodeEntry aligns power of 2 */
+const_assert_eq!(size_of::<CNodeEntry>(), size_of::<CNodeEntry>().next_power_of_two());
+
+pub const CNODE_ENTRY_SZ: usize = size_of::<CNodeEntry>().next_power_of_two();
+pub const CNODE_ENTRY_BIT_SZ: usize = CNODE_ENTRY_SZ.trailing_zeros() as usize;
 
 pub type CNodeCap<'a> = CapRef<'a, CNodeObj>;
 
@@ -154,19 +160,11 @@ impl<'a> CNodeCap<'a> {
         f.field("vaddr", &c.vaddr());
     }
 
-    pub fn handle_invocation(&self, info: MsgInfo, tcb: &mut TcbObj) -> SysResult<()> {
+    pub fn identify(&self, tcb: &TcbObj) -> usize {
+        tcb.set_mr(1, self.cap_type() as usize);
+        tcb.set_mr(2, self.size());
 
-        match info.get_label() {
-            SyscallOp::CapIdentify => {
-                tcb.set_mr(1, self.cap_type() as usize);
-                tcb.set_mr(2, self.size());
-
-                tcb.set_respinfo(RespInfo::new(SysError::OK, 1));
-
-                Ok(())
-            }
-            _ => { Err(SysError::UnsupportedSyscallOp) }
-        }
+        2
     }
 }
 

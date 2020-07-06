@@ -25,7 +25,7 @@ elf_rs = "0.1.2"
 rustyl4api = { path = "../rustyl4api" }
 num-traits = { version = "0.2", default-features = false }
 num-derive = { git = "https://github.com/vincenthouyi/num-derive" }
-mutex = { git = "https://github.com/vincenthouyi/LakeOS-Mutex" }
+spin = "0.5.2"
 atags = { git = "https://github.com/vincenthouyi/LakeOS-atags" }
-volatile = { git = "https://github.com/vincenthouyi/LakeOS-Volatile" }
 pi = { path = "../pi" }
+static_assertions = "1.1.0"

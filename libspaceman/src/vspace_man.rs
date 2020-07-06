@@ -1,55 +1,7 @@
-use core::alloc::Layout;
 use alloc::collections::linked_list::LinkedList;
-use crate::utils::align_up;
 
-#[derive(Debug)]
-struct MemRange {
-    start: usize,
-    size: usize,
-}
-
-#[derive(Debug)]
-pub struct VspaceAllocator {
-    base_brk: usize,
-    brk: usize,
-    memlist: LinkedList<MemRange>,
-    vspace: VSpaceMan,
-}
-
-impl VspaceAllocator {
-    pub fn new(root_vnode_slot: Capability<VTableObj>, brk: usize) -> Self {
-        let brk = align_up(brk, 0x8000000000);
-        Self {
-            base_brk: brk,
-            brk: brk,
-            memlist: LinkedList::new(),
-            vspace: VSpaceMan::new(root_vnode_slot),
-        }
-    }
-
-    pub fn initialize(&mut self, brk: usize) {
-        self.base_brk = align_up(brk, 0x8000000000); // heap from 512G to avoid existing pud. should be changed when bootinfo is ready
-        self.brk = self.base_brk;
-    }
-
-    pub fn allocate(&mut self, layout: Layout) -> usize {
-        let start = align_up(self.brk, layout.align());
-        let size = layout.size();
-        self.brk = start + size;
-        self.memlist.push_back(MemRange{start: start, size: size});
-        start
-    }
-
-    pub fn install_entry(&mut self, entry: VSpaceEntry, vaddr: usize, level: usize) -> Result<(), VSpaceManError> {
-        self.vspace.install_entry(entry, vaddr, level)
-    }
-
-    pub fn root_cap_slot(&self) -> usize {
-        self.vspace.root.cap.slot
-    }
-}
-
-use rustyl4api::object::{Capability, RamObj, VTableObj};
+use rustyl4api::object::{Capability, RamObj, RamCap, VTableObj, VTableCap};
+use rustyl4api::vspace::Permission;
 
 #[derive(Debug)]
 pub enum VSpaceEntry {
@@ -146,5 +98,23 @@ impl VSpaceMan {
 
     pub fn install_entry(&mut self, entry: VSpaceEntry, vaddr: usize, level: usize) -> Result<(), VSpaceManError> {
         self.root.try_install_entry(1, entry, vaddr, level)
+    }
+
+    pub fn root_cap_slot(&self) -> usize {
+        self.root.cap.slot
+    }
+
+    pub fn map_frame(&mut self, frame: RamCap, vaddr: usize, perm: Permission, level: usize) -> Result<(), VSpaceManError> {
+        let entry = VSpaceEntry::new_frame(frame.clone());
+        self.install_entry(entry, vaddr, level)?;
+        frame.map(self.root_cap_slot(), vaddr, perm).unwrap();
+        Ok(())
+    }
+
+    pub fn map_table(&mut self, table: VTableCap, vaddr: usize, level: usize) -> Result<(), VSpaceManError> {
+        let entry = VSpaceEntry::new_table(table.clone());
+        self.install_entry(entry, vaddr, level)?;
+        table.map(self.root_cap_slot(), vaddr, level + 1).unwrap();
+        Ok(())
     }
 }

@@ -7,6 +7,9 @@ use super::{Capability, KernelObject};
 #[derive(Debug)]
 pub struct TcbObj {}
 
+pub const TCB_OBJ_SZ: usize = 512;
+pub const TCB_OBJ_BIT_SZ: usize = 9;
+
 impl KernelObject for TcbObj {
     fn obj_type() -> ObjType { ObjType::Tcb }
 }

@@ -19,7 +19,7 @@ impl Scheduler {
         self.queue = TcbQueue::new();
     }
 
-    pub fn push(&self, tcb: &mut TcbObj) {
+    pub fn push(&self, tcb: &TcbObj) {
         self.queue.enqueue(tcb)
     }
 

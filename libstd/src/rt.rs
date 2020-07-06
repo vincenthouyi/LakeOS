@@ -1,10 +1,12 @@
+use rustyl4api::kprintln;
+
 extern "Rust" {
     fn main();
 }
 
 #[no_mangle]
 pub fn _start() -> ! {
-//    debug_println!("赞美太阳！");
+    kprintln!("赞美太阳！");
 //
 //    unsafe {
 //        crate::vm_allocator::GLOBAL_VM_ALLOC
@@ -34,7 +36,7 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
 //     /// This status code is returned to the operating system.
 //     fn report(self) -> i32;
 // }
-// 
+
 // #[lang = "start"]
 // fn start<T: Termination + 'static>(main: fn() -> T, _: isize, _: *const *const u8) -> isize {
 //     main().report() as isize

@@ -3,6 +3,7 @@ mod slab_allocator;
 
 use core::alloc::{GlobalAlloc, Layout, AllocErr};
 use core::ptr::NonNull;
+use core::sync::atomic::{AtomicBool, Ordering};
 
 use slab_allocator::SlabAllocator;
 
@@ -11,12 +12,14 @@ pub const SLAB_ALLOC_BITSZ: usize = rustyl4api::vspace::FRAME_BIT_SIZE;
 #[derive(Debug)]
 pub struct VmAllocator {
     slab_alloc: SlabAllocator,
+    backup_empty: AtomicBool,
 }
 
 impl VmAllocator {
     pub const fn new() -> Self {
         VmAllocator {
             slab_alloc: SlabAllocator::new(),
+            backup_empty: AtomicBool::new(false),
         }
     }
 
@@ -29,17 +32,10 @@ impl VmAllocator {
     }
 
     pub fn slab_refill(&self, layout: Layout) {
-        use rustyl4api::vspace::{FRAME_BIT_SIZE, FRAME_SIZE, Permission};
-        use rustyl4api::object::RamObj;
-        use crate::space_manager::INIT_ALLOC;
-        use crate::utils::align_up;
+        use rustyl4api::vspace::{FRAME_SIZE, Permission};
+        use crate::space_manager::gsm;
 
-        let mempool_size = align_up(layout.size(), FRAME_SIZE);
-        let _mempool_layout = Layout::from_size_align(mempool_size, FRAME_SIZE)
-                                .unwrap();
-        let ram_cap = INIT_ALLOC.alloc_object::<RamObj>(FRAME_BIT_SIZE)
-                                .unwrap();
-        let addr = INIT_ALLOC.insert_ram(ram_cap, Permission::writable());
+        let addr = gsm!().map_frame_at(0, 0, FRAME_SIZE, Permission::writable()).unwrap();
         self.add_backup_mempool(addr, FRAME_SIZE);
     }
 
@@ -63,6 +59,18 @@ impl VmAllocator {
     pub fn vm_dealloc(&self, ptr: NonNull<u8>, layout: Layout) {
         self.slab_alloc
             .slab_dealloc(ptr, layout)
+    }
+
+    pub fn backup_empty(&self) -> bool {
+        self.backup_empty.load(Ordering::Relaxed)
+    }
+
+    pub fn set_backup_empty(&self, b: bool) {
+        self.backup_empty.store(b, Ordering::Relaxed);
+    }
+
+    pub fn cur_pool_remain(&self) -> usize {
+        self.slab_alloc.cur_pool_remain()
     }
 }
 

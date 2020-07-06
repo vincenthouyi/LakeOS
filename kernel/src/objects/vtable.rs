@@ -1,7 +1,6 @@
 use super::*;
 use core::convert::TryFrom; 
 use crate::vspace::Table;
-use crate::syscall::{SyscallOp, MsgInfo, RespInfo};
 use crate::arch::vspace::{Entry, VSpace};
 
 /* Capability Entry Field Definition
@@ -67,42 +66,11 @@ impl<'a> VTableCap<'a> {
         Ok(())
     }
 
-    pub fn handle_invocation(&self, info: MsgInfo, tcb: &mut TcbObj) -> SysResult<()> {
-        match info.get_label() {
-            SyscallOp::VTableMap => {
-
-//                if self.get_mapped_vaddr() != 0 {
-//                    return Err(SysError::VSpaceError)
-//                }
-
-                if info.get_length() < 3 {
-                    return Err(SysError::InvalidValue);
-                }
-
-                let vspace_cap_idx = tcb.get_mr(1);
-                let vaddr = tcb.get_mr(2);
-                let level = tcb.get_mr(3);
-                let cspace = tcb.cspace().unwrap();
-
-                let vspace_cap_slot = cspace.lookup_slot(vspace_cap_idx).unwrap();
-                let vspace = VSpace::from_pgd(&*(VTableCap::try_from(vspace_cap_slot)?));
-
-                self.map_vtable(&vspace, vaddr, level)?;
-
-                tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
-                Ok(())
-            }
-            SyscallOp::CapIdentify => {
-                tcb.set_mr(1, self.cap_type() as usize);
-                tcb.set_mr(2, self.mapped_vaddr());
-                tcb.set_mr(3, self.mapped_asid());
-                tcb.set_mr(4, self.mapped_level());
-
-                tcb.set_respinfo(RespInfo::new(SysError::OK, 1));
-
-                Ok(())
-            }
-            _ => { Err(SysError::UnsupportedSyscallOp) }
-        }
+    pub fn identify(&self, tcb: &TcbObj) -> usize {
+        tcb.set_mr(1, self.cap_type() as usize);
+        tcb.set_mr(2, self.mapped_vaddr());
+        tcb.set_mr(3, self.mapped_asid());
+        tcb.set_mr(4, self.mapped_level());
+        4
     }
 }

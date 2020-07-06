@@ -1,7 +1,8 @@
 use alloc::collections::linked_list::LinkedList;
 
-use rustyl4api::object::{Capability, CNodeObj};
+use rustyl4api::object::CNodeCap;
 
+#[derive(Debug)]
 struct SlotRange {
     start: usize,
     size: usize,
@@ -13,14 +14,15 @@ impl SlotRange {
     }
 }
 
+#[derive(Debug)]
 pub struct CSpaceMan {
-    root_cnode: Capability<CNodeObj>,
+    root_cnode: CNodeCap,
     root_cn_size: usize,
     free_slots: LinkedList<SlotRange>
 }
 
 impl CSpaceMan {
-    pub fn new(root_cnode: Capability<CNodeObj>, root_cn_size: usize) -> Self {
+    pub fn new(root_cnode: CNodeCap, root_cn_size: usize) -> Self {
         let mut free_slots = LinkedList::new();
         free_slots.push_back(SlotRange::new(0, root_cn_size));
         Self {

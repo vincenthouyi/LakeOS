@@ -7,6 +7,7 @@ pub enum SyscallOp {
     NullSyscall = 0,
     DebugPrint,
     CapIdentify,
+    Derive,
     Retype,
     TcbConfigure,
     TcbResume,

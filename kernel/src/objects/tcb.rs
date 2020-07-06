@@ -1,3 +1,5 @@
+use core::mem::size_of;
+
 use super::*;
 use crate::vspace::VSpace;
 use crate::arch::trapframe::TrapFrame;
@@ -21,16 +23,17 @@ impl core::default::Default for ThreadState {
 #[derive(Debug, Default)]
 pub struct TcbObj {
     pub tf: TrapFrame,
-    pub cspace: CNodeEntry,
-    pub vspace: CNodeEntry,
+    cspace: CNodeEntry,
+    vspace: CNodeEntry,
     pub time_slice: usize,
-    pub state: ThreadState,
+    state: Cell<ThreadState>,
     pub node: TcbQueueNode,
 }
 
-pub const TCB_BIT_SIZE: u32 = core::mem::size_of::<TcbObj>()
-                                .next_power_of_two()
-                                .trailing_zeros();
+pub const TCB_OBJ_SZ: usize = size_of::<TcbObj>().next_power_of_two();
+pub const TCB_OBJ_BIT_SZ: usize = TCB_OBJ_SZ.trailing_zeros() as usize;
+const_assert_eq!(TCB_OBJ_SZ, sysapi::object::TCB_OBJ_SZ);
+const_assert_eq!(TCB_OBJ_BIT_SZ, sysapi::object::TCB_OBJ_BIT_SZ);
 
 pub type TcbCap<'a> = CapRef<'a, TcbObj>;
 
@@ -46,8 +49,9 @@ impl TcbObj {
         self.vspace.set(raw);
     }
 
-    pub fn cspace(&self) -> Option<CNodeCap> {
-        CNodeCap::try_from(&self.cspace).ok()
+    pub fn cspace(&self) -> SysResult<CNodeCap> {
+        CNodeCap::try_from(&self.cspace)
+            .map_err(|_| SysError::CSpaceNotFound)
     }
 
     pub fn vspace(&self) -> Option<VSpace> {
@@ -78,7 +82,7 @@ impl TcbObj {
         self.tf.get_mr(idx)
     }
 
-    pub fn set_mr(&mut self, idx: usize, mr: usize) {
+    pub fn set_mr(&self, idx: usize, mr: usize) {
         self.tf.set_mr(idx, mr)
     }
 
@@ -86,7 +90,7 @@ impl TcbObj {
         self.tf.get_msginfo()
     }
 
-    pub fn set_respinfo(&mut self, respinfo: RespInfo) {
+    pub fn set_respinfo(&self, respinfo: RespInfo) {
         self.tf.set_respinfo(respinfo)
     }
 
@@ -94,6 +98,28 @@ impl TcbObj {
         // use PGD[28:12] bits as asid
         let pgd_cap = VTableCap::try_from(&self.vspace)?;
         Ok((pgd_cap.paddr() >> 12) & MASK!(16))
+    }
+
+    pub fn configure(&self, cspace: Option<CNodeCap>, vspace: Option<VTableCap>) -> SysResult<()> {
+        if let Some(vs) = vspace {
+            let dst_vspace = NullCap::try_from(&self.vspace)?;
+            vs.derive(&dst_vspace)?;
+        }
+
+        if let Some(cs) = cspace {
+            let dst_cspace = NullCap::try_from(&self.cspace)?;
+            cs.derive(&dst_cspace)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn set_state(&self, state: ThreadState) {
+        self.state.set(state)
+    }
+
+    pub fn state(&self) -> ThreadState {
+        self.state.get()
     }
 }
 
@@ -118,64 +144,9 @@ impl<'a> TcbCap<'a> {
         )
     }
 
-    pub fn handle_invocation(&mut self, info: MsgInfo, tcb: &mut TcbObj) -> SysResult<()> {
-        use crate::syscall::SyscallOp;
-
-        match info.get_label() {
-            SyscallOp::TcbConfigure => {
-                if info.get_length() < 2 {
-                    return Err(SysError::InvalidValue);
-                }
-                let host_cspace = tcb.cspace().unwrap();
-
-                let vspace_cap_idx = tcb.get_mr(1);
-                let vspace_slot = host_cspace.lookup_slot(vspace_cap_idx)?;
-                let vspace_cap = VTableCap::try_from(vspace_slot)?;
-                let dst_vspace = NullCap::try_from(&self.vspace)?;
-                vspace_cap.derive(&dst_vspace)?;
-
-                let cspace_cap_idx = tcb.get_mr(2);
-                let cspace_slot = host_cspace.lookup_slot(cspace_cap_idx)?;
-                let cspace_cap = CNodeCap::try_from(cspace_slot)?;
-                let dst_cspace = NullCap::try_from(&self.cspace)?;
-                cspace_cap.derive(&dst_cspace)?;
-
-                tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
-                Ok(())
-            },
-            SyscallOp::TcbSetRegisters => {
-                if info.get_length() < 3 {
-                    return Err(SysError::InvalidValue);
-                }
-                let reg_flags = tcb.get_mr(1);
-
-                if reg_flags & 0b1000 == 0b1000 {
-                    let elr = tcb.get_mr(2);
-                    self.tf.set_elr(elr);
-                }
-
-                if reg_flags & 0b0100 == 0b0100 {
-                    let sp = tcb.get_mr(3);
-                    self.tf.set_sp(sp);
-                }
-
-                tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
-                Ok(())
-            },
-            SyscallOp::TcbResume => {
-                crate::SCHEDULER.push(self);
-                tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
-                Ok(())
-            },
-            SyscallOp::CapIdentify => {
-                tcb.set_mr(1, self.cap_type() as usize);
-
-                tcb.set_respinfo(RespInfo::new(SysError::OK, 1));
-
-                Ok(())
-            }
-            _ => { Err(SysError::UnsupportedSyscallOp) }
-        }
+    pub fn identify(&self, tcb: &TcbObj) -> usize {
+        tcb.set_mr(1, self.cap_type() as usize);
+        1
     }
 
     pub fn debug_formatter(f: &mut core::fmt::DebugStruct, cap: &CapRaw) {

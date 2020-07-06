@@ -1,7 +1,7 @@
 use super::*;
 use num_traits::FromPrimitive;
 use crate::utils::tcb_queue::TcbQueue;
-use crate::syscall::{SyscallOp, MsgInfo, RespInfo};
+use crate::syscall::{MsgInfo, RespInfo};
 use crate::objects::tcb::ThreadState;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -21,7 +21,7 @@ impl core::default::Default for EpState {
 #[derive(Debug, Default)]
 pub struct EndpointObj {
     queue: TcbQueue,
-    signal: u64,
+    signal: Cell<u64>,
 }
 
 pub type EndpointCap<'a> = CapRef::<'a, EndpointObj>;
@@ -89,7 +89,7 @@ impl<'a> EndpointCap<'a> {
     }
 
     pub fn state(&self) -> EpState {
-        if self.signal != 0 {
+        if self.signal.get() != 0 {
             return EpState::SignalPending;
         }
 
@@ -99,7 +99,7 @@ impl<'a> EndpointCap<'a> {
         }
         let head = head.unwrap();
 
-        match head.state {
+        match head.state() {
             ThreadState::Sending => EpState::Sending,
             ThreadState::Receiving  => EpState::Receiving,
             s => { panic!("thread is not in state {:?}", s) }
@@ -108,20 +108,21 @@ impl<'a> EndpointCap<'a> {
 
     pub fn do_set_signal(&mut self, sig: u64) {
         let state = self.state();
-        self.signal |= sig;
+        let signal = self.signal.get() | sig;
+        self.signal.set(signal);
 
         if let EpState::Receiving = state {
             let receiver = self.queue.dequeue().unwrap();
-            receiver.set_mr(1, self.signal as usize);
-            receiver.state = ThreadState::Ready;
+            receiver.set_mr(1, self.signal.get() as usize);
+            receiver.set_state(ThreadState::Ready);
             receiver.set_respinfo(RespInfo::new_notification());
             crate::SCHEDULER.push(receiver);
 
-            self.signal = 0;
+            self.signal.set(0);
         }
     }
 
-    fn handle_send(&mut self, info: MsgInfo, tcb: &mut TcbObj) -> SysResult<()> {
+    pub fn handle_send(&self, info: MsgInfo, tcb: &TcbObj) -> SysResult<()> {
         match self.state() {
             EpState::Receiving => {
                 let receiver = self.queue.dequeue().unwrap();
@@ -130,7 +131,7 @@ impl<'a> EndpointCap<'a> {
                     let data = tcb.get_mr(i);
                     receiver.set_mr(i, data);
                 }
-                receiver.state = ThreadState::Ready;
+                receiver.set_state(ThreadState::Ready);
                 receiver.set_respinfo(RespInfo::new(SysError::OK, msglen));
                 crate::SCHEDULER.push(receiver);
 
@@ -140,19 +141,19 @@ impl<'a> EndpointCap<'a> {
             }
             _ => {
                 tcb.detach();
-                tcb.state = ThreadState::Sending;
+                tcb.set_state(ThreadState::Sending);
                 self.queue.enqueue(tcb);
                 Ok(())
             }
         }
     }
 
-    fn handle_recv(&mut self, _: MsgInfo, tcb: &mut TcbObj) -> SysResult<()> {
+    pub fn handle_recv(&self, _: MsgInfo, tcb: &TcbObj) -> SysResult<()> {
         match self.state() {
             EpState::Free => {
 
                 tcb.detach();
-                tcb.state = ThreadState::Receiving;
+                tcb.set_state(ThreadState::Receiving);
                 self.queue.enqueue(tcb);
 
                 if let Attach::Irq(irq) = self.get_attach() {
@@ -165,12 +166,12 @@ impl<'a> EndpointCap<'a> {
             }
             EpState::Receiving => {
                 tcb.detach();
-                tcb.state = ThreadState::Receiving;
+                tcb.set_state(ThreadState::Receiving);
                 self.queue.enqueue(tcb);
                 Ok(())
             }
             EpState::SignalPending => {
-                tcb.set_mr(1, self.signal as usize);
+                tcb.set_mr(1, self.signal.get() as usize);
                 tcb.set_respinfo(RespInfo::new_notification());
                 Ok(())
             }
@@ -182,7 +183,7 @@ impl<'a> EndpointCap<'a> {
                     let data = sender.get_mr(i);
                     tcb.set_mr(i, data);
                 }
-                sender.state = ThreadState::Ready;
+                sender.set_state(ThreadState::Ready);
                 sender.set_respinfo(RespInfo::new(SysError::OK, 0));
                 crate::SCHEDULER.push(sender);
 
@@ -193,29 +194,9 @@ impl<'a> EndpointCap<'a> {
         }
     }
 
-    pub fn handle_invocation(&mut self, info: MsgInfo, tcb: &mut TcbObj) -> SysResult<()> {
-        match info.get_label() {
-            SyscallOp::EndpointSend => {
-                self.handle_send(info, tcb)
-            }
-            SyscallOp::EndpointRecv => {
-                self.handle_recv(info, tcb)
-            }
-            SyscallOp::EndpointCall => {
-                unimplemented!()
-            }
-            SyscallOp::EndpointReplyRecv => {
-                unimplemented!()
-            }
-            SyscallOp::CapIdentify => {
-                tcb.set_mr(1, self.cap_type() as usize);
-
-                tcb.set_respinfo(RespInfo::new(SysError::OK, 1));
-
-                Ok(())
-            }
-            _ => { Err(SysError::UnsupportedSyscallOp) }
-        }
+    pub fn identify(&self, tcb: &TcbObj) -> usize {
+        tcb.set_mr(1, self.cap_type() as usize);
+        1
     }
 
     pub fn debug_formatter(_f: &mut core::fmt::DebugStruct, _cap: &CapRaw) {

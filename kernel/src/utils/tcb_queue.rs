@@ -1,6 +1,6 @@
 use core::ptr::NonNull;
 use core::cell::Cell;
-use crate::objects::TcbObj;
+use crate::objects::{TcbObj, TCB_OBJ_BIT_SZ};
 
 #[derive(Debug, Default)]
 pub struct TcbQueueNode {
@@ -18,14 +18,14 @@ impl TcbQueueNode {
 
     pub unsafe fn tcb(&self) -> &TcbObj {
         let addr = self as *const _ as usize;
-        let tcb_addr = addr & !MASK!(11);
+        let tcb_addr = addr & !MASK!(TCB_OBJ_BIT_SZ);
 
         &*(tcb_addr as *const TcbObj)
     }
 
     pub unsafe fn tcb_mut(&self) -> &mut TcbObj {
         let addr = self as *const _ as usize;
-        let tcb_addr = addr & !MASK!(12);
+        let tcb_addr = addr & !MASK!(TCB_OBJ_BIT_SZ);
         
         &mut *(tcb_addr as *mut TcbObj)
     }

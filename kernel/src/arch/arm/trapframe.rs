@@ -1,15 +1,16 @@
+use core::cell::Cell;
 use crate::prelude::*;
 use crate::syscall::{MsgInfo, RespInfo};
 use num_traits::FromPrimitive;
 use crate::objects::TcbObj;
 
 #[repr(C)]
-#[derive(Default, Copy, Clone, Debug)]
+#[derive(Default, Clone, Debug)]
 pub struct TrapFrame {
-    pub x_regs: [usize; 31],
-    sp: usize,
-    elr: usize,
-    spsr: usize,
+    x_regs: [Cell<usize>; 31],
+    sp: Cell<usize>,
+    elr: Cell<usize>,
+    spsr: Cell<usize>,
 }
 
 impl TrapFrame {
@@ -46,39 +47,39 @@ impl TrapFrame {
     }
 
     pub fn get_elr(&self) -> usize {
-        self.elr
+        self.elr.get()
     }
 
-    pub fn set_elr(&mut self, elr: usize) {
-        self.elr = elr;
+    pub fn set_elr(&self, elr: usize) {
+        self.elr.set(elr);
     }
 
-    pub fn set_spsr(&mut self, spsr: usize) {
-        self.spsr = spsr;
+    pub fn set_spsr(&self, spsr: usize) {
+        self.spsr.set(spsr);
     }
 
-    pub fn set_sp(&mut self, sp: usize) {
-        self.sp = sp;
+    pub fn set_sp(&self, sp: usize) {
+        self.sp.set(sp);
     }
 
     pub fn get_mr(&self, idx: usize) -> usize {
-        self.x_regs[idx]
+        self.x_regs[idx].get()
     }
 
-    pub fn set_mr(&mut self, idx: usize, mr: usize) {
-        self.x_regs[idx] = mr;
+    pub fn set_mr(&self, idx: usize, mr: usize) {
+        self.x_regs[idx].set(mr);
     }
 
     pub fn get_msginfo(&self) -> SysResult<MsgInfo> {
-        MsgInfo::from_usize(self.x_regs[6]).ok_or(SysError::InvalidValue)
+        MsgInfo::from_usize(self.x_regs[6].get()).ok_or(SysError::InvalidValue)
     }
 
-    pub fn set_respinfo(&mut self, respinfo: RespInfo) {
-        self.x_regs[6] = respinfo.0;
+    pub fn set_respinfo(&self, respinfo: RespInfo) {
+        self.x_regs[6].set(respinfo.0);
     }
 
     pub fn get_tcb(&mut self) -> &mut TcbObj {
         let ptr = self as *mut _ as usize;
-        unsafe{ &mut *((ptr & !MASK!(crate::objects::TCB_BIT_SIZE)) as *mut TcbObj) }
+        unsafe{ &mut *((ptr & !MASK!(crate::objects::TCB_OBJ_BIT_SZ)) as *mut TcbObj) }
     }
 }

@@ -8,6 +8,8 @@ LD_FLAGS := --gc-sections -static -nostdlib -nostartfiles --no-dynamic-linker
 
 RPI3B_DIR := ../rpi3b
 
+.PHONY: $(BUILD)/rpi3b.elf
+
 all: $(BUILD)/rpi3b.elf | $(BUILD) 
 	$(CARGO) xbuild --target=$(TARGET_FILE) --release
 	$(CROSS)-ld $(LD_FLAGS) $(RUST_LIB) -o $(BUILD)/init_thread.elf
