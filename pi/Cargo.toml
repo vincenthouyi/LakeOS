@@ -1,0 +1,9 @@
+[package]
+name = "pi"
+version = "0.1.0"
+authors = ["Sergio Benitez <sb@sergio.bz>"]
+
+[dependencies]
+volatile = { git = "https://github.com/vincenthouyi/LakeOS-Volatile" }
+
+[features]

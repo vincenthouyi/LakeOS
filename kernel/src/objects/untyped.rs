@@ -1,0 +1,149 @@
+use core::cell::Cell;
+use sysapi::syscall::{SyscallOp, MsgInfo, RespInfo};
+
+use super::*;
+
+#[derive(Debug)]
+pub struct UntypedObj {}
+
+pub type UntypedCap<'a> = CapRef<'a, UntypedObj>;
+
+/* Capability Entry Field Definition
+ * -------------------------------------------------
+ * |                   addr                   |recv|
+ * |                    60                    | 4  |
+ * -------------------------------------------------
+ * |      | free_offset                     |bit_sz|
+ * |      |                                 |  6   |
+ * -------------------------------------------------
+ */
+impl<'a> CapRef<'a, UntypedObj> {
+    pub const ADDR_MASK   : usize = !MASK!(Self::MIN_BIT_SIZE);
+    pub const MIN_BIT_SIZE: usize = 4;
+    pub const fn mint(addr: usize, bit_sz: usize, is_device: bool) -> CapRaw {
+        CapRaw::new(
+            addr,
+            is_device as usize,
+            bit_sz & MASK!(6),
+            None,
+            None,
+            ObjType::Untyped
+        )
+    }
+
+    pub fn bit_size(&self) -> usize {
+        self.raw.get().arg2 & MASK!(6)
+    }
+
+    pub fn size(&self) -> usize {
+        1 << self.bit_size()
+    }
+
+    pub fn free_offset(&self) -> usize {
+        self.raw.get().arg2 >> 6
+    }
+
+    pub fn set_free_offset(&self, off: usize) {
+        let mut cap = self.raw.get();
+        cap.arg2 = cap.arg2 & MASK!(6) | (off << 6);
+        self.raw.set(cap);
+    }
+
+    pub fn is_device(&self) -> bool {
+        self.raw.get().arg1 != 0
+    }
+
+    /*
+     * Allocate `slots.len()` objects of type `obj_type`. putting to `slots`
+     *
+     * `size`: for variable sized caps, `size` is the size of each new object. ignored for constant
+     * sized objects.
+     * `slots`: a range of slots to put new objects. need to check if empty
+     */
+    pub fn retype(&self, obj_type: ObjType, bit_size: usize, slots: &[CNodeEntry]) -> SysResult<()> {
+        if slots.iter()
+                .any(|cap| NullCap::try_from(cap).is_err()) {
+            return Err(SysError::SlotIsNotEmpty)
+        }
+
+        let count = slots.len();
+        let obj_size = 1 << bit_size; //TODO: determine size by type;
+        let tot_size = count * obj_size;
+        let free_offset = ALIGNUP!(self.free_offset(), bit_size);
+
+        for (i, slot) in slots.iter().enumerate() {
+            let addr = self.paddr() + free_offset + i * obj_size;
+            let cap = match obj_type {
+                ObjType::Untyped => { CapRef::<UntypedObj>::mint(addr, obj_size, self.is_device()) },
+                ObjType::CNode   => { CapRef::<CNodeObj>::mint(addr, obj_size, 64 - obj_size,0) },
+                ObjType::Tcb     => { CapRef::<TcbObj>::mint(addr) },
+                ObjType::Ram     => { CapRef::<RamObj>::mint(addr, true, true, 12, self.is_device()) },
+                ObjType::VTable  => { CapRef::<VTableObj>::mint(addr) },
+                ObjType::Endpoint=> { CapRef::<EndpointObj>::mint(addr) },
+                _ => { return Err(SysError::InvalidValue) }
+            };
+
+            slot.set(cap);
+            self.append_next(slot);
+
+            match obj_type {
+//                ObjType::NullObj => { unreachable!() },
+//                ObjType::Untyped => { CapRef::<UntypedObj>::mint(addr, obj_size) },
+                ObjType::CNode   => { CNodeCap::try_from(slot).unwrap().init() },
+                ObjType::Tcb     => { TcbCap::try_from(slot).unwrap().init() },
+                ObjType::Ram     => { RamCap::try_from(slot).unwrap().init() },
+                ObjType::VTable  => { VTableCap::try_from(slot).unwrap().init() },
+                ObjType::Endpoint=> { EndpointCap::try_from(slot).unwrap().init() }
+                _ => {}
+            }
+        }
+        self.set_free_offset(free_offset + tot_size);
+        Ok(())
+    }
+
+    pub fn handle_invocation(&self, info: MsgInfo, tcb: &mut TcbObj) -> SysResult<()> {
+
+        match info.get_label() {
+            SyscallOp::Retype => {
+                use num_traits::FromPrimitive;
+
+                if info.get_length() < 4 {
+                    return Err(SysError::InvalidValue);
+                }
+
+                let obj_type = ObjType::from_usize(tcb.get_mr(1))
+                                        .ok_or(SysError::InvalidValue)?;
+                let bit_size = tcb.get_mr(2);
+                let slot_start = tcb.get_mr(3);
+                let slot_len = tcb.get_mr(4);
+                let cspace = tcb.cspace().unwrap();
+                let slots = &cspace[slot_start];
+
+                self.retype(obj_type, bit_size, core::slice::from_ref(slots))?;
+
+                tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
+
+                Ok(())
+            }
+            SyscallOp::CapIdentify => {
+                tcb.set_mr(1, self.cap_type() as usize);
+                tcb.set_mr(2, self.paddr());
+                tcb.set_mr(3, self.bit_size());
+                tcb.set_mr(4, self.is_device() as usize);
+                tcb.set_mr(5, self.free_offset());
+
+                tcb.set_respinfo(RespInfo::new(SysError::OK, 1));
+
+                Ok(())
+            }
+            _ => { Err(SysError::UnsupportedSyscallOp) }
+        }
+    }
+
+    pub fn debug_formatter(f: &mut core::fmt::DebugStruct, cap: &CapRaw) {
+        let c = Cell::new(*cap);
+        let c = UntypedCap::try_from(&c).unwrap();
+        f.field("vaddr", &c.vaddr())
+         .field("bit size", &c.size());
+    }
+}
