@@ -15,5 +15,6 @@ pub mod syscall;
 pub mod init;
 pub mod error;
 pub mod vspace;
+pub mod thread;
 
 pub use debug_printer::{kprint, kprintln};

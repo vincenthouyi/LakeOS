@@ -2,6 +2,8 @@ use crate::console::kprintln;
 use crate::arch;
 use crate::objects::TcbObj;
 use super::trapframe::TrapFrame;
+use crate::interrupt::INTERRUPT_CONTROLLER;
+use super::affinity;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Fault {
@@ -91,8 +93,8 @@ impl From<u32> for Syndrome {
             0b100000 => InstructionAbort{kind: iss.into(), level: (iss & 0b11) as u8}, // Instruction Abort from lower EL
             0b100001 => InstructionAbort{kind: iss.into(), level: (iss & 0b11) as u8}, // Instruction Abort from same EL
             0b100010 => PCAlignmentFault,
-            0b100100 => DataAbort{kind: iss.into(), level: (iss & 0b11) as u8},
-            0b100101 => DataAbort{kind: iss.into(), level: (iss & 0b11) as u8},
+            0b100100 => DataAbort{kind: iss.into(), level: (iss & 0b11) as u8}, // from lower EL
+            0b100101 => DataAbort{kind: iss.into(), level: (iss & 0b11) as u8}, // from same EL
             0b100110 => SpAlignmentFault,
             0b101000 => TrappedFpu,
             0b101100 => TrappedFpu, //diff with 0b101000?
@@ -222,14 +224,14 @@ pub unsafe extern "C" fn lower64_sync_handler(tf: &mut TrapFrame) -> ! {
 pub unsafe extern "C" fn lower64_irq_handler(tf: &mut TrapFrame) -> ! {
     use super::generic_timer::Timer;
 
+    let cpuid = affinity();
     let tcb = tf.get_tcb();
     let mut timer = Timer::new();
-    if timer.is_pending() {
-//        kprintln!("tick");
-        tcb.time_slice = tcb.time_slice.saturating_sub(crate::TICK as usize);
+    if timer.is_pending(cpuid) {
+        tcb.timeslice_sub(crate::TICK as usize);
         timer.tick_in(crate::TICK);
     } else {
-        crate::interrupt::INTERRUPT_CONTROLLER.lock().receive_irq();
+        INTERRUPT_CONTROLLER.lock().receive_irq();
     }
 
     crate::SCHEDULER.activate();
@@ -239,4 +241,14 @@ pub unsafe extern "C" fn lower64_irq_handler(tf: &mut TrapFrame) -> ! {
 pub unsafe extern "C" fn unknown_exception_handler(tcb: &mut TcbObj) -> ! {
     kprintln!("unknown exception! tcb: {:?}", tcb);
     loop{}
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn irq_trap() -> ! {
+    use super::generic_timer::Timer;
+
+    // INTERRUPT_CONTROLLER.lock().receive_irq();
+    super::boot::IDLE_THREADS.timeslice_sub(crate::TICK as usize);
+    Timer::new().tick_in(crate::TICK);
+    crate::SCHEDULER.activate();
 }

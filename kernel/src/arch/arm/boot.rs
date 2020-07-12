@@ -6,12 +6,19 @@ use core::mem::MaybeUninit;
 use crate::vspace::*;
 use crate::objects::*;
 use crate::console::kprintln;
+use crate::NCPU;
 use sysapi::init::InitCSpaceSlot::*;
 use sysapi::init::INIT_CSPACE_SIZE;
 use sysapi::vspace::Permission;
+use crate::utils::percore::PerCore;
+use crate::arch::affinity;
+
+#[derive(Copy, Clone)]
+#[repr(align(4096))]
+struct Frame([usize; 4096]);
 
 #[no_mangle]
-static mut kernel_stack: [u8; 4096] = [0; 4096];
+static mut kernel_stack: [Frame; NCPU] = [Frame([0; 4096]); NCPU];
 
 static mut KERNEL_PGD: Table = Table::zero();
 static mut KERNEL_PUD: Table = Table::zero();
@@ -19,6 +26,8 @@ static mut KERNEL_PD: Table = Table::zero();
 
 static mut INIT_CNODE: MaybeUninit<[CNodeEntry; INIT_CSPACE_SIZE]> = MaybeUninit::uninit();
 static INIT_THREAD_ELF: &'static [u8] = include_bytes!("../../../build/init_thread.elf");
+
+pub static IDLE_THREADS: PerCore<TcbObj, NCPU> = PerCore([TcbObj::new(); NCPU]);
 
 #[link_section=".boot.text"]
 unsafe fn init_kernel_vspace() {
@@ -54,9 +63,12 @@ unsafe fn init_kernel_vspace() {
 #[no_mangle]
 #[link_section=".boot.text"]
 pub unsafe fn init_cpu() {
-    use crate::arch::vspace::enable_mmu;
+    use crate::arch::vspace::{enable_mmu};
 
-    init_kernel_vspace();
+    let cpuid = affinity();
+    if cpuid == 0 {
+        init_kernel_vspace();
+    }
 
     enable_mmu(KERNEL_PGD.paddr());
 }
@@ -124,7 +136,7 @@ fn initialize_init_cspace(cnode: &CNodeObj, cur_free_slot: &mut usize) {
     cnode[IrqController as usize].set(InterruptCap::mint());
 
     /* Insert Init Thread TCB */
-    alloc_obj::<TcbObj>(&cnode[UntypedStart as usize], 12, &cnode[InitTCB as usize])
+    alloc_obj::<TcbObj>(&cnode[UntypedStart as usize], crate::objects::TCB_OBJ_BIT_SZ, &cnode[InitTCB as usize])
         .expect("Allocating Init Thread TCB failed");
 
     /* allocate PGD for init thread*/
@@ -243,15 +255,30 @@ fn load_init_thread(tcb: &mut TcbObj, elf_file: &[u8], cur_free_slot: &mut usize
         let start_addr = e.header().entry_point() as usize;
         tcb.tf.set_elr(start_addr);
         tcb.tf.set_sp(INIT_STACK_TOP);
-        tcb.tf.set_spsr(0b1101 << 6 | 0 << 4 | 0b00 << 2 | 0b0 << 0); // set DAIF, AArch64, EL0t
+        tcb.tf.init_user_thread();
     } else {
         unimplemented!("Elf32 binary is not supported!");
     }
 }
 
-#[no_mangle]
-#[link_section=".boot.text"]
-pub extern "C" fn kmain() -> ! {
+fn run_secondary_cpus(entry: usize) {
+    const SECONDARY_CPU_ENTRY_ADDR: usize = 0xe0 + KERNEL_OFFSET;
+
+    for i in 0 .. crate::NCPU {
+        let addr = unsafe{ &mut *((SECONDARY_CPU_ENTRY_ADDR + i * 8) as *mut usize) };
+        *addr = entry - KERNEL_OFFSET;
+    }
+}
+
+fn init_app_cpu() {
+    use crate::scheduler::SCHEDULER;
+
+    kprintln!("application cpu start");
+    IDLE_THREADS.configure_idle_thread();
+    SCHEDULER.push(&*IDLE_THREADS);
+}
+
+fn init_bsp_cpu() {
     use crate::scheduler::SCHEDULER;
 
     crate::plat::uart::init_uart();
@@ -276,15 +303,37 @@ pub extern "C" fn kmain() -> ! {
     init_tcb_cap.install_cspace(&init_cnode_cap).unwrap();
     load_init_thread(&mut init_tcb_cap, &INIT_THREAD_ELF, &mut cur_free_slot);
 
+    run_secondary_cpus(crate::_start as usize);
+
 //    kprintln!("Init Thread Info: {:x?}", *init_tcb_cap);
     kprintln!("Jumping to User Space!");
 
+    IDLE_THREADS.configure_idle_thread();
+
+    SCHEDULER.push(&*IDLE_THREADS);
+    SCHEDULER.push(&mut init_tcb_cap);
+}
+
+#[no_mangle]
+#[link_section=".boot.text"]
+pub extern "C" fn kmain() -> ! {
+    use crate::scheduler::SCHEDULER;
+    let cpuid = affinity();
+
+    if affinity() == 0 {
+        init_bsp_cpu()
+    } else {
+        init_app_cpu()
+    }
+
+    unsafe {
+        llvm_asm!("msr tpidrro_el0, $0"::"r"(cpuid));
+    }
+
     let mut timer = crate::arch::generic_timer::Timer::new();
-    timer.initialize();
+    timer.initialize(cpuid);
     timer.tick_in(crate::TICK);
 
     //TODO: somehow SCHEDULER not zeroed in bss. manually init it.
-    SCHEDULER.get_mut_unsafe().init();
-    SCHEDULER.push(&mut init_tcb_cap);
     SCHEDULER.activate()
 }

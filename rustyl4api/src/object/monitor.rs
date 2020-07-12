@@ -1,4 +1,4 @@
-use crate::object::{ObjType, UntypedObj};
+use crate::object::{ObjType, UntypedObj, TcbCap};
 use crate::error::SysResult;
 use crate::syscall::{MsgInfo, SyscallOp, syscall};
 
@@ -19,4 +19,10 @@ impl Capability<MonitorObj> {
         syscall(info, &mut args).map(|_| Capability::new(slot))
     }
 
+    pub fn insert_tcb_to_cpu(&self, tcb: &TcbCap, cpu: usize) -> SysResult<()>
+    {
+        let info = MsgInfo::new(SyscallOp::MonitorInsertTcbToCpu, 2);
+        let mut args = [self.slot, tcb.slot, cpu, 0, 0, 0];
+        syscall(info, &mut args).map(|_| ())
+    }
 }

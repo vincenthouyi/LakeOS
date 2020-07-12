@@ -7,6 +7,7 @@
 #![feature(allocator_api)]
 #![feature(const_saturating_int_methods)]
 #![feature(linked_list_cursors)]
+#![feature(llvm_asm)]
 
 #![no_std]
 

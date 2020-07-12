@@ -12,3 +12,6 @@ all: | $(BUILD)
 
 $(BUILD):
 	mkdir -p $(BUILD)
+
+clean:
+	rm -rf target build

@@ -276,6 +276,34 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
                 Err(SysError::UnsupportedSyscallOp)
             }
         },
+        SyscallOp::MonitorInsertTcbToCpu => {
+            use crate::scheduler::SCHEDULER;
+            // if msginfo.get_length() < 4 {
+            //     return Err(SysError::InvalidValue);
+            // }
+            let cap_idx = tcb.get_mr(0);
+            let cspace = tcb.cspace()?;
+            let cap_slot = cspace.lookup_slot(cap_idx)?;
+
+            if let Ok(_) = MonitorCap::try_from(cap_slot) {
+                let tcb_idx = tcb.get_mr(1);
+                let cpu = tcb.get_mr(2);
+
+                let tcb_slot = cspace.lookup_slot(tcb_idx)?;
+
+                let tcb_cap = TcbCap::try_from(tcb_slot)?;
+                unsafe {
+                    SCHEDULER.get_unsafe(cpu)
+                        .push(&tcb_cap);
+                }
+
+                tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
+
+                Ok(())
+            } else {
+                Err(SysError::UnsupportedSyscallOp)
+            }
+        },
         SyscallOp::InterruptAttachIrq => {
             let cap_idx = tcb.get_mr(0);
             let cspace = tcb.cspace()?;

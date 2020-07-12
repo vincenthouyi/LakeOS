@@ -98,6 +98,7 @@ $(KERNEL).bin: $(KERNEL).elf | $(BUILD_DIR)
 	@$(CROSS)-objcopy $< -O binary $@
 
 clean:
+	make clean -C ../init_thread
 	$(CARGO) clean
 	rm -rf $(BUILD_DIR)
 

@@ -1,13 +1,36 @@
-///// Returns the current stack pointer.
-//#[inline(always)]
-//pub fn sp() -> *const u8 {
-//    let ptr: usize;
-//    unsafe {
-//        llvm_asm!("mov $0, sp" : "=r"(ptr));
-//    }
-//
-//    ptr as *const u8
-//}
+/// Returns the current stack pointer.
+#[allow(dead_code)]
+#[inline(always)]
+pub fn sp() -> *const u8 {
+    let ptr: usize;
+    unsafe {
+        llvm_asm!("mov $0, sp" : "=r"(ptr));
+    }
+
+    ptr as *const u8
+}
+
+#[allow(dead_code)]
+#[inline(always)]
+pub fn mpidr_el1() -> usize {
+    let x: usize;
+    unsafe{
+        llvm_asm!("mrs     $0, mpidr_el1"
+            : "=r"(x));
+    }
+    x
+}
+
+#[allow(dead_code)]
+#[inline(always)]
+pub fn tpidr_el1() -> usize {
+    let x: usize;
+    unsafe{
+        llvm_asm!("mrs     $0, tpidr_el1"
+            : "=r"(x));
+    }
+    x
+}
 
 /// Returns the current exception level.
 ///
@@ -39,14 +62,9 @@
 ///
 /// This function should only be called when EL is >= 1.
 #[allow(dead_code)]
+#[inline(always)]
 pub fn affinity() -> usize {
-    let x: usize;
-    unsafe{
-        llvm_asm!("mrs     $0, mpidr_el1
-            and     $0, $0, #3"
-            : "=r"(x));
-    }
-    x
+    mpidr_el1() & 0x3
 }
 
 ///// A NOOP that won't be optimized out.
@@ -62,6 +80,14 @@ pub fn affinity() -> usize {
 pub fn wfe() {
     unsafe {
         llvm_asm!("wfe");
+    }
+}
+
+#[allow(dead_code)]
+#[inline(always)]
+pub fn wfi() {
+    unsafe {
+        llvm_asm!("wfi");
     }
 }
 
@@ -120,4 +146,12 @@ pub fn dc_clean_by_va_PoC(vaddr: usize)
 {
     unsafe { llvm_asm!("dc cvac, $0": : "r"(vaddr): :"volatile") }
     dmb();
+}
+
+#[allow(dead_code)]
+#[inline(always)]
+pub fn spsr_el1() -> usize {
+    let x;
+    unsafe { llvm_asm!("mrs $0, spsr_el1":"=r"(x)); }
+    x
 }

@@ -1,19 +1,73 @@
 use core::cell::Cell;
+use core::fmt::{Debug, Formatter, Error};
 use crate::prelude::*;
 use crate::syscall::{MsgInfo, RespInfo};
 use num_traits::FromPrimitive;
 use crate::objects::TcbObj;
 
+const EL1h: usize = 0b0101;
+const EL0t: usize = 0b0000;
+const AARCH64: usize = 0b0 << 4;
+const FIRQ_MASK: usize = 0b1 << 6;
+
 #[repr(C)]
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone)]
 pub struct TrapFrame {
     x_regs: [Cell<usize>; 31],
     sp: Cell<usize>,
     elr: Cell<usize>,
     spsr: Cell<usize>,
 }
+impl Debug for TrapFrame {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        f.debug_struct("Trapframe")
+         .field("x0", &self.x_regs[0].get())
+         .field("x1", &self.x_regs[1].get())
+         .field("x2", &self.x_regs[2].get())
+         .field("x3", &self.x_regs[3].get())
+         .field("x4", &self.x_regs[4].get())
+         .field("x5", &self.x_regs[5].get())
+         .field("x6", &self.x_regs[6].get())
+         .field("x7", &self.x_regs[7].get())
+         .field("x8", &self.x_regs[8].get())
+         .field("x9", &self.x_regs[9].get())
+         .field("x10", &self.x_regs[10].get())
+         .field("x11", &self.x_regs[11].get())
+         .field("x12", &self.x_regs[12].get())
+         .field("x13", &self.x_regs[13].get())
+         .field("x14", &self.x_regs[14].get())
+         .field("x15", &self.x_regs[15].get())
+         .field("x16", &self.x_regs[16].get())
+         .field("x17", &self.x_regs[17].get())
+         .field("x18", &self.x_regs[18].get())
+         .field("x19", &self.x_regs[19].get())
+         .field("x20", &self.x_regs[20].get())
+         .field("x21", &self.x_regs[21].get())
+         .field("x22", &self.x_regs[22].get())
+         .field("x23", &self.x_regs[23].get())
+         .field("x24", &self.x_regs[24].get())
+         .field("x25", &self.x_regs[25].get())
+         .field("x26", &self.x_regs[26].get())
+         .field("x27", &self.x_regs[27].get())
+         .field("x28", &self.x_regs[28].get())
+         .field("x29", &self.x_regs[29].get())
+         .field("sp", &self.sp.get())
+         .field("elr", &self.elr.get())
+         .field("spsr", &self.spsr.get())
+         .finish()
+    }
+}
 
 impl TrapFrame {
+    pub const fn new() -> Self {
+        Self {
+            x_regs: [Cell::new(0); 31],
+            sp: Cell::new(0),
+            elr: Cell::new(0),
+            spsr: Cell::new(0),
+        }
+    }
+
     pub unsafe fn restore(&mut self) -> ! {
         llvm_asm!{
             "
@@ -44,6 +98,15 @@ impl TrapFrame {
         }
 
         unreachable!();
+    }
+
+    pub fn configure_idle_thread(&self) {
+        self.set_spsr(FIRQ_MASK | AARCH64 | EL1h);
+        self.set_elr(super::idle::idle_thread as usize);
+    }
+
+    pub fn init_user_thread(&self) {
+        self.set_spsr(FIRQ_MASK | AARCH64 | EL0t);
     }
 
     pub fn get_elr(&self) -> usize {

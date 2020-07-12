@@ -21,11 +21,11 @@ impl Timer {
         self.inner.tick_in(us)
     }
 
-    pub fn initialize(&mut self) {
-        self.inner.initialize()
+    pub fn initialize(&mut self, cpu: usize) {
+        self.inner.initialize(cpu)
     }
 
-    pub fn is_pending(&self) -> bool {
-        self.inner.is_pending()
+    pub fn is_pending(&self, cpu: usize) -> bool {
+        self.inner.is_pending(cpu)
     }
 }

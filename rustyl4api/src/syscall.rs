@@ -19,6 +19,7 @@ pub enum SyscallOp {
     RamMap,
     VTableMap,
     MonitorMintUntyped,
+    MonitorInsertTcbToCpu,
     InterruptAttachIrq,
 }
 

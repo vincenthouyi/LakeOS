@@ -3,7 +3,8 @@
 #define CONTROL_I 12 // Instruction access Cacheability control
 #define CONTROL_C 2  // Cacheability control, for data accesses
 #define CONTROL_M 0  // MMU enable
-#define SCTLR_VALUE                     (BIT(CONTROL_I) | BIT(CONTROL_C) | BIT(CONTROL_M))
+// #define CONTROL_A 1 // Alignent check
+#define SCTLR_VALUE                     (BIT(CONTROL_I) | BIT(CONTROL_C) | BIT(CONTROL_M)) // TODO: enable alignment check
 
 #define TCR_T0SZ                        ((64 - 48) << 0)
 #define TCR_T1SZ                        ((64 - 48) << 16)
@@ -70,7 +71,7 @@ _start:
     bic     x0, x0, x1
     cbz     x0, zero_bss
 hang:
-    b       hang
+    b       jump_to_el1
 
 zero_bss:
     // load the start address and number of bytes in BSS section
@@ -85,8 +86,17 @@ zero_bss_loop:
     cbnz    x2, zero_bss_loop
 
 jump_to_el1:
-    ldr     x0, =kernel_stack + 4096
-    msr     sp_el1, x0           // init the stack of el1
+    /* stack pointer = kernel_stack + ((cpu_id + 1) * 4096) */
+    /* x0 stored core id already */
+    ldr     x1, =BIT(12)
+    mul     x1, x1, x0
+    ldr     x2, =kernel_stack + BIT(12)
+    add     x2, x2, x1
+    msr     sp_el1, x2
+
+    /* Store (kernel_stack | cpu_id) in tpidr_el1 */
+    orr     x0, x0, x2
+    msr     tpidr_el1, x0
 
     mov     x0, #3 << 20
     msr     cpacr_el1, x0        // enable fp/simd at el1
@@ -130,8 +140,10 @@ trap_vectors:
     vector(unknown_exception_handler)
     vector(unknown_exception_handler)
 
-    vector(sync_trap)
-    vector(unknown_exception_handler)
+    .align 7
+    b       sync_handler
+    .align 7
+    b       irq_trap
     vector(unknown_exception_handler)
     vector(unknown_exception_handler)
 
@@ -145,19 +157,18 @@ trap_vectors:
     vector(unknown_exception_handler)
     vector(unknown_exception_handler)
 
-sync_trap:
-    b sync_handler
-
 lower64_trap:
     kernel_enter
     mov     x0, sp
-    ldr     x2, =kernel_stack + 4096
+    mrs     x2, tpidr_el1
+    bic     x2, x2, #0xfff
     mov     sp, x2
     b lower64_sync_handler
 
 lower64_irq:
     kernel_enter
     mov     x0, sp
-    ldr     x2, =kernel_stack + 4096
+    mrs     x2, tpidr_el1
+    bic     x2, x2, #0xfff
     mov     sp, x2
     b lower64_irq_handler

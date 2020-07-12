@@ -1,9 +1,10 @@
 use crate::prelude::*;
+use crate::NCPU;
 use crate::objects::TcbObj;
 use crate::utils::tcb_queue::TcbQueue;
 use crate::utils::percore::PerCore;
 
-pub static SCHEDULER: PerCore<Scheduler, 1> = PerCore([Scheduler::new(); 1]);
+pub static SCHEDULER: PerCore<Scheduler, NCPU> = PerCore([Scheduler::new(); NCPU]);
 
 #[derive(Debug)]
 pub struct Scheduler {
@@ -13,10 +14,6 @@ pub struct Scheduler {
 impl Scheduler {
     pub const fn new() -> Self {
         Self {queue: TcbQueue::new() }
-    }
-
-    pub fn init(&mut self) {
-        self.queue = TcbQueue::new();
     }
 
     pub fn push(&self, tcb: &TcbObj) {
@@ -37,10 +34,12 @@ impl Scheduler {
 
     pub fn activate(&self) -> ! {
         if let Some(head) = self.head() {
-            if (head.time_slice) == 0 {
+            if (head.timeslice()) == 0 {
                 let tcb = self.pop().unwrap();
                 self.push(tcb);
-                self.head_mut().unwrap().time_slice = crate::TIME_SLICE as usize;
+                // kprintln!("switching {:p} -> {:p}: {:x?}", tcb, self.head().unwrap(), self.head().unwrap());
+
+                self.head().unwrap().set_timeslice(crate::TIME_SLICE as usize);
             }
             self.head_mut().unwrap().activate();
         } else {

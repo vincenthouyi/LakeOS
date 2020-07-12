@@ -1,10 +1,12 @@
 use core::mem::size_of;
+use core::fmt::{Debug, Formatter, Error};
 
 use super::*;
 use crate::vspace::VSpace;
 use crate::arch::trapframe::TrapFrame;
 use crate::syscall::{MsgInfo, RespInfo};
 use crate::utils::tcb_queue::TcbQueueNode;
+use crate::objects::NullCap;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ThreadState {
@@ -20,14 +22,28 @@ impl core::default::Default for ThreadState {
 }
 
 #[repr(C)]
-#[derive(Debug, Default)]
+#[repr(align(512))]
+#[derive(Default)]
 pub struct TcbObj {
     pub tf: TrapFrame,
     cspace: CNodeEntry,
     vspace: CNodeEntry,
-    pub time_slice: usize,
+    time_slice: Cell<usize>,
     state: Cell<ThreadState>,
     pub node: TcbQueueNode,
+}
+
+impl Debug for TcbObj {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        f.debug_struct("TcbObj")
+         .field("trapfram", &self.tf)
+         .field("cspace", &self.cspace)
+         .field("vspace", &self.vspace)
+         .field("time_slice", &self.time_slice.get())
+         .field("state", &self.state.get())
+         .field("queue node", &self.node)
+         .finish()
+    }
 }
 
 pub const TCB_OBJ_SZ: usize = size_of::<TcbObj>().next_power_of_two();
@@ -38,6 +54,21 @@ const_assert_eq!(TCB_OBJ_BIT_SZ, sysapi::object::TCB_OBJ_BIT_SZ);
 pub type TcbCap<'a> = CapRef<'a, TcbObj>;
 
 impl TcbObj {
+    pub const fn new() -> Self {
+        Self {
+            tf: TrapFrame::new(),
+            cspace: Cell::new(NullCap::mint()),
+            vspace: Cell::new(NullCap::mint()),
+            time_slice: Cell::new(0),
+            state: Cell::new(ThreadState::Ready),
+            node: TcbQueueNode::new(),
+        }
+    }
+
+    pub fn configure_idle_thread(&self) {
+        self.tf.configure_idle_thread()
+    }
+
     pub fn install_cspace(&self, cspace: &CNodeCap) -> SysResult<()> {
         cspace.derive(&NullCap::try_from(&self.cspace)?)
     }
@@ -69,7 +100,7 @@ impl TcbObj {
 
     pub fn activate(&mut self) -> ! {
         unsafe {
-            self.switch_vspace().unwrap();
+            self.switch_vspace();
             self.tf.restore();
         }
     }
@@ -120,6 +151,20 @@ impl TcbObj {
 
     pub fn state(&self) -> ThreadState {
         self.state.get()
+    }
+
+    pub fn set_timeslice(&self, ts: usize) {
+        self.time_slice.set(ts);
+    } 
+
+    pub fn timeslice(&self) -> usize {
+        self.time_slice.get()
+    }
+
+    pub fn timeslice_sub(&self, t: usize) {
+        let cur = self.timeslice();
+        let ts = cur.saturating_sub(t);
+        self.set_timeslice(ts);
     }
 }
 

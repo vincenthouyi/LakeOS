@@ -11,16 +11,17 @@ pub const MEMPOOL_MAX_BITSZ: usize = super::SLAB_ALLOC_BITSZ;
 pub const MEMPOOL_MIN_BITSZ: usize = 3;
 const MEMPOOL_ARRAY_SZ: usize = MEMPOOL_MAX_BITSZ - MEMPOOL_MIN_BITSZ + 1;
 
+// TODO: use a big lock now to prevent deadlock. shold move to lockfree in the future
 #[derive(Debug)]
 struct SlabPool {
-    pool: [Mutex<LinkedList>; MEMPOOL_ARRAY_SZ],
+    pool: Mutex<[LinkedList; MEMPOOL_ARRAY_SZ]>,
     size: AtomicUsize,
 }
 
 impl SlabPool {
     pub const fn new() -> Self {
         Self {
-            pool: [Mutex::new(LinkedList::new()); MEMPOOL_ARRAY_SZ],
+            pool: Mutex::new([LinkedList::new(); MEMPOOL_ARRAY_SZ]),
             size: AtomicUsize::new(0),
         }
     }
@@ -38,8 +39,8 @@ impl SlabPool {
 
             if cur_bitsz >= MEMPOOL_MIN_BITSZ {
                 unsafe {
-                    self.pool[cur_bitsz - MEMPOOL_MIN_BITSZ]
-                        .lock()
+                    self.pool
+                        .lock()[cur_bitsz - MEMPOOL_MIN_BITSZ]
                         .push(cur_ptr as *mut usize);
                 }
                 self.size.fetch_add(1 << cur_bitsz, Ordering::Relaxed);
@@ -54,8 +55,8 @@ impl SlabPool {
 
         (bit_sz..=MEMPOOL_MAX_BITSZ)
             .find_map(|sz|
-                self.pool[sz - MEMPOOL_MIN_BITSZ]
-                    .lock()
+                self.pool
+                    .lock()[sz - MEMPOOL_MIN_BITSZ]
                     .pop()
                     .map(|ptr| (sz, ptr as *mut u8))
             )
@@ -65,8 +66,8 @@ impl SlabPool {
                     let back_sz = 1 << sz;
                     let back_ptr = ptr.offset(back_sz);
 //                    crate::println!("inserting back {:p} size {}", back_ptr, back_sz);
-                    self.pool[sz - MEMPOOL_MIN_BITSZ]
-                        .lock()
+                    self.pool
+                        .lock()[sz - MEMPOOL_MIN_BITSZ]
                         .push(back_ptr as *mut usize)
                 }
                 self.size.fetch_sub(1 << bit_sz, Ordering::Relaxed);
@@ -84,8 +85,8 @@ impl SlabPool {
 
         while bit_sz < MEMPOOL_MAX_BITSZ {
             let buddy = (cur_ptr ^ (1 << bit_sz)) as *mut usize;
-            let tmp_ptr = self.pool[bit_sz - MEMPOOL_MIN_BITSZ]
-                              .lock()
+            let tmp_ptr = self.pool
+                              .lock()[bit_sz - MEMPOOL_MIN_BITSZ]
                               .iter_mut()
                               .find(|node| node.value() == buddy)
                               .map(|node| node.pop() as usize);
@@ -100,8 +101,8 @@ impl SlabPool {
         }
 
         unsafe {
-            self.pool[bit_sz - MEMPOOL_MIN_BITSZ]
-                .lock()
+            self.pool
+                .lock()[bit_sz - MEMPOOL_MIN_BITSZ]
                 .push(cur_ptr as *mut usize);
         }
     }

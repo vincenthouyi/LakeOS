@@ -33,11 +33,11 @@ SECTIONS
     
     .bss (NOLOAD) : AT(ADDR(.bss) - KERNEL_OFFSET) {
         . = ALIGN(32);
-        __bss_start = .;
+        __bss_start = ADDR(.bss) - KERNEL_OFFSET;
         *(.bss .bss.*)
         *(COMMON)
         . = ALIGN(8);
-        __bss_end = .;
+        __bss_end = . - KERNEL_OFFSET;
     }
 
     /* end of the binary */

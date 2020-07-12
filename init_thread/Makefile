@@ -10,13 +10,17 @@ RPI3B_DIR := ../rpi3b
 
 .PHONY: $(BUILD)/rpi3b.elf
 
-all: $(BUILD)/rpi3b.elf | $(BUILD) 
+all: $(BUILD)/rpi3b.elf $(BUILD)
 	$(CARGO) xbuild --target=$(TARGET_FILE) --release
 	$(CROSS)-ld $(LD_FLAGS) $(RUST_LIB) -o $(BUILD)/init_thread.elf
 
-$(BUILD)/rpi3b.elf:
+$(BUILD)/rpi3b.elf: $(BUILD)
 	make -C $(RPI3B_DIR)
-	cp $(RPI3B_DIR)/build/rpi3b.elf $(BUILD)
+	cp $(RPI3B_DIR)/build/rpi3b.elf $(BUILD)/rpi3b.elf
 
 $(BUILD):
 	mkdir -p $(BUILD)
+
+clean:
+	rm -rf build target
+	make clean -C ../rpi3b

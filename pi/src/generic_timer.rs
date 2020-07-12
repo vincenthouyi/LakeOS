@@ -105,17 +105,17 @@ impl Timer {
         set_cntp_tval_el0(((cntfrq as f64) * (us as f64) / 1000000.0) as u64);
     }
 
-    pub fn initialize(&mut self) {
+    pub fn initialize(&mut self, cpu: usize) {
 //        let timer = Timer {
 //            registers: unsafe { &mut *(GEN_TIMER_REG_BASE as *mut Registers) },
 //        };
-        self.registers.CORE_TIMER_IRQCNTL[0].write(1 << (CoreInterrupt::CNTPNSIRQ as u8));
+        self.registers.CORE_TIMER_IRQCNTL[cpu].write(1 << (CoreInterrupt::CNTPNSIRQ as u8));
         set_cntp_ctl_el0(0x1); // enable timer interrupt and do not mask it
         set_cntk_ctl_el1(0x3); // allow EL0 to read timer counter
     }
 
-    pub fn is_pending(&self) -> bool {
-        self.registers.CORE_IRQ_SRC[0].read() & (1 << (CoreInterrupt::CNTPNSIRQ as u8)) != 0
+    pub fn is_pending(&self, cpu: usize) -> bool {
+        self.registers.CORE_IRQ_SRC[cpu].read() & (1 << (CoreInterrupt::CNTPNSIRQ as u8)) != 0
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::object::ObjType;
+use crate::object::{ObjType};
 use crate::error::SysResult;
 use crate::syscall::{MsgInfo, SyscallOp, syscall};
 
@@ -6,6 +6,7 @@ use super::{Capability, KernelObject};
 
 #[derive(Debug)]
 pub struct TcbObj {}
+pub type TcbCap = Capability<TcbObj>;
 
 pub const TCB_OBJ_SZ: usize = 512;
 pub const TCB_OBJ_BIT_SZ: usize = 9;
