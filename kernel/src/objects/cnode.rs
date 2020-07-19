@@ -69,14 +69,7 @@ impl<'a> CNodeCap<'a> {
             return None;
         }
 
-        Some(CapRaw::new(
-            paddr,
-            radix_sz & MASK!(6) | guard_sz << 6,
-            guard,
-            None,
-            None,
-            ObjType::CNode,
-        ))
+        Some(Self::mint(paddr, radix_sz, guard_sz, guard))
     }
 
     pub fn as_object(&self) -> &[CNodeEntry] {
