@@ -18,6 +18,7 @@ extern crate rustyl4api;
 mod rt;
 pub mod space_manager;
 mod vm_allocator;
+pub mod thread;
 pub mod process;
 mod panic;
 

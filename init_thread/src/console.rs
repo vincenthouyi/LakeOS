@@ -139,7 +139,7 @@ pub fn init_console_server() {
 
     CONSOLE.lock().initialize(uart);
 
-    crate::spawn_thread(console_main);
+    naive::thread::spawn(console_main);
 }
 
 pub fn console_read_byte() -> u8 {
