@@ -29,7 +29,7 @@ mod interrupt;
 
 pub use scheduler::SCHEDULER;
 
-pub const TICK: u32 = 2 * 100;
+pub const TICK: u32 = 1000;
 pub const TIME_SLICE: isize = 1000;
 pub const NCPU: usize = 4;
 
