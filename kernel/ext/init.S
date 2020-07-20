@@ -18,6 +18,13 @@
     .align 7; \
     b       #handler
 
+#define cur_el_vector(handler) \
+    .align 7; \
+    mrs     x2, tpidr_el1; \
+    bic     x2, x2, #0xfff; \
+    mov     sp, x2; \
+    b       #handler; \
+
 #define kernel_enter \
     stp     x0,  x1,  [sp, #16 * 0]; \
     stp     x2,  x3,  [sp, #16 * 1]; \
@@ -140,10 +147,8 @@ trap_vectors:
     vector(unknown_exception_handler)
     vector(unknown_exception_handler)
 
-    .align 7
-    b       sync_handler
-    .align 7
-    b       irq_trap
+    cur_el_vector(sync_handler)
+    cur_el_vector(irq_trap)
     vector(unknown_exception_handler)
     vector(unknown_exception_handler)
 
