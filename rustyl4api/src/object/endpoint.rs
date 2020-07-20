@@ -4,8 +4,9 @@ use crate::syscall::{MsgInfo, SyscallOp, syscall};
 
 use super::{Capability, KernelObject};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EndpointObj {}
+pub type EpCap = Capability<EndpointObj>;
 
 impl KernelObject for EndpointObj {
     fn obj_type() -> ObjType { ObjType::Endpoint }

@@ -127,7 +127,7 @@ impl<'a> EndpointCap<'a> {
             EpState::Receiving => {
                 let receiver = self.queue.dequeue().unwrap();
                 let msglen = info.get_length();
-                for i in 1..msglen {
+                for i in 1..=msglen {
                     let data = tcb.get_mr(i);
                     receiver.set_mr(i, data);
                 }

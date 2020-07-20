@@ -69,12 +69,15 @@ impl<'a> CapRef<'a, UntypedObj> {
         let obj_size = 1 << bit_size; //TODO: determine size by type;
         let tot_size = count * obj_size;
         let free_offset = ALIGNUP!(self.free_offset(), bit_size);
-
         for (i, slot) in slots.iter().enumerate() {
             let addr = self.paddr() + free_offset + i * obj_size;
             let cap = match obj_type {
                 ObjType::Untyped => { CapRef::<UntypedObj>::mint(addr, obj_size, self.is_device()) },
-                ObjType::CNode   => { CapRef::<CNodeObj>::mint(addr, obj_size, 64 - obj_size,0) },
+                ObjType::CNode   => {
+                    let radix_sz = bit_size - super::CNODE_ENTRY_BIT_SZ;
+
+                    CapRef::<CNodeObj>::mint(addr, radix_sz, 64 - radix_sz, 0)
+                },
                 ObjType::Tcb     => { CapRef::<TcbObj>::mint(addr) },
                 ObjType::Ram     => { CapRef::<RamObj>::mint(addr, true, true, 12, self.is_device()) },
                 ObjType::VTable  => { CapRef::<VTableObj>::mint(addr) },

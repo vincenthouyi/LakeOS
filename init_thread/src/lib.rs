@@ -12,8 +12,7 @@ mod gpio;
 mod shell;
 mod timer;
 
-use rustyl4api::init::InitCSpaceSlot::{InitL1PageTable, InitCSpace};
-use rustyl4api::object::{Capability, TcbObj, EndpointObj, RamObj};
+use rustyl4api::object::{Capability, EndpointObj};
 
 use naive::space_manager::gsm;
 
@@ -21,7 +20,7 @@ mod prelude {
     pub use crate::console::{print, println};
 }
 
-static RPI3B_ELF: &'static [u8] = include_bytes!("../build/rpi3b.elf");
+static RPI3B_ELF: &'static [u8] = include_bytes!("../build/shell.elf");
 
 use prelude::*;
 
@@ -101,10 +100,25 @@ pub fn main() {
 
 //    spawn_test();
 
-    naive::process::spawn_process_from_elf(&RPI3B_ELF);
+    // naive::process::spawn_process_from_elf(&RPI3B_ELF);
+
+    let ep = gsm!().alloc_object::<EndpointObj>(12).unwrap();
+    naive::process::ProcessBuilder::new(&RPI3B_ELF)
+        .stdin(ep.clone())
+        .stdout(ep.clone())
+        .stderr(ep.clone())
+        .spawn()
+        .expect("spawn process failed");
 
     loop {
-        shell::shell("test shell >");
-        println!("Test shell exit, restarting...");
+        let mut buf = [0usize; 5];
+        let testbuf = unsafe {
+            core::slice::from_raw_parts(buf.as_ptr(), buf.len())
+        };
+        let recvbuf = ep.receive(&mut buf).unwrap();
+        let c = core::char::from_u32(recvbuf[0] as u32).unwrap();
+        print!("{}", c)
+        // shell::shell("test shell >");
+        // println!("Test shell exit, restarting...");
     }
 }

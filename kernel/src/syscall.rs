@@ -62,6 +62,26 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
             Ok(())
         },
+        SyscallOp::CapCopy => {
+            let cspace = tcb.cspace()?;
+
+            let dst_croot_cptr = tcb.get_mr(0);
+            let dst_croot_slot = cspace.lookup_slot(dst_croot_cptr)?;
+            let dst_croot_cap = CNodeCap::try_from(dst_croot_slot)?;
+
+            let dst_offset = tcb.get_mr(1);
+            let dst_slot = dst_croot_cap.lookup_slot(dst_offset)?;
+            let dst_cap = NullCap::try_from(dst_slot)?;
+
+            let cap_idx = tcb.get_mr(2);
+            let cap_slot = cspace.lookup_slot(cap_idx)?;
+            let cap_raw = cap_slot.get();
+
+            dst_cap.insert_raw(cap_raw);
+
+            tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
+            Ok(())
+        }
         SyscallOp::Retype => {
             if msginfo.get_length() < 4 {
                 return Err(SysError::InvalidValue);
@@ -164,9 +184,8 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             let cspace = tcb.cspace()?;
             let cap_slot = cspace.lookup_slot(cap_idx)?;
 
-            EndpointCap::try_from(cap_slot)
-                .map_err(|_| SysError::UnsupportedSyscallOp)
-                .and_then(|cap| cap.handle_recv(msginfo, tcb));
+            let cap = EndpointCap::try_from(cap_slot)?;
+            cap.handle_recv(msginfo, tcb)?;
 
             Ok(())
         }
@@ -315,7 +334,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
 pub fn handle_syscall(tcb: &mut TcbObj) -> ! {
 
     if let Err(e) = _handle_syscall(tcb) {
-        kprintln!("Syscall Error {:?} TCB {:?}", e, tcb);
+        kprintln!("Syscall Error {:?} info: {:?} TCB {:?}", e, tcb.get_msginfo().unwrap().get_label(), tcb);
         tcb.set_respinfo(RespInfo::new(e, 0));
     }
 

@@ -6,21 +6,21 @@ RUST_LIB := target/$(TARGET)/release/libinit_thread.a
 BUILD := build
 LD_FLAGS := --gc-sections -static -nostdlib -nostartfiles --no-dynamic-linker
 
-RPI3B_DIR := ../rpi3b
+SHELL_DIR := ../shell
 
-.PHONY: $(BUILD)/rpi3b.elf
+.PHONY: $(BUILD)/shell.elf
 
-all: $(BUILD)/rpi3b.elf $(BUILD)
+all: $(BUILD)/shell.elf $(BUILD)
 	$(CARGO) xbuild --target=$(TARGET_FILE) --release
 	$(CROSS)-ld $(LD_FLAGS) $(RUST_LIB) -o $(BUILD)/init_thread.elf
 
-$(BUILD)/rpi3b.elf: $(BUILD)
-	make -C $(RPI3B_DIR)
-	cp $(RPI3B_DIR)/build/rpi3b.elf $(BUILD)/rpi3b.elf
+$(BUILD)/shell.elf: $(BUILD)
+	make -C $(SHELL_DIR)
+	cp $(SHELL_DIR)/build/shell.elf $(BUILD)/shell.elf
 
 $(BUILD):
 	mkdir -p $(BUILD)
 
 clean:
 	rm -rf build target
-	make clean -C ../rpi3b
+	make clean -C ../shell

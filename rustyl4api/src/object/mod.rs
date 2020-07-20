@@ -13,7 +13,7 @@ pub mod identify;
 pub use cnode::{CNodeObj, CNodeCap, CNODE_DEPTH};
 pub use tcb::{TcbObj, TcbCap, TCB_OBJ_SZ, TCB_OBJ_BIT_SZ};
 pub use ram::{RamObj, RamCap};
-pub use endpoint::EndpointObj;
+pub use endpoint::{EndpointObj, EpCap};
 pub use untyped::UntypedObj;
 pub use monitor::MonitorObj;
 pub use interrupt::InterruptObj;

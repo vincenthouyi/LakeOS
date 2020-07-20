@@ -2,8 +2,11 @@
 
 extern crate std;
 
+use std::prelude::*;
+
 #[no_mangle]
 fn main() {
+    println!("here");
     loop {}
 }
 

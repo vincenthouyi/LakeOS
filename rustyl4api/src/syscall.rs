@@ -8,6 +8,7 @@ pub enum SyscallOp {
     DebugPrint,
     CapIdentify,
     Derive,
+    CapCopy,
     Retype,
     TcbConfigure,
     TcbResume,

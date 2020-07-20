@@ -44,18 +44,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "rpi3b"
-version = "0.1.0"
-dependencies = [
- "std",
-]
-
-[[package]]
 name = "rustyl4api"
 version = "0.1.0"
 dependencies = [
  "num-derive",
  "num-traits",
+]
+
+[[package]]
+name = "shell"
+version = "0.1.0"
+dependencies = [
+ "rustyl4api",
+ "std",
 ]
 
 [[package]]

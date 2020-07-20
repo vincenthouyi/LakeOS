@@ -51,8 +51,8 @@ impl<'a> CNodeCap<'a> {
 //        assert!(paddr % (1 << (radix_sz + 5)) == 0);
         CapRaw::new(
             paddr,
-            (radix_sz & MASK!(Self::GUARD_SZ_BITS)) << Self::GUARD_SZ_OFFSET
-            | (guard_sz & MASK!(Self::RADIX_SZ_BITS)) << Self::RADIX_SZ_OFFSET,
+            (guard_sz & MASK!(Self::GUARD_SZ_BITS)) << Self::GUARD_SZ_OFFSET
+            | (radix_sz & MASK!(Self::RADIX_SZ_BITS)) << Self::RADIX_SZ_OFFSET,
             guard,
             None,
             None,
@@ -139,7 +139,9 @@ impl<'a> CNodeCap<'a> {
     }
 
     pub fn lookup_slot(&self, idx: usize) -> Result<&CNodeEntry, CNodeLookupErr> {
-        self.resolve_address(idx, CNODE_DEPTH)
+        Ok(unsafe { &*(&self.as_object()[idx] as *const CNodeEntry) })
+
+        // self.resolve_address(idx, CNODE_DEPTH)
     }
 
     pub fn derive(&self, dst: &NullCap) -> SysResult<()> {
@@ -150,7 +152,10 @@ impl<'a> CNodeCap<'a> {
     pub fn debug_formatter(f: &mut core::fmt::DebugStruct, cap: &CapRaw) {
         let c = Cell::new(*cap);
         let c = CNodeCap::try_from(&c).unwrap();
-        f.field("vaddr", &c.vaddr());
+        f.field("vaddr", &c.vaddr())
+         .field("radix", &c.radix_bits())
+         .field("guard bits", &c.guard_bits())
+         .field("guard", &c.guard());
     }
 
     pub fn identify(&self, tcb: &TcbObj) -> usize {

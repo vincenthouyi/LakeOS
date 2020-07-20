@@ -22,6 +22,10 @@ impl<'a> CapRef<'a, NullObj> {
         }
     }
 
+    pub fn insert_raw(self, raw: CapRaw) {
+        self.raw.set(raw);
+    }
+
     pub fn debug_formatter(_f: &mut core::fmt::DebugStruct, _cap: &CapRaw) {
         return;
     }
