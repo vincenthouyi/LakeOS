@@ -116,7 +116,9 @@ impl SpaceManager {
             return Err(());
         }
 
-        let frame = self.alloc_object::<RamObj>(size).ok_or(())?;
+        let bit_sz = size.trailing_zeros() as usize;
+
+        let frame = self.alloc_object::<RamObj>(bit_sz).ok_or(())?;
         let vaddr = self.insert_ram_at(frame, vaddr, perm);
 
         Ok(vaddr)

@@ -334,7 +334,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
 pub fn handle_syscall(tcb: &mut TcbObj) -> ! {
 
     if let Err(e) = _handle_syscall(tcb) {
-        kprintln!("Syscall Error {:?} info: {:?} TCB {:?}", e, tcb.get_msginfo().unwrap().get_label(), tcb);
+        // kprintln!("Syscall Error {:?} info: {:?} TCB {:?}", e, tcb.get_msginfo().unwrap().get_label(), tcb);
         tcb.set_respinfo(RespInfo::new(e, 0));
     }
 

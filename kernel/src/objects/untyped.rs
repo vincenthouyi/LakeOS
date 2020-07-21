@@ -65,10 +65,19 @@ impl<'a> CapRef<'a, UntypedObj> {
             return Err(SysError::SlotIsNotEmpty)
         }
 
+        if bit_size > 64 {
+            return Err(SysError::InvalidValue)
+        }
+
         let count = slots.len();
         let obj_size = 1 << bit_size; //TODO: determine size by type;
         let tot_size = count * obj_size;
         let free_offset = ALIGNUP!(self.free_offset(), bit_size);
+
+        if self.size() < tot_size + free_offset {
+            return Err(SysError::InvalidValue);
+        }
+
         for (i, slot) in slots.iter().enumerate() {
             let addr = self.paddr() + free_offset + i * obj_size;
             let cap = match obj_type {
@@ -116,6 +125,7 @@ impl<'a> CapRef<'a, UntypedObj> {
         let c = Cell::new(*cap);
         let c = UntypedCap::try_from(&c).unwrap();
         f.field("vaddr", &c.vaddr())
-         .field("bit size", &c.size());
+         .field("size", &c.size())
+         .field("free offset", &c.free_offset());
     }
 }

@@ -1,5 +1,5 @@
 use rustyl4api::kprintln;
-use rustyl4api::object::{VTableObj, RamObj, CNodeObj, TcbObj, EpCap, TcbCap};
+use rustyl4api::object::{VTableObj, RamObj, CNodeObj, TcbObj, EpCap, TcbCap, UntypedObj};
 use rustyl4api::vspace::Permission;
 use spaceman::vspace_man::{VSpaceMan, VSpaceManError};
 
@@ -170,6 +170,8 @@ impl<'a> ProcessBuilder<'a> {
         child_root_cn.cap_copy(ProcessCSpace::Stdin as usize, self.stdin.as_ref().unwrap().slot).map_err(|_| ())?;
         child_root_cn.cap_copy(ProcessCSpace::Stdout as usize, self.stdout.as_ref().unwrap().slot).map_err(|_| ())?;
         child_root_cn.cap_copy(ProcessCSpace::Stderr as usize, self.stderr.as_ref().unwrap().slot).map_err(|_| ())?;
+        let init_untyped = gsm!().alloc_object::<UntypedObj>(16).ok_or(())?;
+        child_root_cn.cap_copy(ProcessCSpace::InitUntyped as usize, init_untyped.slot).map_err(|_| ())?;
 
         child_tcb.resume()
             .expect("Error Resuming TCB");

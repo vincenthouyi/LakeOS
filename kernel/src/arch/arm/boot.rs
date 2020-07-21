@@ -112,12 +112,12 @@ fn initialize_init_cspace(cnode: &CNodeObj, cur_free_slot: &mut usize) {
             let mem_end = (mem.start + mem.size) as usize;
 
             if mem_start < kernel_base {
-                let untyped_end = mem_end.min(kernel_top);
+                let untyped_end = mem_end.min(kernel_base);
                 init_cspace_populate_untyped(mem_start, untyped_end, cnode, cur_free_slot, false);
             }
 
             if mem_end > kernel_top {
-                let untyped_start = mem_start.max(kernel_base);
+                let untyped_start = mem_start.max(kernel_top);
                 init_cspace_populate_untyped(untyped_start, mem_end, cnode, cur_free_slot, false);
             }
         }
@@ -136,21 +136,26 @@ fn initialize_init_cspace(cnode: &CNodeObj, cur_free_slot: &mut usize) {
     cnode[IrqController as usize].set(InterruptCap::mint());
 
     /* Insert Init Thread TCB */
-    alloc_obj::<TcbObj>(&cnode[UntypedStart as usize], crate::objects::TCB_OBJ_BIT_SZ, &cnode[InitTCB as usize])
+    alloc_obj::<TcbObj>(&cnode, crate::objects::TCB_OBJ_BIT_SZ, &cnode[InitTCB as usize])
         .expect("Allocating Init Thread TCB failed");
 
     /* allocate PGD for init thread*/
-    alloc_obj::<VTableObj>(&cnode[UntypedStart as usize], 12, &cnode[InitL1PageTable as usize])
+    alloc_obj::<VTableObj>(&cnode, 12, &cnode[InitL1PageTable as usize])
         .expect("Allocating PGD for Init Thread failed");
 }
 
-fn alloc_obj<'a, T>(untyped: &'a CNodeEntry, bit_sz: usize, slot: &'a CNodeEntry)
+fn alloc_obj<'a, T>(cspace: &'a [CNodeEntry], bit_sz: usize, slot: &'a CNodeEntry)
     -> SysResult<CapRef<'a, T>> where T: KernelObject + ?Sized
 {
-    let untyped_cap = UntypedCap::try_from(untyped)?;
-    let slots = core::slice::from_ref(slot);
-    untyped_cap.retype(T::obj_type(), bit_sz, slots)?;
-    CapRef::<T>::try_from(slot)
+    for i in UntypedStart as usize .. {
+        let untyped_cap = UntypedCap::try_from(&cspace[i])?;
+        let slots = core::slice::from_ref(slot);
+        if let Ok(_) = untyped_cap.retype(T::obj_type(), bit_sz, slots) {
+            return CapRef::<T>::try_from(slot)
+        }
+    }
+
+    Err(SysError::InvalidValue)
 }
 
 fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut usize) -> usize {
@@ -159,7 +164,7 @@ fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut u
 
     vspace.lookup_pgd_slot(vaddr).map(|slot| {
         if slot.is_invalid() {
-            alloc_obj::<VTableObj>(&cspace[UntypedStart as usize], 12, &cspace[*cur_free_slot])
+            alloc_obj::<VTableObj>(cspace.as_object(), 12, &cspace[*cur_free_slot])
                 .expect("Allocating PUD failed")
                 .map_vtable(&vspace, vaddr, 2)
                 .expect("Installing PUD failed");
@@ -169,7 +174,7 @@ fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut u
 
     vspace.lookup_pud_slot(vaddr).map(|slot| {
         if slot.is_invalid() {
-            alloc_obj::<VTableObj>(&cspace[UntypedStart as usize], 12, &cspace[*cur_free_slot])
+            alloc_obj::<VTableObj>(cspace.as_object(), 12, &cspace[*cur_free_slot])
                 .expect("Allocating PD failed")
                 .map_vtable(&vspace, vaddr, 3)
                 .expect("Installing PD failed");
@@ -179,7 +184,7 @@ fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut u
 
     vspace.lookup_pd_slot(vaddr).map(|slot| {
         if slot.is_invalid() {
-            alloc_obj::<VTableObj>(&cspace[UntypedStart as usize], 12, &cspace[*cur_free_slot])
+            alloc_obj::<VTableObj>(cspace.as_object(), 12, &cspace[*cur_free_slot])
                 .expect("Allocating PT failed")
                 .map_vtable(&vspace, vaddr, 4)
                 .expect("Installing PT failed");
@@ -187,7 +192,7 @@ fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut u
         }
     }).expect("Looking up PT slot failed");
 
-    let frame_cap = alloc_obj::<RamObj>(&cspace[UntypedStart as usize], 12, &cspace[*cur_free_slot])
+    let frame_cap = alloc_obj::<RamObj>(cspace.as_object(), 12, &cspace[*cur_free_slot])
                             .expect("Allocating Frame failed");
     *cur_free_slot += 1;
     frame_cap.map_page(&vspace, vaddr, perm)
