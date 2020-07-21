@@ -1,13 +1,13 @@
 use core::marker::PhantomData;
 
-mod cnode;
-mod tcb;
-mod ram;
-mod vtable;
-mod endpoint;
-mod untyped;
-mod monitor;
-mod interrupt;
+pub mod cnode;
+pub mod tcb;
+pub mod ram;
+pub mod vtable;
+pub mod endpoint;
+pub mod untyped;
+pub mod monitor;
+pub mod interrupt;
 pub mod identify;
 
 pub use cnode::{CNodeObj, CNodeCap, CNODE_DEPTH};

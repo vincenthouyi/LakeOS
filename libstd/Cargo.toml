@@ -10,3 +10,5 @@ edition = "2018"
 
 [dependencies]
 rustyl4api = { path = "../rustyl4api" }
+spin = "0.5.2"
+spaceman = { path = "../libspaceman" }

@@ -45,15 +45,17 @@ impl<'a> ProcessBuilder<'a> {
     }
 
     pub fn spawn(&mut self) -> Result<Child, ()> {
-        use rustyl4api::object::TCB_OBJ_BIT_SZ;
+        use rustyl4api::object::cnode::{CNODE_ENTRY_SZ};
+        use rustyl4api::object::tcb::TCB_OBJ_BIT_SZ;
         use elf_rs::{Elf, ProgramType};
         use rustyl4api::vspace::{FRAME_BIT_SIZE, FRAME_SIZE};
         use crate::space_manager::gsm;
-        use rustyl4api::process::ProcessCSpace;
+        use rustyl4api::process::{ProcessCSpace, PROCESS_ROOT_CNODE_SIZE};
 
         let elf = Elf::from_bytes(self.elf).map_err(|_| ())?;
 
-        let child_tcb = gsm!().alloc_object::<TcbObj>(TCB_OBJ_BIT_SZ).unwrap();
+        let rootcn_bitsz = (PROCESS_ROOT_CNODE_SIZE * CNODE_ENTRY_SZ).trailing_zeros() as usize;
+        let child_tcb = gsm!().alloc_object::<TcbObj>(rootcn_bitsz).unwrap();
         let child_root_cn = gsm!().alloc_object::<CNodeObj>(16).unwrap();
         let child_root_vn = gsm!().alloc_object::<VTableObj>(12).unwrap();
         let mut vspace = VSpaceMan::new(child_root_vn.clone());

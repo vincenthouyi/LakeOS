@@ -20,7 +20,8 @@ impl UntypedNode {
 
 #[derive(Debug)]
 pub struct UntypedSpaceMan {
-    empty_ut: Vec<Vec<UntypedNode>>,
+    ut_list: Vec<UntypedNode>,
+    // empty_ut: Vec<Vec<UntypedNode>>,
     // partial_ut: Vec<Vec<UntypedNode>>,
     // full_ut: Vec<Vec<UntypedNode>>,
 }
@@ -28,7 +29,8 @@ pub struct UntypedSpaceMan {
 impl UntypedSpaceMan {
     pub fn new() -> Self {
         Self {
-            empty_ut: Vec::new(),
+            ut_list: Vec::new(),
+            // empty_ut: Vec::new(),
             // partial_ut: Vec::new(),
             // full_ut: Vec::new(),
         }
@@ -49,21 +51,29 @@ impl UntypedSpaceMan {
             return;
         }
 
-        let sz_offset = bit_sz - 4;
+        // let sz_offset = bit_sz - 4;
 
-        if self.empty_ut.len() <= sz_offset as usize {
-            self.empty_ut.resize_with(sz_offset as usize + 1, || Vec::new());
-        }
+        // if self.empty_ut.len() <= sz_offset as usize {
+        //     self.empty_ut.resize_with(sz_offset as usize + 1, || Vec::new());
+        // }
 
         let cap = Capability::new(slot);
-        self.empty_ut[sz_offset as usize].push(UntypedNode::new_empty(cap, paddr));
+        self.ut_list.push(UntypedNode::new_empty(cap, paddr));
+        // self.empty_ut[sz_offset as usize].push(UntypedNode::new_empty(cap, paddr));
     }
 
     pub fn alloc_object<T: KernelObject>(&mut self, dest_slot: usize, size: usize) -> Option<Capability<T>> {
-        use rustyl4api::init::InitCSpaceSlot::UntypedStart;
+        for node in self.ut_list.iter() {
+            if let Ok(_) = node.cap.retype(T::obj_type(), size, dest_slot, 1) {
+                return Some(Capability::<T>::new(dest_slot));
+            }
+        }
 
-        let untyped_cap = Capability::<UntypedObj>::new(UntypedStart as usize);
-        untyped_cap.retype(T::obj_type(), size, dest_slot, 1).ok()?;
-        Some(Capability::<T>::new(dest_slot))
+        None
+        // use rustyl4api::init::InitCSpaceSlot::UntypedStart;
+
+        // let untyped_cap = Capability::<UntypedObj>::new(UntypedStart as usize);
+        // untyped_cap.retype(T::obj_type(), size, dest_slot, 1).ok()?;
+        // Some(Capability::<T>::new(dest_slot))
     }
 }
