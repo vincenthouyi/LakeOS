@@ -100,8 +100,6 @@ pub fn main() {
 
 //    spawn_test();
 
-    // naive::process::spawn_process_from_elf(&RPI3B_ELF);
-
     let ep = gsm!().alloc_object::<EndpointObj>(12).unwrap();
     naive::process::ProcessBuilder::new(&RPI3B_ELF)
         .stdin(ep.clone())

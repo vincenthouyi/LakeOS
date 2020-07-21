@@ -12,3 +12,5 @@ edition = "2018"
 rustyl4api = { path = "../rustyl4api" }
 spin = "0.5.2"
 spaceman = { path = "../libspaceman" }
+hashbrown = "0.8"
+cfg-if = { version = "0.1.8" }

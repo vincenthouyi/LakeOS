@@ -2,7 +2,7 @@ use core::fmt::{Write, Arguments, Result};
 
 use crate::syscall::{syscall, MsgInfo, SyscallOp};
 
-struct DebugPrinter {}
+pub struct DebugPrinter {}
 
 impl Write for DebugPrinter {
     fn write_str(&mut self, s: &str) -> Result {
@@ -15,6 +15,10 @@ impl Write for DebugPrinter {
         }
         Ok(())
     }
+}
+
+pub fn debug_printer() -> DebugPrinter {
+    DebugPrinter { }
 }
 
 pub fn _print(args: Arguments) {

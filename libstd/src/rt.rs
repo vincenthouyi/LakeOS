@@ -1,93 +1,95 @@
-use rustyl4api::kprintln;
-use crate::space_manager::{gsm, gsm_init};
+//! Runtime services
+//!
+//! The `rt` module provides a narrow set of runtime services,
+//! including the global heap (exported in `heap`) and unwinding and
+//! backtrace support. The APIs in this module are highly unstable,
+//! and should be considered as private implementation details for the
+//! time being.
 
-extern "Rust" {
-    fn main();
+#![unstable(
+    feature = "rt",
+    reason = "this public module should not exist and is highly likely \
+              to disappear",
+    issue = "none"
+)]
+#![doc(hidden)]
+
+// Re-export some of our utilities which are expected by other crates.
+// pub use crate::panicking::{begin_panic, begin_panic_fmt, panic_count};
+
+// To reduce the generated code of the new `lang_start`, this function is doing
+// the real work.
+#[cfg(not(test))]
+fn lang_start_internal(
+    // main: &(dyn Fn() -> i32 + Sync + crate::panic::RefUnwindSafe),
+    main: &(dyn Fn() -> i32 + Sync),
+    argc: isize,
+    argv: *const *const u8,
+) -> isize {
+    // use crate::panic;
+    use crate::sys;
+    // use crate::sys_common;
+    // use crate::sys_common::thread_info;
+    // use crate::thread::Thread;
+
+    sys::init();
+
+    main() as isize
+
+    // unsafe {
+    //     let main_guard = sys::thread::guard::init();
+    //     sys::stack_overflow::init();
+
+    //     // Next, set up the current Thread with the guard information we just
+    //     // created. Note that this isn't necessary in general for new threads,
+    //     // but we just do this to name the main thread and to give it correct
+    //     // info about the stack bounds.
+    //     let thread = Thread::new(Some("main".to_owned()));
+    //     thread_info::set(main_guard, thread);
+
+    //     // Store our args if necessary in a squirreled away location
+    //     sys::args::init(argc, argv);
+
+    //     // Let's run some code!
+    //     let exit_code = panic::catch_unwind(|| {
+    //         sys_common::backtrace::__rust_begin_short_backtrace(move || main())
+    //     });
+
+    //     sys_common::cleanup();
+    //     exit_code.unwrap_or(101) as isize
+    // }
 }
 
-const MEMPOOL_SIZE: usize = 4096;
-
-#[repr(align(4096))]
-struct InitMemPool([u8; MEMPOOL_SIZE]);
-static mut INIT_ALLOC_MEMPOOL: InitMemPool = InitMemPool([0u8; MEMPOOL_SIZE]);
-static mut INIT_ALLOC_BACKUP_MEMPOOL: InitMemPool = InitMemPool([0u8; MEMPOOL_SIZE]);
-
-fn populate_init_cspace() {
-    use rustyl4api::process::{ProcessCSpace, PROCESS_ROOT_CNODE_SIZE};
-    use rustyl4api::object::Capability;
-    use rustyl4api::object::identify::{cap_identify, IdentifyResult};
-
-    let root_cnode = Capability::new(ProcessCSpace::RootCNodeCap as usize);
-    let root_vnode = Capability::new(ProcessCSpace::RootVNodeCap as usize);
-
-    gsm_init(root_cnode, PROCESS_ROOT_CNODE_SIZE, root_vnode);
-
-    gsm!().cspace_alloc_at(0);
-
-    let mut cap_max = 1;
-    for i in 1 .. PROCESS_ROOT_CNODE_SIZE {
-        let res = cap_identify(i).unwrap();
-        if let IdentifyResult::NullObj = res {
-            cap_max = i;
-            break;
-        }
-//        debug_println!("ret cap[{}]: {:x?}", i, res);
-        gsm!().cspace_alloc_at(i);
-    }
-
-    let untyped_idx = ProcessCSpace::InitUntyped as usize;
-    let res = cap_identify(untyped_idx).unwrap();
-
-    gsm!().insert_identify(untyped_idx, res);
+#[cfg(not(test))]
+#[lang = "start"]
+fn lang_start<T: crate::process::Termination + 'static>(
+    main: fn() -> T,
+    argc: isize,
+    argv: *const *const u8,
+) -> isize {
+    lang_start_internal(&move || main().report(), argc, argv)
 }
 
-fn initialize_vmspace() {
-    use rustyl4api::vspace::{FRAME_SIZE};
-
-    let brk = unsafe{ crate::_end.as_ptr() as usize };
-    let brk = crate::utils::align_up(brk, FRAME_SIZE);
-
-    gsm!().insert_vm_range(0, brk);
-}
-
-fn app_cpu_entry() {
-    kprintln!("CPU {} in user space!", rustyl4api::thread::thread_id());
-
-    loop {}
-}
 #[no_mangle]
-pub fn _start() -> ! {
-
-    unsafe {
-        crate::vm_allocator::GLOBAL_VM_ALLOC
-            .add_mempool(INIT_ALLOC_MEMPOOL.0.as_ptr() as *mut u8,
-                         INIT_ALLOC_MEMPOOL.0.len());
-        crate::vm_allocator::GLOBAL_VM_ALLOC
-            .add_backup_mempool(INIT_ALLOC_BACKUP_MEMPOOL.0.as_ptr() as *mut u8,
-                         INIT_ALLOC_BACKUP_MEMPOOL.0.len());
-    }
-
-    populate_init_cspace();
-
-    unsafe { main(); }
+fn _start2(
+    main: fn() -> (),
+    argc: isize,
+    argv: *const *const u8,
+) -> ! {
+    lang_start(main, argc, argv);
     loop {}
-//    unreachable!("Init Returns!");
 }
 
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-//    debug_println!("Panic! {:?}", _info);
-    loop {
+#[no_mangle]
+fn _start() -> ! {
+    unsafe{
+        llvm_asm!("
+            ldr x0, =main
+            ldr x1, #0
+            ldr x2, #0
+            b _start2
+        ":::"x0", "x1", "x2"
+        );
     }
+    loop {}
 }
-
-// pub trait Termination {
-//     /// Is called to get the representation of the value as status code.
-//     /// This status code is returned to the operating system.
-//     fn report(self) -> i32;
-// }
-
-// #[lang = "start"]
-// fn start<T: Termination + 'static>(main: fn() -> T, _: isize, _: *const *const u8) -> isize {
-//     main().report() as isize
-// }

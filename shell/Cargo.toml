@@ -11,3 +11,6 @@ crate-type = ["staticlib"]
 [dependencies]
 rustyl4api = { path = "../rustyl4api" }
 std = { path = "../libstd" }
+
+[profile.release]
+#debug = true
