@@ -1,5 +1,5 @@
-use alloc::vec::Vec;
-use crate::prelude::*;
+use std::vec::Vec;
+// use crate::prelude::*;
 //use std::path::PathBuf;
 //use super::FILE_SYSTEM;
 //use fat32::traits::{FileSystem, Dir, Entry};
@@ -192,37 +192,37 @@ const BEL: u8 = 0x07;
 const LF: u8 = 0x0A;
 const CR: u8 = 0x0D;
 const DEL: u8 = 0x7F;
-fn read_line(buf: &mut [u8]) -> &str {
-    use crate::console::console_read_byte;
+use std::string::String;
+fn read_line() -> String {
+    use std::io::Read;
     let mut read = 0;
 
-    loop {
-        let b = console_read_byte();
-        match b {
-            BS | DEL if read > 0 => {
-                print!("{}", BS as char);
-                print!(" ");
-                print!("{}", BS as char);
-                read -= 1;
-            }
-            LF | CR => {
-                println!("");
-                break;
-            }
-            _ if read == buf.len() => {
-                print!("{}", BEL as char);
-            }
-            byte @ b' ' ..= b'~' => {
-                print!("{}", byte as char);
-                buf[read] = byte;
-                read += 1;
-            }
-            _ => {
-                print!("{}", BEL as char);
+    let mut cmd = std::vec::Vec::new();
+    'outer: loop {
+        for b in std::io::stdin().bytes() {
+            match b.unwrap() {
+                BS | DEL if read > 0 => {
+                    print!("{}", BS as char);
+                    print!(" ");
+                    print!("{}", BS as char);
+                    read -= 1;
+                }
+                LF | CR => {
+                    println!("");
+                    break 'outer;
+                }
+                byte @ b' ' ..= b'~' => {
+                    print!("{}", byte as char);
+                    cmd.push(byte);
+                    read += 1;
+                }
+                _ => {
+                    print!("{}", BEL as char);
+                }
             }
         }
     }
-    alloc::str::from_utf8(&buf[..read]).unwrap()
+    String::from_utf8(cmd).unwrap()
 }
 
 const MAXBUF: usize = 512;
@@ -235,7 +235,7 @@ pub fn shell(prefix: &str) {
     loop {
 //        print!("{} {}", pwd.to_str().unwrap(), prefix);
         print!("{} ", prefix);
-        match Command::parse(read_line(&mut [0u8; MAXBUF])) {
+        match Command::parse(&read_line()) {
             //TODO exit
 //            Ok(cmd) => cmd.exec(&mut pwd),
             Ok(cmd) => { println!("command: {:?}", cmd) },

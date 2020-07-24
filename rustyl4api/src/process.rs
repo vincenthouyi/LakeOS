@@ -11,4 +11,5 @@ pub enum ProcessCSpace {
     Stdin,
     Stdout,
     Stderr,
+    ProcessFixedMax,
 }

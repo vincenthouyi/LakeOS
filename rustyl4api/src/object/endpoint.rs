@@ -1,6 +1,7 @@
 use crate::object::ObjType;
 use crate::error::SysResult;
-use crate::syscall::{MsgInfo, SyscallOp, syscall};
+use crate::syscall::{MsgInfo, RespInfo, SyscallOp, syscall};
+use crate::ipc::{IpcMessage, IpcMessageType, IPC_MAX_ARGS};
 
 use super::{Capability, KernelObject};
 
@@ -13,21 +14,97 @@ impl KernelObject for EndpointObj {
 }
 
 impl Capability<EndpointObj> {
-    pub fn send(&self, message: &[usize]) -> SysResult<()> {
-        let info = MsgInfo::new(SyscallOp::EndpointSend, message.len());
-        let mut args = [self.slot, 0, 0, 0, 0, 0];
-        let copied_len = message.len().min(5);
-        args[1..copied_len + 1].copy_from_slice(&message[..copied_len]);
+    pub fn mint(&self, dst_slot: usize, badge: usize) -> SysResult<()> {
+        let mut args = [self.slot, dst_slot, badge, 0, 0, 0];
+        let info = MsgInfo::new(SyscallOp::EndpointMint, 2);
+
         let ret = syscall(info, &mut args);
         return ret.map(|_|());
     }
 
-    pub fn receive<'a, 'b>(&'a self, buf: &'b mut [usize]) -> SysResult<&'b mut [usize]> {
-        let info = MsgInfo::new(SyscallOp::EndpointRecv, 1);
+    pub fn send(&self, message: &[usize], cap: Option<usize>) -> SysResult<()> {
         let mut args = [self.slot, 0, 0, 0, 0, 0];
-        let retbuf = syscall(info, &mut args)?;
-        let copied_buflen = retbuf.len().min(buf.len());
-        buf[..copied_buflen].copy_from_slice(&retbuf[..copied_buflen]);
-        Ok(&mut buf[..copied_buflen])
+        let len = copy_massge_payload(&mut args, message, cap);
+        let info = MsgInfo::new_ipc(SyscallOp::EndpointSend, len, cap.is_some());
+
+        let ret = syscall(info, &mut args);
+        return ret.map(|_|());
     }
+
+    pub fn receive(&self, cap: Option<usize>) -> SysResult<IpcMessage> {
+        let info = MsgInfo::new_ipc(SyscallOp::EndpointRecv, 0, cap.is_some());
+        let mut args = [self.slot, 0, 0, 0, 0, cap.unwrap_or(0)];
+        let (retinfo, retbuf, badge) = syscall(info, &mut args)?;
+
+        handle_receive_return(retinfo, retbuf, badge)
+    }
+
+    pub fn reply_receive<'a, 'b>(&'a self, buf: &'b [usize], cap: Option<usize>)
+        -> SysResult<IpcMessage>
+    {
+        let mut args = [self.slot, 0, 0, 0, 0, 0];
+        let len = copy_massge_payload(&mut args, buf, cap);
+        let info = MsgInfo::new_ipc(SyscallOp::EndpointReplyRecv, len, cap.is_some());
+
+        let (respinfo, retbuf, badge) = syscall(info, &mut args)?;
+
+        handle_receive_return(respinfo, retbuf, badge)
+    }
+
+    pub fn call(&self, message: &[usize], cap: Option<usize>) -> SysResult<IpcMessage> {
+        let mut args = [self.slot, 0, 0, 0, 0, cap.unwrap_or(0)];
+        let len = copy_massge_payload(&mut args, message, cap);
+        let info = MsgInfo::new_ipc(SyscallOp::EndpointCall, len, cap.is_some());
+
+        let (resp_info, retbuf, _) = syscall(info, &mut args)?;
+        let mut real_retbuf = [0; 4];
+        real_retbuf[..retbuf.len()].copy_from_slice(retbuf);
+
+        Ok(IpcMessage::Message {
+            payload: real_retbuf,
+            need_reply: resp_info.need_reply,
+            cap_transfer: resp_info.cap_transfer,
+            badge: None,
+        })
+    }
+}
+
+fn handle_receive_return(respinfo: RespInfo, msgbuf: &[usize], badge: usize)
+    -> SysResult<IpcMessage>
+{
+    Ok(match respinfo.msgtype {
+        IpcMessageType::Message => {
+            let mut real_msgbuf = [0; 4];
+            let badge = if respinfo.badged {
+                Some(badge)
+            } else {
+                None
+            };
+            real_msgbuf[..msgbuf.len()].copy_from_slice(msgbuf);
+            IpcMessage::Message {
+                payload: real_msgbuf,
+                need_reply: respinfo.need_reply,
+                cap_transfer: respinfo.cap_transfer,
+                badge: badge
+            }
+        }
+        IpcMessageType::Fault => {
+            unimplemented!()
+        }
+        IpcMessageType::Notification => {
+            IpcMessage::Notification(msgbuf[0])
+        }
+        IpcMessageType::Invalid => {
+            panic!()
+        }
+    })
+}
+
+pub(crate) fn copy_massge_payload(buf: &mut [usize;6], src: &[usize], cap_slot: Option<usize>) -> usize {
+    let len = src.len().min(IPC_MAX_ARGS);
+
+    buf[1..len + 1].copy_from_slice(&src[..len]);
+    buf[5] = cap_slot.unwrap_or(0);
+
+    len
 }

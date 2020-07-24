@@ -8,8 +8,8 @@ use super::{Capability, KernelObject};
 pub struct TcbObj {}
 pub type TcbCap = Capability<TcbObj>;
 
-pub const TCB_OBJ_SZ: usize = 512;
-pub const TCB_OBJ_BIT_SZ: usize = 9;
+pub const TCB_OBJ_SZ: usize = 1024;
+pub const TCB_OBJ_BIT_SZ: usize = 10;
 
 impl KernelObject for TcbObj {
     fn obj_type() -> ObjType { ObjType::Tcb }

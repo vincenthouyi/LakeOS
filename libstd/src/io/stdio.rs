@@ -10,6 +10,7 @@ use crate::io::{self, BufReader, Initializer, LineWriter};
 use crate::sync::{Arc};
 use crate::sys::stdio;
 use crate::sys_common::remutex::{ReentrantMutex, ReentrantMutexGuard};
+use spin::{Mutex, MutexGuard};
 // use crate::thread::LocalKey;
 
 // thread_local! {
@@ -26,11 +27,11 @@ use crate::sys_common::remutex::{ReentrantMutex, ReentrantMutexGuard};
 //     }
 // }
 
-// /// A handle to a raw instance of the standard input stream of this process.
-// ///
-// /// This handle is not synchronized or buffered in any fashion. Constructed via
-// /// the `std::io::stdio::stdin_raw` function.
-// struct StdinRaw(stdio::Stdin);
+/// A handle to a raw instance of the standard input stream of this process.
+///
+/// This handle is not synchronized or buffered in any fashion. Constructed via
+/// the `std::io::stdio::stdin_raw` function.
+struct StdinRaw(stdio::Stdin);
 
 /// A handle to a raw instance of the standard output stream of this process.
 ///
@@ -44,16 +45,16 @@ struct StdoutRaw(stdio::Stdout);
 /// the `std::io::stdio::stderr_raw` function.
 struct StderrRaw(stdio::Stderr);
 
-// /// Constructs a new raw handle to the standard input of this process.
-// ///
-// /// The returned handle does not interact with any other handles created nor
-// /// handles returned by `std::io::stdin`. Data buffered by the `std::io::stdin`
-// /// handles is **not** available to raw handles returned from this function.
-// ///
-// /// The returned handle has no external synchronization or buffering.
-// fn stdin_raw() -> io::Result<StdinRaw> {
-//     stdio::Stdin::new().map(StdinRaw)
-// }
+/// Constructs a new raw handle to the standard input of this process.
+///
+/// The returned handle does not interact with any other handles created nor
+/// handles returned by `std::io::stdin`. Data buffered by the `std::io::stdin`
+/// handles is **not** available to raw handles returned from this function.
+///
+/// The returned handle has no external synchronization or buffering.
+fn stdin_raw() -> io::Result<StdinRaw> {
+    stdio::Stdin::new().map(StdinRaw)
+}
 
 /// Constructs a new raw handle to the standard output stream of this process.
 ///
@@ -79,37 +80,37 @@ fn stderr_raw() -> io::Result<StderrRaw> {
     stdio::Stderr::new().map(StderrRaw)
 }
 
-// impl Read for StdinRaw {
-//     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-//         self.0.read(buf)
-//     }
+impl Read for StdinRaw {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
 
-//     fn read_vectored(&mut self, bufs: &mut [IoSliceMut<'_>]) -> io::Result<usize> {
-//         self.0.read_vectored(bufs)
-//     }
+    // fn read_vectored(&mut self, bufs: &mut [IoSliceMut<'_>]) -> io::Result<usize> {
+    //     self.0.read_vectored(bufs)
+    // }
 
-//     #[inline]
-//     fn is_read_vectored(&self) -> bool {
-//         self.0.is_read_vectored()
-//     }
+    #[inline]
+    fn is_read_vectored(&self) -> bool {
+        self.0.is_read_vectored()
+    }
 
-//     #[inline]
-//     unsafe fn initializer(&self) -> Initializer {
-//         Initializer::nop()
-//     }
+    #[inline]
+    unsafe fn initializer(&self) -> Initializer {
+        Initializer::nop()
+    }
 
-//     fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
-//         self.0.read_to_end(buf)
-//     }
+    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
+        self.0.read_to_end(buf)
+    }
 
-//     fn read_to_string(&mut self, buf: &mut String) -> io::Result<usize> {
-//         self.0.read_to_string(buf)
-//     }
+    fn read_to_string(&mut self, buf: &mut String) -> io::Result<usize> {
+        self.0.read_to_string(buf)
+    }
 
-//     fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
-//         self.0.read_exact(buf)
-//     }
-// }
+    fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
+        self.0.read_exact(buf)
+    }
+}
 
 impl Write for StdoutRaw {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
@@ -241,294 +242,298 @@ fn handle_ebadf<T>(r: io::Result<T>, default: T) -> io::Result<T> {
     }
 }
 
-// /// A handle to the standard input stream of a process.
-// ///
-// /// Each handle is a shared reference to a global buffer of input data to this
-// /// process. A handle can be `lock`'d to gain full access to [`BufRead`] methods
-// /// (e.g., `.lines()`). Reads to this handle are otherwise locked with respect
-// /// to other reads.
-// ///
-// /// This handle implements the `Read` trait, but beware that concurrent reads
-// /// of `Stdin` must be executed with care.
-// ///
-// /// Created by the [`io::stdin`] method.
-// ///
-// /// [`io::stdin`]: fn.stdin.html
-// /// [`BufRead`]: trait.BufRead.html
-// ///
-// /// ### Note: Windows Portability Consideration
-// ///
-// /// When operating in a console, the Windows implementation of this stream does not support
-// /// non-UTF-8 byte sequences. Attempting to read bytes that are not valid UTF-8 will return
-// /// an error.
-// ///
-// /// # Examples
-// ///
-// /// ```no_run
-// /// use std::io::{self, Read};
-// ///
-// /// fn main() -> io::Result<()> {
-// ///     let mut buffer = String::new();
-// ///     let mut stdin = io::stdin(); // We get `Stdin` here.
-// ///     stdin.read_to_string(&mut buffer)?;
-// ///     Ok(())
-// /// }
-// /// ```
-// #[stable(feature = "rust1", since = "1.0.0")]
-// pub struct Stdin {
-//     inner: Arc<Mutex<BufReader<Maybe<StdinRaw>>>>,
-// }
+/// A handle to the standard input stream of a process.
+///
+/// Each handle is a shared reference to a global buffer of input data to this
+/// process. A handle can be `lock`'d to gain full access to [`BufRead`] methods
+/// (e.g., `.lines()`). Reads to this handle are otherwise locked with respect
+/// to other reads.
+///
+/// This handle implements the `Read` trait, but beware that concurrent reads
+/// of `Stdin` must be executed with care.
+///
+/// Created by the [`io::stdin`] method.
+///
+/// [`io::stdin`]: fn.stdin.html
+/// [`BufRead`]: trait.BufRead.html
+///
+/// ### Note: Windows Portability Consideration
+///
+/// When operating in a console, the Windows implementation of this stream does not support
+/// non-UTF-8 byte sequences. Attempting to read bytes that are not valid UTF-8 will return
+/// an error.
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::io::{self, Read};
+///
+/// fn main() -> io::Result<()> {
+///     let mut buffer = String::new();
+///     let mut stdin = io::stdin(); // We get `Stdin` here.
+///     stdin.read_to_string(&mut buffer)?;
+///     Ok(())
+/// }
+/// ```
+#[stable(feature = "rust1", since = "1.0.0")]
+pub struct Stdin {
+    inner: Arc<Mutex<BufReader<Maybe<StdinRaw>>>>,
+}
 
-// /// A locked reference to the `Stdin` handle.
-// ///
-// /// This handle implements both the [`Read`] and [`BufRead`] traits, and
-// /// is constructed via the [`Stdin::lock`] method.
-// ///
-// /// [`Read`]: trait.Read.html
-// /// [`BufRead`]: trait.BufRead.html
-// /// [`Stdin::lock`]: struct.Stdin.html#method.lock
-// ///
-// /// ### Note: Windows Portability Consideration
-// ///
-// /// When operating in a console, the Windows implementation of this stream does not support
-// /// non-UTF-8 byte sequences. Attempting to read bytes that are not valid UTF-8 will return
-// /// an error.
-// ///
-// /// # Examples
-// ///
-// /// ```no_run
-// /// use std::io::{self, Read};
-// ///
-// /// fn main() -> io::Result<()> {
-// ///     let mut buffer = String::new();
-// ///     let stdin = io::stdin(); // We get `Stdin` here.
-// ///     {
-// ///         let mut stdin_lock = stdin.lock(); // We get `StdinLock` here.
-// ///         stdin_lock.read_to_string(&mut buffer)?;
-// ///     } // `StdinLock` is dropped here.
-// ///     Ok(())
-// /// }
-// /// ```
-// #[stable(feature = "rust1", since = "1.0.0")]
-// pub struct StdinLock<'a> {
-//     inner: MutexGuard<'a, BufReader<Maybe<StdinRaw>>>,
-// }
+/// A locked reference to the `Stdin` handle.
+///
+/// This handle implements both the [`Read`] and [`BufRead`] traits, and
+/// is constructed via the [`Stdin::lock`] method.
+///
+/// [`Read`]: trait.Read.html
+/// [`BufRead`]: trait.BufRead.html
+/// [`Stdin::lock`]: struct.Stdin.html#method.lock
+///
+/// ### Note: Windows Portability Consideration
+///
+/// When operating in a console, the Windows implementation of this stream does not support
+/// non-UTF-8 byte sequences. Attempting to read bytes that are not valid UTF-8 will return
+/// an error.
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::io::{self, Read};
+///
+/// fn main() -> io::Result<()> {
+///     let mut buffer = String::new();
+///     let stdin = io::stdin(); // We get `Stdin` here.
+///     {
+///         let mut stdin_lock = stdin.lock(); // We get `StdinLock` here.
+///         stdin_lock.read_to_string(&mut buffer)?;
+///     } // `StdinLock` is dropped here.
+///     Ok(())
+/// }
+/// ```
+#[stable(feature = "rust1", since = "1.0.0")]
+pub struct StdinLock<'a> {
+    inner: MutexGuard<'a, BufReader<Maybe<StdinRaw>>>,
+}
 
-// /// Constructs a new handle to the standard input of the current process.
-// ///
-// /// Each handle returned is a reference to a shared global buffer whose access
-// /// is synchronized via a mutex. If you need more explicit control over
-// /// locking, see the [`Stdin::lock`] method.
-// ///
-// /// [`Stdin::lock`]: struct.Stdin.html#method.lock
-// ///
-// /// ### Note: Windows Portability Consideration
-// /// When operating in a console, the Windows implementation of this stream does not support
-// /// non-UTF-8 byte sequences. Attempting to read bytes that are not valid UTF-8 will return
-// /// an error.
-// ///
-// /// # Examples
-// ///
-// /// Using implicit synchronization:
-// ///
-// /// ```no_run
-// /// use std::io::{self, Read};
-// ///
-// /// fn main() -> io::Result<()> {
-// ///     let mut buffer = String::new();
-// ///     io::stdin().read_to_string(&mut buffer)?;
-// ///     Ok(())
-// /// }
-// /// ```
-// ///
-// /// Using explicit synchronization:
-// ///
-// /// ```no_run
-// /// use std::io::{self, Read};
-// ///
-// /// fn main() -> io::Result<()> {
-// ///     let mut buffer = String::new();
-// ///     let stdin = io::stdin();
-// ///     let mut handle = stdin.lock();
-// ///
-// ///     handle.read_to_string(&mut buffer)?;
-// ///     Ok(())
-// /// }
-// /// ```
-// #[stable(feature = "rust1", since = "1.0.0")]
-// pub fn stdin() -> Stdin {
-//     static INSTANCE: Lazy<Mutex<BufReader<Maybe<StdinRaw>>>> = Lazy::new();
-//     return Stdin {
-//         inner: unsafe { INSTANCE.get(stdin_init).expect("cannot access stdin during shutdown") },
-//     };
+/// Constructs a new handle to the standard input of the current process.
+///
+/// Each handle returned is a reference to a shared global buffer whose access
+/// is synchronized via a mutex. If you need more explicit control over
+/// locking, see the [`Stdin::lock`] method.
+///
+/// [`Stdin::lock`]: struct.Stdin.html#method.lock
+///
+/// ### Note: Windows Portability Consideration
+/// When operating in a console, the Windows implementation of this stream does not support
+/// non-UTF-8 byte sequences. Attempting to read bytes that are not valid UTF-8 will return
+/// an error.
+///
+/// # Examples
+///
+/// Using implicit synchronization:
+///
+/// ```no_run
+/// use std::io::{self, Read};
+///
+/// fn main() -> io::Result<()> {
+///     let mut buffer = String::new();
+///     io::stdin().read_to_string(&mut buffer)?;
+///     Ok(())
+/// }
+/// ```
+///
+/// Using explicit synchronization:
+///
+/// ```no_run
+/// use std::io::{self, Read};
+///
+/// fn main() -> io::Result<()> {
+///     let mut buffer = String::new();
+///     let stdin = io::stdin();
+///     let mut handle = stdin.lock();
+///
+///     handle.read_to_string(&mut buffer)?;
+///     Ok(())
+/// }
+/// ```
+#[stable(feature = "rust1", since = "1.0.0")]
+pub fn stdin() -> Stdin {
+    return Stdin{
+        inner: stdin_init()
+    };
+    // static INSTANCE: Lazy<Mutex<BufReader<Maybe<StdinRaw>>>> = Lazy::new();
+    // return Stdin {
+    //     inner: unsafe { INSTANCE.get(stdin_init).expect("cannot access stdin during shutdown") },
+    // };
 
-//     fn stdin_init() -> Arc<Mutex<BufReader<Maybe<StdinRaw>>>> {
-//         // This must not reentrantly access `INSTANCE`
-//         let stdin = match stdin_raw() {
-//             Ok(stdin) => Maybe::Real(stdin),
-//             _ => Maybe::Fake,
-//         };
+    fn stdin_init() -> Arc<Mutex<BufReader<Maybe<StdinRaw>>>> {
+        // This must not reentrantly access `INSTANCE`
+        let stdin = match stdin_raw() {
+            Ok(stdin) => Maybe::Real(stdin),
+            _ => Maybe::Fake,
+        };
 
-//         Arc::new(Mutex::new(BufReader::with_capacity(stdio::STDIN_BUF_SIZE, stdin)))
-//     }
-// }
+        Arc::new(Mutex::new(BufReader::with_capacity(stdio::STDIN_BUF_SIZE, stdin)))
+    }
+}
 
-// impl Stdin {
-//     /// Locks this handle to the standard input stream, returning a readable
-//     /// guard.
-//     ///
-//     /// The lock is released when the returned lock goes out of scope. The
-//     /// returned guard also implements the [`Read`] and [`BufRead`] traits for
-//     /// accessing the underlying data.
-//     ///
-//     /// [`Read`]: trait.Read.html
-//     /// [`BufRead`]: trait.BufRead.html
-//     ///
-//     /// # Examples
-//     ///
-//     /// ```no_run
-//     /// use std::io::{self, Read};
-//     ///
-//     /// fn main() -> io::Result<()> {
-//     ///     let mut buffer = String::new();
-//     ///     let stdin = io::stdin();
-//     ///     let mut handle = stdin.lock();
-//     ///
-//     ///     handle.read_to_string(&mut buffer)?;
-//     ///     Ok(())
-//     /// }
-//     /// ```
-//     #[stable(feature = "rust1", since = "1.0.0")]
-//     pub fn lock(&self) -> StdinLock<'_> {
-//         StdinLock { inner: self.inner.lock().unwrap_or_else(|e| e.into_inner()) }
-//     }
+impl Stdin {
+    /// Locks this handle to the standard input stream, returning a readable
+    /// guard.
+    ///
+    /// The lock is released when the returned lock goes out of scope. The
+    /// returned guard also implements the [`Read`] and [`BufRead`] traits for
+    /// accessing the underlying data.
+    ///
+    /// [`Read`]: trait.Read.html
+    /// [`BufRead`]: trait.BufRead.html
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::io::{self, Read};
+    ///
+    /// fn main() -> io::Result<()> {
+    ///     let mut buffer = String::new();
+    ///     let stdin = io::stdin();
+    ///     let mut handle = stdin.lock();
+    ///
+    ///     handle.read_to_string(&mut buffer)?;
+    ///     Ok(())
+    /// }
+    /// ```
+    #[stable(feature = "rust1", since = "1.0.0")]
+    pub fn lock(&self) -> StdinLock<'_> {
+        StdinLock { inner: self.inner.lock() }
+        // StdinLock { inner: self.inner.lock().unwrap_or_else(|e| e.into_inner()) }
+    }
 
-//     /// Locks this handle and reads a line of input, appending it to the specified buffer.
-//     ///
-//     /// For detailed semantics of this method, see the documentation on
-//     /// [`BufRead::read_line`].
-//     ///
-//     /// [`BufRead::read_line`]: trait.BufRead.html#method.read_line
-//     ///
-//     /// # Examples
-//     ///
-//     /// ```no_run
-//     /// use std::io;
-//     ///
-//     /// let mut input = String::new();
-//     /// match io::stdin().read_line(&mut input) {
-//     ///     Ok(n) => {
-//     ///         println!("{} bytes read", n);
-//     ///         println!("{}", input);
-//     ///     }
-//     ///     Err(error) => println!("error: {}", error),
-//     /// }
-//     /// ```
-//     ///
-//     /// You can run the example one of two ways:
-//     ///
-//     /// - Pipe some text to it, e.g., `printf foo | path/to/executable`
-//     /// - Give it text interactively by running the executable directly,
-//     ///   in which case it will wait for the Enter key to be pressed before
-//     ///   continuing
-//     #[stable(feature = "rust1", since = "1.0.0")]
-//     pub fn read_line(&self, buf: &mut String) -> io::Result<usize> {
-//         self.lock().read_line(buf)
-//     }
-// }
+    /// Locks this handle and reads a line of input, appending it to the specified buffer.
+    ///
+    /// For detailed semantics of this method, see the documentation on
+    /// [`BufRead::read_line`].
+    ///
+    /// [`BufRead::read_line`]: trait.BufRead.html#method.read_line
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::io;
+    ///
+    /// let mut input = String::new();
+    /// match io::stdin().read_line(&mut input) {
+    ///     Ok(n) => {
+    ///         println!("{} bytes read", n);
+    ///         println!("{}", input);
+    ///     }
+    ///     Err(error) => println!("error: {}", error),
+    /// }
+    /// ```
+    ///
+    /// You can run the example one of two ways:
+    ///
+    /// - Pipe some text to it, e.g., `printf foo | path/to/executable`
+    /// - Give it text interactively by running the executable directly,
+    ///   in which case it will wait for the Enter key to be pressed before
+    ///   continuing
+    #[stable(feature = "rust1", since = "1.0.0")]
+    pub fn read_line(&self, buf: &mut String) -> io::Result<usize> {
+        self.lock().read_line(buf)
+    }
+}
 
-// #[stable(feature = "std_debug", since = "1.16.0")]
-// impl fmt::Debug for Stdin {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         f.pad("Stdin { .. }")
-//     }
-// }
+#[stable(feature = "std_debug", since = "1.16.0")]
+impl fmt::Debug for Stdin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.pad("Stdin { .. }")
+    }
+}
 
-// #[stable(feature = "rust1", since = "1.0.0")]
-// impl Read for Stdin {
-//     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-//         self.lock().read(buf)
-//     }
-//     fn read_vectored(&mut self, bufs: &mut [IoSliceMut<'_>]) -> io::Result<usize> {
-//         self.lock().read_vectored(bufs)
-//     }
-//     #[inline]
-//     fn is_read_vectored(&self) -> bool {
-//         self.lock().is_read_vectored()
-//     }
-//     #[inline]
-//     unsafe fn initializer(&self) -> Initializer {
-//         Initializer::nop()
-//     }
-//     fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
-//         self.lock().read_to_end(buf)
-//     }
-//     fn read_to_string(&mut self, buf: &mut String) -> io::Result<usize> {
-//         self.lock().read_to_string(buf)
-//     }
-//     fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
-//         self.lock().read_exact(buf)
-//     }
-// }
+#[stable(feature = "rust1", since = "1.0.0")]
+impl Read for Stdin {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.lock().read(buf)
+    }
+    // fn read_vectored(&mut self, bufs: &mut [IoSliceMut<'_>]) -> io::Result<usize> {
+    //     self.lock().read_vectored(bufs)
+    // }
+    #[inline]
+    fn is_read_vectored(&self) -> bool {
+        self.lock().is_read_vectored()
+    }
+    #[inline]
+    unsafe fn initializer(&self) -> Initializer {
+        Initializer::nop()
+    }
+    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
+        self.lock().read_to_end(buf)
+    }
+    fn read_to_string(&mut self, buf: &mut String) -> io::Result<usize> {
+        self.lock().read_to_string(buf)
+    }
+    fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
+        self.lock().read_exact(buf)
+    }
+}
 
-// #[stable(feature = "rust1", since = "1.0.0")]
-// impl Read for StdinLock<'_> {
-//     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-//         self.inner.read(buf)
-//     }
+#[stable(feature = "rust1", since = "1.0.0")]
+impl Read for StdinLock<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.inner.read(buf)
+    }
 
-//     fn read_vectored(&mut self, bufs: &mut [IoSliceMut<'_>]) -> io::Result<usize> {
-//         self.inner.read_vectored(bufs)
-//     }
+    // fn read_vectored(&mut self, bufs: &mut [IoSliceMut<'_>]) -> io::Result<usize> {
+    //     self.inner.read_vectored(bufs)
+    // }
 
-//     #[inline]
-//     fn is_read_vectored(&self) -> bool {
-//         self.inner.is_read_vectored()
-//     }
+    #[inline]
+    fn is_read_vectored(&self) -> bool {
+        self.inner.is_read_vectored()
+    }
 
-//     #[inline]
-//     unsafe fn initializer(&self) -> Initializer {
-//         Initializer::nop()
-//     }
+    #[inline]
+    unsafe fn initializer(&self) -> Initializer {
+        Initializer::nop()
+    }
 
-//     fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
-//         self.inner.read_to_end(buf)
-//     }
+    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> io::Result<usize> {
+        self.inner.read_to_end(buf)
+    }
 
-//     fn read_to_string(&mut self, buf: &mut String) -> io::Result<usize> {
-//         self.inner.read_to_string(buf)
-//     }
+    fn read_to_string(&mut self, buf: &mut String) -> io::Result<usize> {
+        self.inner.read_to_string(buf)
+    }
 
-//     fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
-//         self.inner.read_exact(buf)
-//     }
-// }
+    fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
+        self.inner.read_exact(buf)
+    }
+}
 
-// #[stable(feature = "rust1", since = "1.0.0")]
-// impl BufRead for StdinLock<'_> {
-//     fn fill_buf(&mut self) -> io::Result<&[u8]> {
-//         self.inner.fill_buf()
-//     }
+#[stable(feature = "rust1", since = "1.0.0")]
+impl BufRead for StdinLock<'_> {
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
+        self.inner.fill_buf()
+    }
 
-//     fn consume(&mut self, n: usize) {
-//         self.inner.consume(n)
-//     }
+    fn consume(&mut self, n: usize) {
+        self.inner.consume(n)
+    }
 
-//     fn read_until(&mut self, byte: u8, buf: &mut Vec<u8>) -> io::Result<usize> {
-//         self.inner.read_until(byte, buf)
-//     }
+    fn read_until(&mut self, byte: u8, buf: &mut Vec<u8>) -> io::Result<usize> {
+        self.inner.read_until(byte, buf)
+    }
 
-//     fn read_line(&mut self, buf: &mut String) -> io::Result<usize> {
-//         self.inner.read_line(buf)
-//     }
-// }
+    fn read_line(&mut self, buf: &mut String) -> io::Result<usize> {
+        self.inner.read_line(buf)
+    }
+}
 
-// #[stable(feature = "std_debug", since = "1.16.0")]
-// impl fmt::Debug for StdinLock<'_> {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         f.pad("StdinLock { .. }")
-//     }
-// }
+#[stable(feature = "std_debug", since = "1.16.0")]
+impl fmt::Debug for StdinLock<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.pad("StdinLock { .. }")
+    }
+}
 
 /// A handle to the global standard output stream of the current process.
 ///

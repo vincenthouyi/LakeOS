@@ -5,6 +5,7 @@ pub mod tcb;
 pub mod ram;
 pub mod vtable;
 pub mod endpoint;
+pub mod reply;
 pub mod untyped;
 pub mod monitor;
 pub mod interrupt;
@@ -14,6 +15,7 @@ pub use cnode::{CNodeObj, CNodeCap, CNODE_DEPTH};
 pub use tcb::{TcbObj, TcbCap, TCB_OBJ_SZ, TCB_OBJ_BIT_SZ};
 pub use ram::{RamObj, RamCap};
 pub use endpoint::{EndpointObj, EpCap};
+pub use reply::{ReplyObj, ReplyCap};
 pub use untyped::UntypedObj;
 pub use monitor::MonitorObj;
 pub use interrupt::InterruptObj;
@@ -28,8 +30,9 @@ pub enum ObjType {
     Ram         = 4,
     VTable      = 5,
     Endpoint    = 6,
-    Monitor     = 7,
-    Interrupt   = 8,
+    Reply       = 7,
+    Monitor     = 8,
+    Interrupt   = 9,
 }
 
 impl Default for ObjType { fn default() -> Self { Self::NullObj } }

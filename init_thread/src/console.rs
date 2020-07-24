@@ -3,7 +3,7 @@ use alloc::collections::linked_list::LinkedList;
 use mutex::Mutex;
 use pi::uart::{MiniUart, IrqStatus};
 
-struct Console {
+pub struct Console {
     inner: Option<MiniUart>,
     tx_buf: LinkedList<u8>,
     rx_buf: LinkedList<u8>,
@@ -92,7 +92,7 @@ impl core::fmt::Write for Console {
     }
 }
 
-static CONSOLE: Mutex<Console> = Mutex::new(Console::new());
+pub static CONSOLE: Mutex<Console> = Mutex::new(Console::new());
 
 pub fn console_main() -> ! {
     use rustyl4api::object::{Capability, EndpointObj, InterruptObj};
@@ -112,8 +112,7 @@ pub fn console_main() -> ! {
     }
 
     loop {
-        let mut buf = [0usize; 5];
-        irq_ep.receive(&mut buf).unwrap();
+        irq_ep.receive(None).unwrap();
         let mut con = CONSOLE.lock();
 
         loop {

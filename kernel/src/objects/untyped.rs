@@ -81,7 +81,7 @@ impl<'a> CapRef<'a, UntypedObj> {
         for (i, slot) in slots.iter().enumerate() {
             let addr = self.paddr() + free_offset + i * obj_size;
             let cap = match obj_type {
-                ObjType::Untyped => { CapRef::<UntypedObj>::mint(addr, obj_size, self.is_device()) },
+                ObjType::Untyped => { CapRef::<UntypedObj>::mint(addr, bit_size, self.is_device()) },
                 ObjType::CNode   => {
                     let radix_sz = bit_size - super::CNODE_ENTRY_BIT_SZ;
 
@@ -90,7 +90,7 @@ impl<'a> CapRef<'a, UntypedObj> {
                 ObjType::Tcb     => { CapRef::<TcbObj>::mint(addr) },
                 ObjType::Ram     => { CapRef::<RamObj>::mint(addr, true, true, 12, self.is_device()) },
                 ObjType::VTable  => { CapRef::<VTableObj>::mint(addr) },
-                ObjType::Endpoint=> { CapRef::<EndpointObj>::mint(addr) },
+                ObjType::Endpoint=> { CapRef::<EndpointObj>::mint(addr, 0) },
                 _ => { return Err(SysError::InvalidValue) }
             };
 

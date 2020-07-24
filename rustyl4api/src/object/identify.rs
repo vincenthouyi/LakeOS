@@ -11,6 +11,7 @@ pub enum IdentifyResult {
     Ram {bit_sz: u8, mapped_vaddr: usize, mapped_asid: usize, is_device: bool},
     VTable {mapped_vaddr: usize, mapped_asid: usize, level: usize},
     Endpoint,
+    Reply,
     Monitor,
     Interrupt,
 }
@@ -58,5 +59,6 @@ pub fn cap_identify(cap_slot: usize) -> SysResult<IdentifyResult> {
         ObjType::Endpoint => { IdentifyResult::Endpoint },
         ObjType::Monitor => { IdentifyResult::Monitor },
         ObjType::Interrupt => { IdentifyResult::Interrupt },
+        ObjType::Reply => { IdentifyResult::Reply },
     })
 }

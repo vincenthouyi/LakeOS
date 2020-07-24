@@ -1,8 +1,11 @@
+use core::convert::{From, TryFrom};
+
 use num_traits::FromPrimitive;
 use crate::error::{SysError, SysResult};
+use crate::ipc::IpcMessageType;
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, FromPrimitive, ToPrimitive)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, FromPrimitive, ToPrimitive)]
 pub enum SyscallOp {
     NullSyscall = 0,
     DebugPrint,
@@ -13,9 +16,11 @@ pub enum SyscallOp {
     TcbConfigure,
     TcbResume,
     TcbSetRegisters,
+    EndpointMint,
     EndpointSend,
     EndpointRecv,
     EndpointCall,
+    EndpointReply,
     EndpointReplyRecv,
     RamMap,
     VTableMap,
@@ -24,77 +29,164 @@ pub enum SyscallOp {
     InterruptAttachIrq,
 }
 
-#[derive(Clone, Copy, Debug, FromPrimitive, ToPrimitive)]
-pub struct MsgInfo(pub usize);
+#[derive(Clone, Copy, Debug)]
+pub struct MsgInfo {
+    pub label: SyscallOp,
+    pub msglen: usize,
+    pub cap_transfer: bool,
+}
 
 impl MsgInfo {
-    const LEN_MASK: usize = 0xff;
+    pub const fn new(label: SyscallOp, msglen: usize) -> Self {
+        Self { label, msglen, cap_transfer: false }
+    }
 
-    pub const fn new(label: SyscallOp, length: usize) -> Self {
-        Self(((label as usize) << 12) | (length & Self::LEN_MASK))
+    pub const fn new_ipc(label: SyscallOp, msglen: usize, cap_transfer: bool) -> Self {
+        Self { label, msglen, cap_transfer }
     }
 
     pub fn get_label(&self) -> SyscallOp {
-        SyscallOp::from_u64((self.0 >> 12) as u64).unwrap()
+        self.label
     }
 
     pub const fn get_length(&self) -> usize {
-        self.0 & Self::LEN_MASK
+        self.msglen
     }
 }
 
-#[derive(Clone, Copy, Debug, FromPrimitive, ToPrimitive)]
-pub struct RespInfo(pub usize);
+/// MsgInfo layout
+/// -----------------------------------------------
+/// |  label  |msglen|C|                          |
+/// |    8    |  4   |1|                          |
+/// -----------------------------------------------
+/// C: Cap transfer
+/// 
+impl From<MsgInfo> for usize {
+    fn from(info: MsgInfo) -> Self {
+        (info.label as usize) << 56
+        | (info.msglen as usize) << 52
+        | (info.cap_transfer as usize) << 51
+    }
+}
+
+impl TryFrom<usize> for MsgInfo {
+    type Error = SysError;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        let label = SyscallOp::from_usize(value >> 56).ok_or(SysError::InvalidValue)?;
+        let msglen = (value >> 52) & 0b1111;
+        let cap_transfer = ((value >> 51) & 0b1) == 1;
+
+        Ok(Self { label, msglen, cap_transfer })
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct RespInfo{
+    pub msgtype: IpcMessageType,
+    pub msglen: usize,
+    pub cap_transfer: bool,
+    pub need_reply: bool,
+    pub badged: bool,
+    pub errno: SysError,
+}
 
 impl RespInfo {
-    const LEN_MASK: usize = 0xff;
-
-    pub const fn _new(err: SysError, length: usize, is_notification: bool) -> Self {
-        Self(
-            ((err as usize) << 12) |
-            ((is_notification as usize) << 8) |
-            (length & Self::LEN_MASK)
-        )
+    pub const fn ipc_resp(err: SysError, msglen: usize, cap_transfer: bool,
+                          need_reply: bool, badged: bool) -> Self {
+        Self { msgtype: IpcMessageType::Message, msglen,
+               cap_transfer, need_reply, badged, errno: err }
     }
 
-    pub const fn new(err: SysError, length: usize) -> Self {
-        Self::_new(err, length, false)
+    pub const fn new_syscall_resp(err: SysError, length: usize) -> Self {
+        Self {
+            msgtype: IpcMessageType::Message,
+            msglen: length,
+            cap_transfer: false,
+            need_reply: false,
+            badged: false,
+            errno: err
+        }
     }
 
     pub const fn new_notification() -> Self {
-        Self::_new(SysError::OK, 1, true)
+        Self {
+            msgtype: IpcMessageType::Notification,
+            msglen: 1,
+            cap_transfer: false,
+            need_reply: false,
+            badged: false,
+            errno: SysError::OK
+        }
     }
 
     pub const fn get_length(&self) -> usize {
-        self.0 & Self::LEN_MASK
+        self.msglen
     }
 
     pub fn as_result(&self) -> SysResult<()> {
-        let err = SysError::from_usize(self.0 >> 12).unwrap();
-        match err {
+        match self.errno {
             SysError::OK => Ok(()),
             e => Err(e)
         }
     }
 }
 
-pub fn syscall(msg_info: MsgInfo, args: &mut [usize;6]) -> SysResult<&mut [usize]> {
-    let ret: usize;
+/// MsgInfo layout
+/// -----------------------------------------------
+/// |type|msglen|C|R|B| errno |                   |
+/// |  2 |  4   |1|1|1|   6   |                   |
+/// -----------------------------------------------
+/// C: Cap transfer
+/// R: Need Reply
+/// B: Badged
+/// 
+impl From<RespInfo> for usize {
+    fn from(info: RespInfo) -> Self {
+        (info.msgtype as usize) << 62
+        | (info.msglen as usize) << 58
+        | (info.cap_transfer as usize) << 57
+        | (info.need_reply as usize) << 56
+        | (info.badged as usize) << 55
+        | (info.errno as usize) << 49
+    }
+}
 
-    unsafe{ llvm_asm! {"svc 1"
-        : "={x1}"(args[0]), "={x2}"(args[1]), "={x3}"(args[2]),
+impl TryFrom<usize> for RespInfo {
+    type Error = SysError;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        let msgtype = IpcMessageType::from_usize(value >> 62).ok_or(SysError::InvalidValue)?;
+        let msglen = (value >> 58) & 0b1111;
+        let cap_transfer = (value >> 57) & 0b1 == 1;
+        let need_reply = (value >> 56) & 0b1 == 1;
+        let badged = (value >> 55) & 0b1 == 1;
+        let errno = SysError::from_usize((value >> 49) & 0b111111).ok_or(SysError::InvalidValue)?;
+
+        Ok(Self {msgtype, msglen, cap_transfer, need_reply, badged, errno})
+    }
+}
+
+pub fn syscall(msg_info: MsgInfo, args: &mut [usize;6]) -> SysResult<(RespInfo, &mut [usize], usize)> {
+    let ret: usize;
+    let badge: usize;
+    let info : usize = msg_info.into();
+
+    unsafe { llvm_asm! {"svc 1"
+        : "={x0}"(badge), "={x1}"(args[0]), "={x2}"(args[1]), "={x3}"(args[2]),
           "={x4}"(args[3]), "={x5}"(args[4]), "={x6}"(ret)
         : "{x0}"(args[0]), "{x1}"(args[1]), "{x2}"(args[2]),
-          "{x3}"(args[3]), "{x4}"(args[4]), "{x5}"(args[5]), "{x6}"(msg_info.0)
+          "{x3}"(args[3]), "{x4}"(args[4]), "{x5}"(args[5]), "{x6}"(info)
         : "memory"
         : "volatile"
-    } };
+        }
+    };
 
-    let retinfo = RespInfo::from_usize(ret).unwrap();
+    let retinfo = RespInfo::try_from(ret).unwrap();
     retinfo.as_result()
         .map(move |_| {
             let retlen = retinfo.get_length();
-            &mut args[..retlen]
+            (retinfo, &mut args[..retlen], badge)
         })
 }
 

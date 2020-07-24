@@ -17,5 +17,6 @@ pub mod error;
 pub mod vspace;
 pub mod thread;
 pub mod process;
+pub mod ipc;
 
 pub use debug_printer::{kprint, kprintln};

@@ -14,3 +14,4 @@ spin = "0.5.2"
 spaceman = { path = "../libspaceman" }
 hashbrown = "0.8"
 cfg-if = { version = "0.1.8" }
+naive = { path = "../naive" }

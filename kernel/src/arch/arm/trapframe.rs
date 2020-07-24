@@ -134,11 +134,11 @@ impl TrapFrame {
     }
 
     pub fn get_msginfo(&self) -> SysResult<MsgInfo> {
-        MsgInfo::from_usize(self.x_regs[6].get()).ok_or(SysError::InvalidValue)
+        MsgInfo::try_from(self.x_regs[6].get())
     }
 
     pub fn set_respinfo(&self, respinfo: RespInfo) {
-        self.x_regs[6].set(respinfo.0);
+        self.x_regs[6].set(respinfo.into());
     }
 
     pub fn get_tcb(&mut self) -> &mut TcbObj {

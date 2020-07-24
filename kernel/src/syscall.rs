@@ -22,7 +22,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             let c = from_u32(msg)
                         .ok_or(SysError::InvalidValue)?;
             kprint!("{}", c);
-            tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
+            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
             Ok(())
         },
         SyscallOp::CapIdentify => {
@@ -38,11 +38,12 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
                 ObjType::Ram     => { RamCap::try_from(cap).unwrap().identify(tcb) },
                 ObjType::VTable  => { VTableCap::try_from(cap).unwrap().identify(tcb) },
                 ObjType::Endpoint=> { EndpointCap::try_from(cap).unwrap().identify(tcb) },
+                ObjType::Reply   => { ReplyCap::try_from(cap).unwrap().identify(tcb) },
                 ObjType::Monitor => { MonitorCap::try_from(cap).unwrap().identify(tcb) },
                 ObjType::Interrupt => { InterruptCap::try_from(cap).unwrap().identify(tcb) },
             };
 
-            tcb.set_respinfo(RespInfo::new(SysError::OK, ret_num));
+            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, ret_num));
 
             Ok(())
         },
@@ -59,7 +60,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
 
             dst_cap.set_mapped_vaddr_asid(0, 0);
 
-            tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
+            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
             Ok(())
         },
         SyscallOp::CapCopy => {
@@ -79,7 +80,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
 
             dst_cap.insert_raw(cap_raw);
 
-            tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
+            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
             Ok(())
         }
         SyscallOp::Retype => {
@@ -100,7 +101,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
 
             cap.retype(obj_type, bit_size, core::slice::from_ref(slots))?;
 
-            tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
+            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
 
             Ok(())
         },
@@ -131,7 +132,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
 
             cap.configure(cspace_cap, vspace_cap)?;
 
-            tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
+            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
             Ok(())
         },
         SyscallOp::TcbSetRegisters => {
@@ -155,7 +156,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
                 cap.tf.set_sp(sp);
             }
 
-            tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
+            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
             Ok(())
         },
         SyscallOp::TcbResume => {
@@ -166,9 +167,30 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             let cap = TcbCap::try_from(cap_slot)?;
             crate::SCHEDULER.push(&cap);
 
-            tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
+            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
             Ok(())
         },
+        SyscallOp::EndpointMint => {
+            let cap_idx = tcb.get_mr(0);
+            let cspace = tcb.cspace()?;
+            let cap_slot = cspace.lookup_slot(cap_idx)?;
+            let cap = EndpointCap::try_from(cap_slot)?;
+
+            if cap.badge().is_some() {
+                return Err(SysError::InvalidValue);
+            }
+
+            let dst_idx = tcb.get_mr(1);
+            let dst_slot = cspace.lookup_slot(dst_idx)?;
+            let dst_cap = NullCap::try_from(dst_slot)?;
+
+            let badge = tcb.get_mr(2);
+            dst_cap.insert_raw(cap.derive_badged(badge));
+
+            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
+
+            Ok(())
+        }
         SyscallOp::EndpointSend => {
             let cap_idx = tcb.get_mr(0);
             let cspace = tcb.cspace()?;
@@ -190,10 +212,34 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             Ok(())
         }
         SyscallOp::EndpointCall => {
-            unimplemented!()
+            let cap_idx = tcb.get_mr(0);
+            let cspace = tcb.cspace()?;
+            let cap_slot = cspace.lookup_slot(cap_idx)?;
+
+            let cap = EndpointCap::try_from(cap_slot)?;
+            cap.handle_call(msginfo, tcb)?;
+
+            Ok(())
+        }
+        SyscallOp::EndpointReply => {
+            let reply = tcb.reply_cap().ok_or(SysError::LookupError)?;
+            reply.handle_reply(msginfo, tcb, false)?;
+            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
+
+            Ok(())
         }
         SyscallOp::EndpointReplyRecv => {
-            unimplemented!()
+            let reply = tcb.reply_cap().ok_or(SysError::LookupError)?;
+            reply.handle_reply(msginfo, tcb, true)?;
+
+            let cap_idx = tcb.get_mr(0);
+            let cspace = tcb.cspace()?;
+            let cap_slot = cspace.lookup_slot(cap_idx)?;
+
+            let cap = EndpointCap::try_from(cap_slot)?;
+            cap.handle_recv(msginfo, tcb)?;
+
+            Ok(())
         }
         SyscallOp::RamMap => {
             use crate::vspace::VSpace;
@@ -221,7 +267,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
 
             cap.map_page(&vspace, vaddr, rights)?;
 
-            tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
+            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
             Ok(())
         },
         SyscallOp::VTableMap => {
@@ -250,7 +296,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
 
             cap.map_vtable(&vspace, vaddr, level)?;
 
-            tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
+            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
             Ok(())
         },
         SyscallOp::MonitorMintUntyped => {
@@ -273,7 +319,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             NullCap::try_from(cap)?
                 .insert::<UntypedObj>(UntypedCap::mint(paddr, bit_size, is_device));
 
-            tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
+            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
 
             Ok(())
         },
@@ -299,7 +345,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
                     .push(&tcb_cap);
             }
 
-            tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
+            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
 
             Ok(())
         },
@@ -324,7 +370,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
                 crate::interrupt::INTERRUPT_CONTROLLER.lock().attach_irq(irq, Cell::new(ep_cap.raw()));
             }
 
-            tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
+            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
 
             Ok(())
         }
@@ -335,7 +381,7 @@ pub fn handle_syscall(tcb: &mut TcbObj) -> ! {
 
     if let Err(e) = _handle_syscall(tcb) {
         // kprintln!("Syscall Error {:?} info: {:?} TCB {:?}", e, tcb.get_msginfo().unwrap().get_label(), tcb);
-        tcb.set_respinfo(RespInfo::new(e, 0));
+        tcb.set_respinfo(RespInfo::new_syscall_resp(e, 0));
     }
 
     crate::SCHEDULER.activate()

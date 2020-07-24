@@ -83,6 +83,7 @@ impl SpaceManager {
                 self.insert_vtable(table, mapped_vaddr, level - 1);
             },
             IdentifyResult::Endpoint => { },
+            IdentifyResult::Reply => { },
             IdentifyResult::Monitor => { },
             IdentifyResult::Interrupt => { },
         }

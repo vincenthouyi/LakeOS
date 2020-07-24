@@ -42,9 +42,6 @@ pub use crate::os::lakeos as platform;
 // #[macro_use]
 // pub mod weak;
 
-mod vm_allocator;
-mod space_manager;
-pub mod alloc;
 // pub mod android;
 // pub mod args;
 // pub mod cmath;
@@ -53,7 +50,7 @@ pub mod alloc;
 // pub mod ext;
 // pub mod fd;
 // pub mod fs;
-// pub mod io;
+pub mod io;
 // #[cfg(target_os = "l4re")]
 // mod l4re;
 pub mod memchr;
@@ -74,80 +71,17 @@ pub mod stdio;
 // pub mod thread_local_dtor;
 // pub mod thread_local_key;
 // pub mod time;
+pub mod urpc;
 
 // pub use crate::sys_common::os_str_bytes as os_str;
 
-extern "C" {
-    static _end: [u8; 0];
-}
-
-const MEMPOOL_SIZE: usize = 4096;
-
-#[repr(align(4096))]
-struct InitMemPool([u8; MEMPOOL_SIZE]);
-static mut INIT_ALLOC_MEMPOOL: InitMemPool = InitMemPool([0u8; MEMPOOL_SIZE]);
-static mut INIT_ALLOC_BACKUP_MEMPOOL: InitMemPool = InitMemPool([0u8; MEMPOOL_SIZE]);
-
-use space_manager::{gsm, gsm_init};
-
-fn populate_init_cspace() {
-    use rustyl4api::process::{ProcessCSpace, PROCESS_ROOT_CNODE_SIZE};
-    use rustyl4api::object::Capability;
-    use rustyl4api::object::identify::{cap_identify, IdentifyResult};
-
-    let root_cnode = Capability::new(ProcessCSpace::RootCNodeCap as usize);
-    let root_vnode = Capability::new(ProcessCSpace::RootVNodeCap as usize);
-
-    gsm_init(root_cnode, PROCESS_ROOT_CNODE_SIZE, root_vnode);
-
-    gsm!().cspace_alloc_at(0);
-
-    let mut cap_max = 1;
-    for i in 1 .. PROCESS_ROOT_CNODE_SIZE {
-        let res = cap_identify(i).unwrap();
-        println!("ret cap[{}]: {:x?}", i, res);
-        if let IdentifyResult::NullObj = res {
-            cap_max = i;
-            break;
-        }
-        gsm!().cspace_alloc_at(i);
-    }
-
-    let untyped_idx = ProcessCSpace::InitUntyped as usize;
-    let res = cap_identify(untyped_idx).unwrap();
-
-    gsm!().insert_identify(untyped_idx, res);
-}
-
-fn initialize_vmspace() {
-    use rustyl4api::vspace::{FRAME_SIZE};
-
-    let brk = unsafe{ _end.as_ptr() as usize };
-    let brk = align_up(brk, FRAME_SIZE);
-
-    gsm!().insert_vm_range(0, brk);
-}
-
 #[cfg(not(test))]
 pub fn init() {
-    unsafe {
-        vm_allocator::GLOBAL_VM_ALLOC
-            .add_mempool(INIT_ALLOC_MEMPOOL.0.as_ptr() as *mut u8,
-                         INIT_ALLOC_MEMPOOL.0.len());
-        vm_allocator::GLOBAL_VM_ALLOC
-            .add_backup_mempool(INIT_ALLOC_BACKUP_MEMPOOL.0.as_ptr() as *mut u8,
-                         INIT_ALLOC_BACKUP_MEMPOOL.0.len());
-    }
+    naive::rt::initialize_mm();
 
-    populate_init_cspace();
-}
+    naive::rt::populate_app_cspace();
 
-pub fn align_down(addr: usize, align: usize) -> usize {
-    addr & !(align - 1)
-}
-
-pub fn align_up(addr: usize, align: usize) -> usize {
-    align_down(addr.saturating_add(align - 1), align)
+    naive::rt::initialize_vmspace();
 }
 
 // #[cfg(target_os = "android")]
@@ -223,12 +157,12 @@ pub fn align_up(addr: usize, align: usize) -> usize {
 //     unsafe { libc::abort() }
 // }
 
-#[panic_handler]
-fn panic(info: &core::panic::PanicInfo) -> ! {
+// #[panic_handler]
+// fn panic(info: &core::panic::PanicInfo) -> ! {
 
-    // use crate::prelude::*;
-    rustyl4api::kprintln!("Panic! {:?}", info);
-    loop {
-        // arch::wfe();
-    }
-}
+//     // use crate::prelude::*;
+//     rustyl4api::kprintln!("Panic! {:?}", info);
+//     loop {
+//         // arch::wfe();
+//     }
+// }

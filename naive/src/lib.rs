@@ -11,15 +11,18 @@
 
 #![no_std]
 
+#[macro_use] extern crate static_assertions;
 extern crate alloc;
 extern crate rustyl4api;
 
 #[macro_use] mod utils;
-mod rt;
+pub mod rt;
 pub mod space_manager;
 mod vm_allocator;
 pub mod thread;
 pub mod process;
+pub mod urpc;
+pub mod io;
 mod panic;
 
 extern "C" {

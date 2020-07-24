@@ -51,11 +51,11 @@ pub enum Attach {
 impl<'a> EndpointCap<'a> {
     pub const ADDR_MASK: usize = !MASK!(12); // TODO: check real obj type
 
-    pub fn mint(paddr: usize) -> CapRaw {
+    pub fn mint(paddr: usize, badge: usize) -> CapRaw {
         CapRaw::new(
             paddr,
             AttachType::Unattached as usize,
-            0,
+            badge,
             None,
             None,
             ObjType::Endpoint
@@ -126,29 +126,27 @@ impl<'a> EndpointCap<'a> {
         match self.state() {
             EpState::Receiving => {
                 let receiver = self.queue.dequeue().unwrap();
-                let msglen = info.get_length();
-                for i in 1..=msglen {
-                    let data = tcb.get_mr(i);
-                    receiver.set_mr(i, data);
-                }
+                let badge = self.badge();
+                do_ipc(receiver, receiver.get_msginfo().unwrap(), tcb, info, badge, false, false)?;
                 receiver.set_state(ThreadState::Ready);
-                receiver.set_respinfo(RespInfo::new(SysError::OK, msglen));
                 crate::SCHEDULER.push(receiver);
-
-                tcb.set_respinfo(RespInfo::new(SysError::OK, 0));
 
                 Ok(())
             }
             _ => {
                 tcb.detach();
                 tcb.set_state(ThreadState::Sending);
+                let badge = self.badge();
+                if let Some(b) = badge {
+                    tcb.set_sending_badge(b);
+                }
                 self.queue.enqueue(tcb);
                 Ok(())
             }
         }
     }
 
-    pub fn handle_recv(&self, _: MsgInfo, tcb: &TcbObj) -> SysResult<()> {
+    pub fn handle_recv(&self, info: MsgInfo, tcb: &TcbObj) -> SysResult<()> {
         match self.state() {
             EpState::Free => {
 
@@ -176,22 +174,69 @@ impl<'a> EndpointCap<'a> {
                 Ok(())
             }
             EpState::Sending => {
-                let sender = self.queue.dequeue().unwrap();
-                let info = sender.get_msginfo().unwrap();
-                let msglen = info.get_length();
-                for i in 1..=msglen {
-                    let data = sender.get_mr(i);
-                    tcb.set_mr(i, data);
-                }
-                sender.set_state(ThreadState::Ready);
-                sender.set_respinfo(RespInfo::new(SysError::OK, 0));
-                crate::SCHEDULER.push(sender);
+                use rustyl4api::syscall::SyscallOp;
 
-                tcb.set_respinfo(RespInfo::new(SysError::OK, msglen));
+                let sender = self.queue.dequeue().unwrap();
+                let sender_info = sender.get_msginfo().unwrap();
+                let badge = sender.sending_badge();
+                let is_call = sender_info.get_label() == SyscallOp::EndpointCall;
+                do_ipc(tcb, info, sender, sender_info, badge, is_call, false)?;
+                if is_call {
+                    sender.detach();
+                    tcb.set_reply(Some(sender));
+                } else {
+                    sender.set_state(ThreadState::Ready);
+                    crate::SCHEDULER.push(sender);
+                }
 
                 Ok(())
             }
         }
+    }
+
+    pub fn handle_call(&self, info: MsgInfo, sender: &TcbObj) -> SysResult<()> {
+        match self.state() {
+            EpState::Receiving => {
+                let receiver = self.queue.dequeue().unwrap();
+                let recv_info = receiver.get_msginfo().unwrap();
+                let badge = self.badge();
+                let ret = do_ipc(receiver, recv_info, sender, info, badge, true, false)?;
+
+                sender.detach();
+                receiver.set_state(ThreadState::Ready);
+                receiver.set_reply(Some(sender));
+                crate::SCHEDULER.push(receiver);
+
+                Ok(ret)
+            }
+            _ => {
+                sender.detach();
+                sender.set_state(ThreadState::Sending);
+                let badge = self.badge();
+                if let Some(b) = badge {
+                    sender.set_sending_badge(b);
+                }
+                self.queue.enqueue(sender);
+                Ok(())
+            }
+        }
+    }
+
+    pub fn badge(&self) -> Option<usize> {
+        let b = self.raw().arg2;
+        if b == 0 {
+            None
+        } else {
+            Some(b)
+        }
+    }
+
+    pub fn set_badge(&self, badge: usize) {
+        self.raw().arg2 = badge;
+    }
+
+    pub fn derive_badged(&self, badge: usize) -> CapRaw {
+        EndpointCap::mint(self.paddr(), badge)
     }
 
     pub fn identify(&self, tcb: &TcbObj) -> usize {
@@ -202,4 +247,41 @@ impl<'a> EndpointCap<'a> {
     pub fn debug_formatter(_f: &mut core::fmt::DebugStruct, _cap: &CapRaw) {
         return;
     }
+}
+
+pub fn do_ipc(recv: &TcbObj, recv_info: MsgInfo, send: &TcbObj,
+            send_info: MsgInfo, badge: Option<usize>, is_call: bool, is_reply: bool)
+    -> SysResult<()>
+{
+    let mut has_cap_trans = false;
+
+    let msglen = send_info.get_length();
+    for i in 1..=msglen {
+        let data = send.get_mr(i);
+        recv.set_mr(i, data);
+    }
+    if let Some(b) = badge {
+        recv.set_mr(0, b);
+    }
+    if recv_info.cap_transfer && send_info.cap_transfer {
+        let recv_cspace = recv.cspace()?;
+        let recv_idx = recv.get_mr(5);
+        let recv_slot = recv_cspace.lookup_slot(recv_idx)?;
+
+        let send_cspace = send.cspace()?;
+        let send_idx = send.get_mr(5);
+        let send_slot = send_cspace.lookup_slot(send_idx)?;
+
+        let recv_cap = NullCap::try_from(recv_slot).unwrap();
+        recv_cap.insert_raw(send_slot.get());
+        send_slot.set(NullCap::mint());
+        has_cap_trans = true;
+    }
+
+    recv.set_respinfo(RespInfo::ipc_resp(SysError::OK, msglen, has_cap_trans, is_call, badge.is_some()));
+    if !is_call && !is_reply {
+        send.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
+    }
+
+    Ok(())
 }

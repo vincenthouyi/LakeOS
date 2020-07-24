@@ -309,18 +309,18 @@ fn default_alloc_error_hook(layout: Layout) {
 }
 */
 
-#[cfg(not(test))]
-#[doc(hidden)]
-#[alloc_error_handler]
-#[unstable(feature = "alloc_internals", issue = "none")]
-pub fn rust_oom(layout: Layout) -> ! {
-    loop { }
-    // let hook = HOOK.load(Ordering::SeqCst);
-    // let hook: fn(Layout) =
-    //     if hook.is_null() { default_alloc_error_hook } else { unsafe { mem::transmute(hook) } };
-    // hook(layout);
-    // crate::process::abort()
-}
+// #[cfg(not(test))]
+// #[doc(hidden)]
+// #[alloc_error_handler]
+// #[unstable(feature = "alloc_internals", issue = "none")]
+// pub fn rust_oom(layout: Layout) -> ! {
+//     loop { }
+//     // let hook = HOOK.load(Ordering::SeqCst);
+//     // let hook: fn(Layout) =
+//     //     if hook.is_null() { default_alloc_error_hook } else { unsafe { mem::transmute(hook) } };
+//     // hook(layout);
+//     // crate::process::abort()
+// }
 
 /*
 #[cfg(not(test))]

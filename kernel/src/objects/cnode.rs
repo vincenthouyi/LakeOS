@@ -140,7 +140,9 @@ impl<'a> CNodeCap<'a> {
     }
 
     pub fn lookup_slot(&self, idx: usize) -> Result<&CNodeEntry, CNodeLookupErr> {
-        Ok(unsafe { &*(&self.as_object()[idx] as *const CNodeEntry) })
+        // Ok(unsafe { &*(&self.as_object()[idx] as *const CNodeEntry) })
+        let slot = self.as_object().get(idx).ok_or(CNodeLookupErr::CNodeMiss(idx))?;
+        Ok(unsafe { &*(slot as *const CNodeEntry) })
 
         // self.resolve_address(idx, CNODE_DEPTH)
     }

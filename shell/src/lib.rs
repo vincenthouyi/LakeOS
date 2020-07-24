@@ -1,13 +1,13 @@
+use rustyl4api::{kprintln};
+use rustyl4api::object::{EpCap};
+use rustyl4api::process::ProcessCSpace;
+
+mod shell;
 
 #[no_mangle]
 fn main() -> () {
-    println!("hello world");
-
-    for i in 0..10 {
-        let a = std::boxed::Box::new(i);
-        println!("i {}", a);
+    loop {
+        shell::shell("test shell >");
+        println!("Test shell exit, restarting...");
     }
-
-    eprintln!("here is eprint");
-    loop {};
 }

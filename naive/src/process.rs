@@ -55,14 +55,16 @@ impl<'a> ProcessBuilder<'a> {
         let elf = Elf::from_bytes(self.elf).map_err(|_| ())?;
 
         let rootcn_bitsz = (PROCESS_ROOT_CNODE_SIZE * CNODE_ENTRY_SZ).trailing_zeros() as usize;
-        let child_tcb = gsm!().alloc_object::<TcbObj>(rootcn_bitsz).unwrap();
-        let child_root_cn = gsm!().alloc_object::<CNodeObj>(16).unwrap();
+        let child_tcb = gsm!().alloc_object::<TcbObj>(TCB_OBJ_BIT_SZ).unwrap();
+        let child_root_cn = gsm!().alloc_object::<CNodeObj>(rootcn_bitsz).unwrap();
         let child_root_vn = gsm!().alloc_object::<VTableObj>(12).unwrap();
         let mut vspace = VSpaceMan::new(child_root_vn.clone());
+
+        let mut cur_free = ProcessCSpace::ProcessFixedMax as usize;
         if let Elf::Elf64(e) = elf {
             for ph in e.program_header_iter()
             {
-                kprintln!("{:?}", ph);
+                // kprintln!("{:?}", ph);
                 let p_flags = ph.ph.flags();
                 let perm = Permission::new (
                     p_flags & 0b100 == 0b100,
@@ -100,12 +102,16 @@ impl<'a> ProcessBuilder<'a> {
                                         }
                                         VSpaceManError::PageTableMiss{level} => {
                                             let vtable_cap = gsm!().alloc_object::<VTableObj>(12).unwrap();
-                                            kprintln!("miss table level {} addr {:x}", level, vaddr);
-                                            vspace.map_table(vtable_cap, vaddr, level).unwrap();
+                                            // kprintln!("miss table level {} addr {:x}", level, vaddr);
+                                            vspace.map_table(vtable_cap.clone(), vaddr, level).unwrap();
+                                            child_root_cn.cap_copy(cur_free, vtable_cap.slot).map_err(|_| ()).unwrap();
+                                            cur_free += 1;
                                         }
                                     }
                                 };
 
+                                child_root_cn.cap_copy(cur_free, frame_cap.slot).map_err(|_| ()).unwrap();
+                                cur_free += 1;
                                 let frame_addr = gsm!().insert_ram_at(frame_parent_cap.clone(), 0, Permission::writable());
                                 let frame = unsafe {
                                     core::slice::from_raw_parts_mut(frame_addr, FRAME_SIZE)
@@ -137,12 +143,16 @@ impl<'a> ProcessBuilder<'a> {
                                     }
                                     VSpaceManError::PageTableMiss{level} => {
                                         let vtable_cap = gsm!().alloc_object::<VTableObj>(12).unwrap();
-                                        kprintln!("miss table level {} addr {:x}", level, vaddr);
-                                        vspace.map_table(vtable_cap, vaddr, level).unwrap();
+                                        // kprintln!("miss table level {} addr {:x}", level, vaddr);
+                                        vspace.map_table(vtable_cap.clone(), vaddr, level).unwrap();
+                                        child_root_cn.cap_copy(cur_free, vtable_cap.slot).map_err(|_| ()).unwrap();
+                                        cur_free += 1;
                                     }
                                 }
                             };
 
+                            child_root_cn.cap_copy(cur_free, frame_cap.slot).map_err(|_| ()).unwrap();
+                            cur_free += 1;
                             let frame_addr = gsm!().insert_ram_at(frame_parent_cap.clone(), 0, Permission::writable());
                             let frame = unsafe {
                                 core::slice::from_raw_parts_mut(frame_addr, FRAME_SIZE)
@@ -169,6 +179,9 @@ impl<'a> ProcessBuilder<'a> {
             unimplemented!("Elf32 binary is not supported!");
         }
 
+        child_root_cn.cap_copy(ProcessCSpace::TcbCap as usize, child_tcb.slot).map_err(|_| ())?;
+        child_root_cn.cap_copy(ProcessCSpace::RootCNodeCap as usize, child_root_cn.slot).map_err(|_| ())?;
+        child_root_cn.cap_copy(ProcessCSpace::RootVNodeCap as usize, child_root_vn.slot).map_err(|_| ())?;
         child_root_cn.cap_copy(ProcessCSpace::Stdin as usize, self.stdin.as_ref().unwrap().slot).map_err(|_| ())?;
         child_root_cn.cap_copy(ProcessCSpace::Stdout as usize, self.stdout.as_ref().unwrap().slot).map_err(|_| ())?;
         child_root_cn.cap_copy(ProcessCSpace::Stderr as usize, self.stderr.as_ref().unwrap().slot).map_err(|_| ())?;

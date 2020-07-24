@@ -6,6 +6,7 @@ mod ram;
 mod vtable;
 mod tcb;
 mod endpoint;
+mod reply;
 mod untyped;
 mod monitor;
 mod interrupt;
@@ -22,6 +23,7 @@ pub use untyped::*;
 pub use tcb::*;
 pub use vtable::*;
 pub use endpoint::*;
+pub use reply::*;
 pub use monitor::*;
 pub use interrupt::*;
 pub use sysapi::object::ObjType;
@@ -191,6 +193,7 @@ impl core::fmt::Debug for CapRaw {
             ObjType::Ram     => {CapRef::<RamObj>::debug_formatter(&mut formatter, self)},
             ObjType::VTable  => {CapRef::<VTableObj>::debug_formatter(&mut formatter, self)},
             ObjType::Endpoint=> {CapRef::<EndpointObj>::debug_formatter(&mut formatter, self)},
+            ObjType::Reply => {CapRef::<ReplyObj>::debug_formatter(&mut formatter, self)},
             ObjType::Monitor => {CapRef::<MonitorObj>::debug_formatter(&mut formatter, self)},
             ObjType::Interrupt => {CapRef::<InterruptObj>::debug_formatter(&mut formatter, self)},
         }

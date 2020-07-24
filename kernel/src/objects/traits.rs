@@ -32,6 +32,10 @@ impl KernelObject for EndpointObj {
     fn obj_type() -> ObjType { ObjType::Endpoint }
 }
 
+impl KernelObject for ReplyObj {
+    fn obj_type() -> ObjType { ObjType::Reply }
+}
+
 impl KernelObject for MonitorObj {
     fn obj_type() -> ObjType { ObjType::Monitor }
 }

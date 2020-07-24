@@ -28,8 +28,10 @@ pub struct TcbObj {
     pub tf: TrapFrame,
     cspace: CNodeEntry,
     vspace: CNodeEntry,
+    reply_cap: CNodeEntry,
     time_slice: Cell<usize>,
     state: Cell<ThreadState>,
+    sending_badge: Cell<usize>,
     pub node: TcbQueueNode,
 }
 
@@ -59,8 +61,10 @@ impl TcbObj {
             tf: TrapFrame::new(),
             cspace: Cell::new(NullCap::mint()),
             vspace: Cell::new(NullCap::mint()),
+            reply_cap: Cell::new(NullCap::mint()),
             time_slice: Cell::new(0),
             state: Cell::new(ThreadState::Ready),
+            sending_badge: Cell::new(0),
             node: TcbQueueNode::new(),
         }
     }
@@ -100,6 +104,8 @@ impl TcbObj {
 
     pub fn activate(&mut self) -> ! {
         unsafe {
+            let tid = ((self as *const _ as usize) >> 9) & MASK!(10);
+            llvm_asm!("msr tpidrro_el0, $0"::"r"(tid));
             self.switch_vspace();
             self.tf.restore();
         }
@@ -123,6 +129,20 @@ impl TcbObj {
 
     pub fn set_respinfo(&self, respinfo: RespInfo) {
         self.tf.set_respinfo(respinfo)
+    }
+
+    pub fn set_reply(&self, reply: Option<&TcbObj>) {
+        match reply {
+            None => self.reply_cap.set(NullCap::mint()),
+            Some(tcb) => {
+                let cap = ReplyCap::mint(tcb as *const _ as usize - crate::prelude::KERNEL_OFFSET);
+                self.reply_cap.set(cap)
+            }
+        }
+    }
+
+    pub fn reply_cap(&self) -> Option<ReplyCap> {
+        ReplyCap::try_from(&self.reply_cap).ok()
     }
 
     pub fn asid(&self) -> SysResult<usize> {
@@ -165,6 +185,19 @@ impl TcbObj {
         let cur = self.timeslice();
         let ts = cur.saturating_sub(t);
         self.set_timeslice(ts);
+    }
+
+    pub fn sending_badge(&self) -> Option<usize> {
+        let badge = self.sending_badge.get();
+        if badge == 0 {
+            None
+        } else {
+            Some(badge)
+        }
+    }
+
+    pub fn set_sending_badge(&self, badge: usize) {
+        self.sending_badge.set(badge)
     }
 }
 
