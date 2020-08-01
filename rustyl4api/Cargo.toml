@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 num-traits = { version = "0.2", default-features = false }
 num-derive = { git = "https://github.com/vincenthouyi/num-derive" }
+spin = "0.5.2"

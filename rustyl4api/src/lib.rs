@@ -9,7 +9,7 @@
 extern crate num_traits;
 #[macro_use] extern crate num_derive;
 
-pub mod debug_printer;
+#[macro_use] pub mod debug_printer;
 pub mod object;
 pub mod syscall;
 pub mod init;
@@ -18,5 +18,4 @@ pub mod vspace;
 pub mod thread;
 pub mod process;
 pub mod ipc;
-
-pub use debug_printer::{kprint, kprintln};
+pub(crate) mod utils;

@@ -1,8 +1,10 @@
+use spin::Mutex;
 use core::fmt::{Write, Arguments, Result};
 
 use crate::syscall::{syscall, MsgInfo, SyscallOp};
 
 pub struct DebugPrinter {}
+pub static DEBUG_PRINTER: Mutex::<DebugPrinter> = Mutex::new(DebugPrinter{});
 
 impl Write for DebugPrinter {
     fn write_str(&mut self, s: &str) -> Result {
@@ -17,23 +19,18 @@ impl Write for DebugPrinter {
     }
 }
 
-pub fn debug_printer() -> DebugPrinter {
-    DebugPrinter { }
-}
-
 pub fn _print(args: Arguments) {
-    let mut debug_printer = DebugPrinter{};
+    let mut debug_printer = DEBUG_PRINTER.lock();
     debug_printer.write_fmt(args).unwrap();
 }
 
-/// Like `println!`, but for kernel-space.
-pub macro kprintln {
-    () => (print!("\n")),
-    ($fmt:expr) => (kprint!(concat!($fmt, "\n"))),
-    ($fmt:expr, $($arg:tt)*) => (kprint!(concat!($fmt, "\n"), $($arg)*))
+#[macro_export]
+macro_rules! kprint {
+    ($($arg:tt)*) => ($crate::debug_printer::_print(format_args!($($arg)*)));
 }
 
-/// Like `print!`, but for kernel-space.
-pub macro kprint($($arg:tt)*) {
-    _print(format_args!($($arg)*))
+#[macro_export]
+macro_rules! kprintln {
+    () => ($crate::kprint!("\n"));
+    ($($arg:tt)*) => ($crate::kprint!("[Thread-{}:{:x}] {}\n", $crate::thread::cpu_id(), $crate::thread::thread_id(), format_args!($($arg)*)));
 }

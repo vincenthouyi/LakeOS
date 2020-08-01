@@ -6,73 +6,20 @@
 
 extern crate alloc;
 extern crate naive;
+#[macro_use] extern crate rustyl4api;
 
 mod console;
 mod gpio;
 mod timer;
 mod rt;
 
-use rustyl4api::object::{Capability, EndpointObj};
+use rustyl4api::object::{EndpointObj};
 
 use naive::space_manager::gsm;
 
-mod prelude {
-    pub use crate::console::{print, println};
-}
+static SHELL_ELF: &'static [u8] = include_bytes!("../build/shell.elf");
 
-static RPI3B_ELF: &'static [u8] = include_bytes!("../build/shell.elf");
-
-use prelude::*;
-
-static mut EP: Option<Capability<EndpointObj>> = None;
-
-// fn test_thread() -> ! {
-//     for i in 1..=1 {
-//         for _ in 0..10000000 {rustyl4api::syscall::nop()}
-//         println!("妈妈再爱我{}次", i);
-//     }
-
-//     let mut buf = [0usize; 5];
-//     let recved_buf = unsafe {
-//         EP.as_ref().unwrap().receive(&mut buf)
-//     }.unwrap();
-
-//     println!("receive buf {:?}", recved_buf);
-//     loop {}
-// }
-
-// fn spawn_test() {
-
-//     naive::thread::spawn(test_thread);
-
-//     let ep_cap = gsm!().alloc_object::<EndpointObj>(12)
-//                            .unwrap();
-
-//     unsafe {
-//         EP = Some(ep_cap);
-//     }
-
-//     let buf = [10usize, 11];
-//     println!("sending buf {:?}", buf);
-//     unsafe {
-//         EP.as_ref().unwrap().send(&buf).unwrap();
-//     }
-//     println!("after sending");
-// }
-
-// fn vm_test() {
-//     use alloc::vec::Vec;
-
-//     let mut vec = Vec::<usize>::new();
-
-//     for i in 0..512 {
-//         vec.push(i);
-//     }
-
-//     for (i, num) in vec.iter().enumerate() {
-//         rustyl4api::kprintln!("vec[{}]: {}", i, num);
-//     }
-// }
+// static mut EP: Option<Capability<EndpointObj>> = None;
 
 // fn timer_test() {
 //     for i in 0..5 {
@@ -163,7 +110,7 @@ pub fn main() {
     ep.mint(incoming_ep_slot, incoming_badge).unwrap();
     let incoming_ep = EpCap::new(incoming_ep_slot);
 
-    naive::process::ProcessBuilder::new(&RPI3B_ELF)
+    naive::process::ProcessBuilder::new(&SHELL_ELF)
         .stdin(incoming_ep.clone())
         .stdout(incoming_ep.clone())
         .stderr(incoming_ep.clone())

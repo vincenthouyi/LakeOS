@@ -107,37 +107,37 @@ impl<'a> CNodeCap<'a> {
         1 << self.radix_bits()
     }
 
-    fn resolve_address(&self, idx: usize, depth: usize) -> Result<&CNodeEntry, CNodeLookupErr> {
-        let mut cnode_slot = self.raw;
-        let mut n_bits = depth;
+    // fn resolve_address(&self, idx: usize, depth: usize) -> Result<&CNodeEntry, CNodeLookupErr> {
+    //     let mut cnode_slot = self.raw;
+    //     let mut n_bits = depth;
 
-        while let Ok(cnode) = CNodeCap::try_from(cnode_slot) {
-            let radix_bits = cnode.radix_bits();
-            let guard_bits = cnode.guard_bits();
-            let level_bits = radix_bits + guard_bits;
+    //     while let Ok(cnode) = CNodeCap::try_from(cnode_slot) {
+    //         let radix_bits = cnode.radix_bits();
+    //         let guard_bits = cnode.guard_bits();
+    //         let level_bits = radix_bits + guard_bits;
 
-            let guard = (idx >> ((n_bits - guard_bits) & !0usize )) & MASK!(guard_bits);
-            if cnode.guard() != guard {
-                return Err(CNodeLookupErr::GuardError);
-            }
+    //         let guard = (idx >> ((n_bits - guard_bits) & !0usize )) & MASK!(guard_bits);
+    //         if cnode.guard() != guard {
+    //             return Err(CNodeLookupErr::GuardError);
+    //         }
 
-            if level_bits > n_bits {
-                return Err(CNodeLookupErr::GuardError);
-            }
+    //         if level_bits > n_bits {
+    //             return Err(CNodeLookupErr::GuardError);
+    //         }
 
-            let offset = (idx >> (n_bits - level_bits)) & MASK!(radix_bits);
-            let cap = unsafe { &*(&cnode.as_object()[offset] as *const CNodeEntry) };
+    //         let offset = (idx >> (n_bits - level_bits)) & MASK!(radix_bits);
+    //         let cap = unsafe { &*(&cnode.as_object()[offset] as *const CNodeEntry) };
 
-            if n_bits <= level_bits {
-                return Ok(cap);
-            }
+    //         if n_bits <= level_bits {
+    //             return Ok(cap);
+    //         }
 
-            n_bits -= level_bits;
-            cnode_slot = cap;
-        };
+    //         n_bits -= level_bits;
+    //         cnode_slot = cap;
+    //     };
 
-        Ok(cnode_slot)
-    }
+    //     Ok(cnode_slot)
+    // }
 
     pub fn lookup_slot(&self, idx: usize) -> Result<&CNodeEntry, CNodeLookupErr> {
         // Ok(unsafe { &*(&self.as_object()[idx] as *const CNodeEntry) })

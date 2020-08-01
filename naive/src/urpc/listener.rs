@@ -1,4 +1,4 @@
-use core::sync::atomic::{AtomicUsize, AtomicPtr, AtomicU8, Ordering};
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 use rustyl4api::object::{EpCap, RamCap, ReplyCap};
 

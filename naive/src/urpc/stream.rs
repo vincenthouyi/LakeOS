@@ -8,21 +8,8 @@ use rustyl4api::object::{EpCap, RamCap, RamObj};
 
 const CACHELINE_SIZE: usize = 64;
 
-enum MsgType {
-    Message,
-    ReadSleep,
-    WriteSleep,
-}
-
-struct Msg {
-    hdr: MsgHdr,
-    payload: MsgPayload,
-}
-const_assert_eq!(size_of::<Msg>(), CACHELINE_SIZE);
-
 struct MsgHdr {
     valid: AtomicBool,
-    msgtype: MsgType,
     len: u8,
 }
 
@@ -34,9 +21,11 @@ struct ChannelState {
 const MSG_PAYLOAD_LEN: usize = CACHELINE_SIZE - size_of::<MsgHdr>();
 const CHANNEL_SLOTS: usize = 4096 / 2 / size_of::<Msg>();
 const CHANNEL_MSG_SLOTS: usize = CHANNEL_SLOTS - 1;
-struct MsgPayload {
-    data: [u8; MSG_PAYLOAD_LEN],
+struct Msg {
+    hdr: MsgHdr,
+    payload: [u8; MSG_PAYLOAD_LEN],
 }
+const_assert_eq!(size_of::<Msg>(), CACHELINE_SIZE);
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Role {
@@ -71,7 +60,7 @@ impl UrpcStream {
 
         /* Connect by sending client notification ep */
         let trans_cap_slot = ntf_ep.slot;
-        let ret = ep.call(&[], Some(trans_cap_slot));
+        let ret = ep.call(&[], Some(trans_cap_slot)).unwrap();
         let svr_ntf_ep = EpCap::new(trans_cap_slot);
 
         /* Generate buffer cap and map to current VSpace */
@@ -83,7 +72,7 @@ impl UrpcStream {
         buf_cap.derive(copied_buf_cap_slot).unwrap();
         ep.send(&[], Some(copied_buf_cap_slot)).unwrap();
 
-        Ok(Self::new(Role::Client, ntf_ep, buf_cap, buf_ptr))
+        Ok(Self::new(Role::Client, svr_ntf_ep, buf_cap, buf_ptr))
     }
 
     fn local_channel_state(&self) -> &ChannelState {
@@ -151,8 +140,7 @@ impl UrpcStream {
             if msg_ptr.hdr.valid.load(Ordering::SeqCst) || chunk_len == 0 {
                 break;
             }
-            msg_ptr.payload.data[..chunk_len].copy_from_slice(chunk);
-            msg_ptr.hdr.msgtype = MsgType::Message;
+            msg_ptr.payload[..chunk_len].copy_from_slice(chunk);
             msg_ptr.hdr.len = chunk_len as u8;
             msg_ptr.hdr.valid.store(true, Ordering::SeqCst);
             write_len += chunk_len;
@@ -189,7 +177,7 @@ impl UrpcStream {
             }
 
             buf[read_len..read_len + msg_len]
-                .copy_from_slice(&msg_slot.payload.data[..msg_len]);
+                .copy_from_slice(&msg_slot.payload[..msg_len]);
             
             read_len += msg_len;
             read_idx += 1;

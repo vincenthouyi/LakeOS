@@ -1,4 +1,3 @@
-use rustyl4api::debug_printer::kprintln;
 use naive::space_manager::{gsm};
 
 extern "Rust" {
@@ -26,7 +25,7 @@ fn run_app_cpus() {
 }
 
 fn app_cpu_entry() {
-    kprintln!("CPU {} in user space!", rustyl4api::thread::thread_id());
+    kprintln!("CPU {} in user space!", rustyl4api::thread::cpu_id());
 
     loop {}
 }

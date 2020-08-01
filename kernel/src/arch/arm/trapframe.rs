@@ -2,7 +2,6 @@ use core::cell::Cell;
 use core::fmt::{Debug, Formatter, Error};
 use crate::prelude::*;
 use crate::syscall::{MsgInfo, RespInfo};
-use num_traits::FromPrimitive;
 use crate::objects::TcbObj;
 
 const EL1h: usize = 0b0101;

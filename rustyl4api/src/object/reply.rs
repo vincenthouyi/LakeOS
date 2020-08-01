@@ -1,7 +1,6 @@
 use crate::object::ObjType;
 use crate::error::SysResult;
-use crate::syscall::{MsgInfo, RespInfo, SyscallOp, syscall};
-use crate::ipc::{IpcMessage, IpcMessageType, IPC_MAX_ARGS};
+use crate::syscall::{MsgInfo, SyscallOp, syscall};
 
 use super::{Capability, KernelObject};
 

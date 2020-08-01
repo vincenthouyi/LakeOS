@@ -307,7 +307,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             let cspace = tcb.cspace()?;
             let cap_slot = cspace.lookup_slot(cap_idx)?;
 
-            let cap = MonitorCap::try_from(cap_slot)?;
+            let _cap = MonitorCap::try_from(cap_slot)?;
 
             let slot = tcb.get_mr(1);
             let paddr = tcb.get_mr(2);

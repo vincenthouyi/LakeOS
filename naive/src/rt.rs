@@ -1,9 +1,4 @@
-use rustyl4api::debug_printer::kprintln;
 use crate::space_manager::{gsm, gsm_init};
-
-// extern "Rust" {
-//     fn main();
-// }
 
 const MEMPOOL_SIZE: usize = 4096;
 

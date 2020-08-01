@@ -106,7 +106,6 @@ impl io::Write for Stderr {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         use core::fmt::Write;
         use core::str::from_utf8;
-        use rustyl4api::debug_printer::debug_printer; 
 
         let string = from_utf8(buf).unwrap();
         for c in string.chars() {

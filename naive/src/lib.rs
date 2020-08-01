@@ -13,7 +13,7 @@
 
 #[macro_use] extern crate static_assertions;
 extern crate alloc;
-extern crate rustyl4api;
+#[macro_use] extern crate rustyl4api;
 
 #[macro_use] mod utils;
 pub mod rt;
