@@ -23,6 +23,7 @@ pub mod thread;
 pub mod process;
 pub mod urpc;
 pub mod io;
+pub mod ep_server;
 mod panic;
 
 extern "C" {
