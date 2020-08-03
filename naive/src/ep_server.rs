@@ -14,7 +14,7 @@ pub struct Ep {
 }
 
 impl Ep {
-    pub const fn new_unbadged(ep: EpCap) -> Self {
+    pub const fn from_unbadged(ep: EpCap) -> Self {
         Self { ep, cur_badge: AtomicUsize::new(100) }
     }
 
@@ -41,7 +41,7 @@ pub struct EpServer {
 impl EpServer {
     pub const fn new(ep: EpCap) -> Self {
         Self {
-            ep: Ep::new_unbadged(ep),
+            ep: Ep::from_unbadged(ep),
             event_handlers: OnceCell::uninit(),
         }
     }
