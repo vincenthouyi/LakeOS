@@ -1,8 +1,12 @@
-use alloc::collections::linked_list::LinkedList;
-
-use mutex::Mutex;
+use spin::{Mutex, MutexGuard};
 use pi::uart::{MiniUart, IrqStatus};
+use conquer_once::spin::OnceCell;
+use core::future::Future;
+use core::{pin::Pin, task::{Poll, Context}};
+use futures_util::stream::Stream;
+use crossbeam_queue::SegQueue;
 
+/*
 pub struct Console {
     inner: Option<MiniUart>,
     tx_buf: LinkedList<u8>,
@@ -162,4 +166,91 @@ pub macro println {
 
 pub macro print($($arg:tt)*) {
     console_print(format_args!($($arg)*))
+}
+*/
+
+pub fn console() -> MutexGuard<'static, MiniUart> {
+    static CONSOLE: OnceCell<Mutex<MiniUart>> = OnceCell::uninit();
+
+    CONSOLE.try_get_or_init(|| {
+        use crate::gpio;
+        use pi::gpio::Function;
+
+        kprintln!("init console");
+        gpio::GPIO_SERVER.lock().as_mut().unwrap().get_pin(14).unwrap().into_alt(Function::Alt5);
+        gpio::GPIO_SERVER.lock().as_mut().unwrap().get_pin(15).unwrap().into_alt(Function::Alt5);
+
+        let uart_base = naive::space_manager::allocate_frame_at(0x3f215000, 4096).unwrap();
+        let mut uart = MiniUart::new(uart_base.as_ptr() as usize);
+        uart.initialize(115200);
+
+        // CONSOLE.lock().initialize(uart);
+
+        Mutex::new(uart)
+    }).unwrap().lock()
+}
+
+pub fn tx_buf() -> &'static SegQueue<u8> {
+    static TX_BUF: OnceCell<SegQueue<u8>> = OnceCell::uninit();
+
+    TX_BUF.try_get_or_init(|| SegQueue::new()).unwrap()
+}
+
+pub fn rx_buf() -> &'static SegQueue<u8> {
+    static RX_BUF: OnceCell<SegQueue<u8>> = OnceCell::uninit();
+
+    RX_BUF.try_get_or_init(|| SegQueue::new()).unwrap()
+}
+
+struct ConsoleReader { }
+
+impl ConsoleReader {
+    pub fn new() -> Self {
+        Self { }
+    }
+}
+
+impl Stream for ConsoleReader {
+    type Item = u8;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<u8>> {
+        // let mut con = CONSOLE.lock();
+        let mut con = console();
+        if con.has_byte() {
+            Poll::Ready(Some(con.read_byte()))
+        } else {
+            Poll::Pending
+        }
+    }
+}
+
+pub async fn read_from_uart() {
+    use futures_util::StreamExt;
+
+    while let Some(byte) = ConsoleReader::new().next().await {
+        rx_buf().push(byte)
+    }
+}
+
+struct ConsoleWriter { }
+
+impl Future for ConsoleWriter {
+    type Output = ();
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let mut con = console();
+        while con.can_write() {
+            if let Some(byte) = tx_buf().pop().ok() {
+                con.write_byte(byte)
+            } else {
+                break;
+            }
+        }
+        Poll::Pending
+    }
+}
+
+pub async fn write_to_uart() {
+    loop {
+        let writer = ConsoleWriter { }.await;
+    }
 }

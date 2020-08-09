@@ -11,7 +11,7 @@ pub fn spawn(entry: fn() -> !) {
 
     let stack_ram = gsm!().alloc_object::<RamObj>(12)
                               .unwrap();
-    
+
     let stack_base = gsm!().insert_ram_at(stack_ram, 0, Permission::writable()) as usize;
     tcb.configure(InitL1PageTable as usize, InitCSpace as usize)
        .expect("Error Configuring TCB");

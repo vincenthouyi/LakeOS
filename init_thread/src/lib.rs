@@ -50,11 +50,11 @@ fn urpc_notification_handler(ep_server: &EpServer, msg: IpcMessage, cap_transfer
             let mut buf = [0; 100];
             let readlen = stream.try_read_bytes(&mut buf).unwrap();
             for byte in buf[..readlen].iter() {
-                console::CONSOLE.lock().write_byte(*byte);
+                console::tx_buf().push(*byte);
             }
         } else if direction == 1 {
             let mut buf = alloc::vec::Vec::new();
-            while let Some(byte) = console::CONSOLE.lock().try_read_byte() {
+            while let Ok(byte) = console::rx_buf().pop() {
                 buf.push(byte);
             }
             if buf.len() > 0 {
@@ -85,21 +85,32 @@ fn connection_handler(ep_server: &EpServer, msg: IpcMessage, cap_transfer_slot: 
     core::mem::forget(listener);
 }
 
+pub fn worker_thread() -> ! {
+    use naive::task::{Executor, Task};
+
+    let mut exe = Executor::new();
+    exe.spawn(Task::new(console::read_from_uart()));
+    exe.spawn(Task::new(console::write_to_uart()));
+    exe.run();
+
+    loop {}
+}
+
 #[no_mangle]
 pub fn main() {
     kprintln!("Long may the sun shine!");
 
     gpio::init_gpio_server();
 
-    console::init_console_server();
+    // console::init_console_server();
 
     timer::init_timer_server();
 
 //    timer_test();
 
-//    vm_test();
+    console::console();
 
-//    spawn_test();
+    naive::thread::spawn(worker_thread);
 
     let ep = gsm!().alloc_object::<EndpointObj>(12).unwrap();
 

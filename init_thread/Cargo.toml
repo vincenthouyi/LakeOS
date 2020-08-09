@@ -13,3 +13,7 @@ naive = { path = "../naive" }
 pi = { path = "../pi" }
 mutex = { git = "https://github.com/vincenthouyi/LakeOS-Mutex" }
 hashbrown = "0.8"
+futures-util = { version = "0.3.4", default-features = false, features = ["alloc"] }
+conquer-once = { version = "0.2.0", default-features = false }
+crossbeam-queue = { version = "0.2.1", default-features = false, features = ["alloc"] }
+spin = "0.5.2"

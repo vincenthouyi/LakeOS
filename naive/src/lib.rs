@@ -24,6 +24,7 @@ pub mod process;
 pub mod urpc;
 pub mod io;
 pub mod ep_server;
+pub mod task;
 mod panic;
 
 extern "C" {
