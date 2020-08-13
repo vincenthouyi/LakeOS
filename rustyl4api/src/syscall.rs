@@ -1,7 +1,7 @@
 use core::convert::{From, TryFrom};
 
 use num_traits::FromPrimitive;
-use crate::error::{SysError, SysResult};
+use crate::error::{SysError, SysErrno, SysResult};
 use crate::ipc::IpcMessageType;
 
 #[repr(C)]
@@ -88,14 +88,14 @@ pub struct RespInfo{
     pub cap_transfer: bool,
     pub need_reply: bool,
     pub badged: bool,
-    pub errno: SysError,
+    pub errno: SysErrno,
 }
 
 impl RespInfo {
     pub const fn ipc_resp(err: SysError, msglen: usize, cap_transfer: bool,
                           need_reply: bool, badged: bool) -> Self {
         Self { msgtype: IpcMessageType::Message, msglen,
-               cap_transfer, need_reply, badged, errno: err }
+               cap_transfer, need_reply, badged, errno: err.errno() }
     }
 
     pub const fn new_syscall_resp(err: SysError, length: usize) -> Self {
@@ -105,7 +105,7 @@ impl RespInfo {
             cap_transfer: false,
             need_reply: false,
             badged: false,
-            errno: err
+            errno: err.errno()
         }
     }
 
@@ -116,19 +116,12 @@ impl RespInfo {
             cap_transfer: false,
             need_reply: false,
             badged: false,
-            errno: SysError::OK
+            errno: SysErrno::OK
         }
     }
 
     pub const fn get_length(&self) -> usize {
         self.msglen
-    }
-
-    pub fn as_result(&self) -> SysResult<()> {
-        match self.errno {
-            SysError::OK => Ok(()),
-            e => Err(e)
-        }
     }
 }
 
@@ -161,7 +154,7 @@ impl TryFrom<usize> for RespInfo {
         let cap_transfer = (value >> 57) & 0b1 == 1;
         let need_reply = (value >> 56) & 0b1 == 1;
         let badged = (value >> 55) & 0b1 == 1;
-        let errno = SysError::from_usize((value >> 49) & 0b111111).ok_or(SysError::InvalidValue)?;
+        let errno = SysErrno::from_usize((value >> 49) & 0b111111).ok_or(SysError::InvalidValue)?;
 
         Ok(Self {msgtype, msglen, cap_transfer, need_reply, badged, errno})
     }
@@ -183,11 +176,24 @@ pub fn syscall(msg_info: MsgInfo, args: &mut [usize;6]) -> SysResult<(RespInfo, 
     };
 
     let retinfo = RespInfo::try_from(ret).unwrap();
-    retinfo.as_result()
-        .map(move |_| {
+    match retinfo.errno {
+        SysErrno::OK => {
             let retlen = retinfo.get_length();
-            (retinfo, &mut args[..retlen], badge)
-        })
+            Ok((retinfo, &mut args[..retlen], badge))
+        },
+        SysErrno::CSpaceNotFound => { Err(SysError::CSpaceNotFound) },
+        SysErrno::CapabilityTypeError => { Err(SysError::CapabilityTypeError) },
+        SysErrno::LookupError => { Err(SysError::LookupError) },
+        SysErrno::UnableToDerive => { Err(SysError::UnableToDerive) },
+        SysErrno::SlotNotEmpty => { Err(SysError::SlotNotEmpty) },
+        SysErrno::VSpaceCapMapped => { Err(SysError::VSpaceCapMapped) },
+        SysErrno::UnsupportedSyscallOp => { Err(SysError::UnsupportedSyscallOp) },
+        SysErrno::VSpaceTableMiss => { Err(SysError::VSpaceTableMiss { level: args[0] as u8 }) },
+        SysErrno::VSpaceSlotOccupied => { Err(SysError::VSpaceSlotOccupied { level: args[0] as u8 }) },
+        SysErrno::VSpacePermissionError => { Err(SysError::VSpacePermissionError) },
+        SysErrno::InvalidValue => { Err(SysError::InvalidValue) },
+        SysErrno::SizeTooSmall => { Err(SysError::SizeTooSmall) },
+    }
 }
 
 pub fn nop() {

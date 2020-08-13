@@ -109,7 +109,7 @@ impl<'a> CapRef<'a, RamObj>{
         let executable = rights.executable;
         let access = match (rights.readable, rights.writable) {
             (false, false) => {AccessPermission::KernelOnly}
-            (false, true) => {return Err(SysError::VSpaceError);}
+            (false, true) => {return Err(SysError::VSpacePermissionError);}
             (true, false) => {AccessPermission::ReadOnly}
             (true, true) => {AccessPermission::ReadWrite}
         };
@@ -123,7 +123,7 @@ impl<'a> CapRef<'a, RamObj>{
         };
         let entry = Entry::page_entry(self.paddr(), !executable, false, true, share,
                                     access, mem_attr);
-        vspace.map_frame(vaddr, entry).or(Err(SysError::VSpaceError))?;
+        vspace.map_frame(vaddr, entry)?;
 
         self.set_mapped_vaddr_asid(vaddr, vspace.asid());
 

@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::vspace::{VSpaceError, VSpaceResult};
+use sysapi::error::{SysError, SysResult};
 use core::ops::{Index, IndexMut};
 
 macro_rules! pgd_index { ($x:expr) => (($x >> 39) & MASK!(9)) }
@@ -167,69 +167,69 @@ impl VSpace {
         Self { root: ptr as *mut Table }
     }
 
-    pub fn lookup_pgd_slot(&self, vaddr: usize) -> VSpaceResult<&mut Entry> {
+    pub fn lookup_pgd_slot(&self, vaddr: usize) -> SysResult<&mut Entry> {
         let table = unsafe{ &mut *self.root };
         Ok(&mut table[pgd_index!(vaddr)])
     }
 
-    pub fn lookup_pud_slot(&self, vaddr: usize) -> VSpaceResult<&mut Entry> {
+    pub fn lookup_pud_slot(&self, vaddr: usize) -> SysResult<&mut Entry> {
         let pgd_slot = self.lookup_pgd_slot(vaddr)?;
         if pgd_slot.is_invalid() {
-            return Err(VSpaceError::L2EntryNotFound);
+            return Err(SysError::VSpaceTableMiss{ level: 2 });
         }
         Ok(&mut pgd_slot.into_table()[pud_index!(vaddr)])
     }
 
-    pub fn lookup_pd_slot(&self, vaddr: usize) -> VSpaceResult<&mut Entry> {
+    pub fn lookup_pd_slot(&self, vaddr: usize) -> SysResult<&mut Entry> {
         let pud_slot = self.lookup_pud_slot(vaddr)?;
         if pud_slot.is_invalid() {
-            return Err(VSpaceError::L3EntryNotFound);
+            return Err(SysError::VSpaceTableMiss{ level: 3 });
         }
         Ok(&mut pud_slot.into_table()[pd_index!(vaddr)])
     }
 
-    pub fn lookup_pt_slot(&self, vaddr: usize) -> VSpaceResult<&mut Entry> {
+    pub fn lookup_pt_slot(&self, vaddr: usize) -> SysResult<&mut Entry> {
         let pd_slot = self.lookup_pd_slot(vaddr)?;
         if pd_slot.is_invalid() {
-            return Err(VSpaceError::L4EntryNotFound);
+            return Err(SysError::VSpaceTableMiss { level: 4 });
         }
         Ok(&mut pd_slot.into_table()[pt_index!(vaddr)])
     }
 
-    pub fn map_pud_table(&self, vaddr: usize, entry: Entry) -> VSpaceResult<()> {
+    pub fn map_pud_table(&self, vaddr: usize, entry: Entry) -> SysResult<()> {
         let pgd_slot = self.lookup_pgd_slot(vaddr)?;
         if pgd_slot.is_valid() {
-            return Err(VSpaceError::DeleteFirst);
+            return Err(SysError::VSpaceSlotOccupied{ level: 2 });
         }
         *pgd_slot = entry;
         crate::arch::dc_clean_by_va_PoC(pgd_slot as *const _ as usize);
         Ok(())
     }
 
-    pub fn map_pd_table(&self, vaddr: usize, entry: Entry) -> VSpaceResult<()> {
+    pub fn map_pd_table(&self, vaddr: usize, entry: Entry) -> SysResult<()> {
         let pud_slot = self.lookup_pud_slot(vaddr)?;
         if pud_slot.is_valid() {
-            return Err(VSpaceError::DeleteFirst);
+            return Err(SysError::VSpaceSlotOccupied{ level: 3 });
         }
         *pud_slot = entry;
         crate::arch::dc_clean_by_va_PoC(pud_slot as *const _ as usize);
         Ok(())
     }
 
-    pub fn map_pt_table(&self, vaddr: usize, entry: Entry) -> VSpaceResult<()> {
+    pub fn map_pt_table(&self, vaddr: usize, entry: Entry) -> SysResult<()> {
         let pd_slot = self.lookup_pd_slot(vaddr)?;
         if pd_slot.is_valid() {
-            return Err(VSpaceError::DeleteFirst);
+            return Err(SysError::VSpaceSlotOccupied{ level: 4 });
         }
         *pd_slot = entry;
         crate::arch::dc_clean_by_va_PoC(pd_slot as *const _ as usize);
         Ok(())
     }
 
-    pub fn map_frame(&self, vaddr: usize, entry: Entry) -> VSpaceResult<()> {
+    pub fn map_frame(&self, vaddr: usize, entry: Entry) -> SysResult<()> {
         let pt_slot = self.lookup_pt_slot(vaddr)?;
         if pt_slot.is_valid() {
-            return Err(VSpaceError::DeleteFirst);
+            return Err(SysError::VSpaceSlotOccupied{ level: 5 });
         }
         *pt_slot = entry;
         crate::arch::dc_clean_by_va_PoC(pt_slot as *const _ as usize);

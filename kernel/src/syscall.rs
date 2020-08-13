@@ -255,7 +255,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             let cap = RamCap::try_from(cap_slot)?;
 
             if cap.mapped_vaddr() != 0 {
-                return Err(SysError::VSpaceError)
+                return Err(SysError::VSpaceCapMapped)
             }
 
             let vspace_cap_idx = tcb.get_mr(1);
@@ -284,7 +284,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             let cap = VTableCap::try_from(cap_slot)?;
 
             if cap.mapped_vaddr() != 0 {
-                return Err(SysError::VSpaceError)
+                return Err(SysError::VSpaceCapMapped)
             }
 
             let vspace_cap_idx = tcb.get_mr(1);
@@ -381,6 +381,11 @@ pub fn handle_syscall(tcb: &mut TcbObj) -> ! {
 
     if let Err(e) = _handle_syscall(tcb) {
         // kprintln!("Syscall Error {:?} info: {:?} TCB {:?}", e, tcb.get_msginfo().unwrap().get_label(), tcb);
+        match e {
+            SysError::VSpaceTableMiss{level} => tcb.set_mr(1, level as usize),
+            SysError::VSpaceSlotOccupied{level} => tcb.set_mr(1, level as usize),
+            _ => { }
+        }
         tcb.set_respinfo(RespInfo::new_syscall_resp(e, 0));
     }
 

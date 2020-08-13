@@ -62,7 +62,7 @@ impl<'a> CapRef<'a, UntypedObj> {
     pub fn retype(&self, obj_type: ObjType, bit_size: usize, slots: &[CNodeEntry]) -> SysResult<()> {
         if slots.iter()
                 .any(|cap| NullCap::try_from(cap).is_err()) {
-            return Err(SysError::SlotIsNotEmpty)
+            return Err(SysError::SlotNotEmpty)
         }
 
         if bit_size > 64 {

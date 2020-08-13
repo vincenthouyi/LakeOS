@@ -53,7 +53,7 @@ impl<'a> VTableCap<'a> {
             2 => vspace.map_pud_table(vaddr, entry),
             3 => vspace.map_pd_table(vaddr, entry),
             4 => vspace.map_pt_table(vaddr, entry),
-            _ => Err(crate::vspace::VSpaceError::Other)
+            _ => Err(SysError::InvalidValue)
         }?;
 
         self.set_mapped_vaddr_asid(vaddr, vspace.asid(), level);
