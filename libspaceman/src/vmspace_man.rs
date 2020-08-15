@@ -1,3 +1,4 @@
+use core::sync::atomic::{Ordering, AtomicUsize};
 use alloc::collections::LinkedList;
 use alloc::alloc::Layout;
 
@@ -9,13 +10,13 @@ pub struct VmArea {
 
 #[derive(Debug, Default)]
 pub struct VMSpaceMan {
-    vma_list: LinkedList<VmArea>,
+    // vma_list: LinkedList<VmArea>,
     // code_start: usize,
     // code_end: usize,
     // start_data: usize,
     // end_data: usize,
     // start_brk: usize,
-    end_brk: usize,
+    end_brk: AtomicUsize,
     // start_stack: usize,
     // start_arg: usize,
     // end_arg: usize,
@@ -26,40 +27,43 @@ pub struct VMSpaceMan {
 impl VMSpaceMan {
     pub fn new() -> Self {
         Self {
-            vma_list : LinkedList::default(),
-            end_brk: 0x8000000000,
+            // vma_list : LinkedList::default(),
+            end_brk: AtomicUsize::new(0x8000000000),
         }
     }
 
-    pub fn insert_vma(&mut self, start: usize, end: usize) {
-        let vma = VmArea {start, end};
-        let mut cur = self.vma_list.cursor_front_mut();
+    // pub fn insert_vma(&mut self, start: usize, end: usize) {
+    //     let vma = VmArea {start, end};
+    //     let mut cur = self.vma_list.cursor_front_mut();
 
-        loop {
-            if cur.current().is_none() {
-                break;
-            }
-            if cur.current().unwrap().start > start {
-                break;
-            }
-            cur.move_next();
-        }
+    //     loop {
+    //         if cur.current().is_none() {
+    //             break;
+    //         }
+    //         if cur.current().unwrap().start > start {
+    //             break;
+    //         }
+    //         cur.move_next();
+    //     }
 
-        cur.insert_before(vma)
-    }
+    //     cur.insert_before(vma)
+    // }
 
-    pub fn find_vma(&self, addr: usize) -> Option<&VmArea> {
-        self.vma_list.iter().find(|vma| vma.end > addr)
-    }
+    // pub fn find_vma(&self, addr: usize) -> Option<&VmArea> {
+    //     self.vma_list.iter().find(|vma| vma.end > addr)
+    // }
 
-    pub fn allocate_mem(&mut self, layout: Layout) -> usize {
+    pub fn allocate_mem(&self, layout: Layout) -> usize {
         use crate::utils::align_up;
 
-        let start = align_up(self.end_brk, layout.align());
-        let size = layout.size();
-        let end = start + size;
-        self.end_brk = end;
+        loop {
+            let start = align_up(self.end_brk.load(Ordering::Relaxed), layout.align());
+            let size = layout.size();
+            let end = start + size;
+            if start == self.end_brk.compare_and_swap(start, end, Ordering::Relaxed) {
+                return start;
+            }
+        }
 //        self.vma_list.push_back(VmArea{start, end});
-        start
     }
 }

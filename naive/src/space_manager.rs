@@ -5,21 +5,23 @@ use rustyl4api::object::{Capability, CNodeObj, RamObj, VTableObj};
 use spaceman::SpaceManager;
 use spin::Mutex;
 
-pub static GLOBAL_SPACEMAN: Mutex<Option<SpaceManager>> = Mutex::new(None);
+pub static mut GLOBAL_SPACEMAN: Option<SpaceManager> = None;
 
 pub fn gsm_init(root_cnode: Capability<CNodeObj>, root_cnode_size: usize, root_vnode: Capability<VTableObj>) {
-    *GLOBAL_SPACEMAN.lock() = Some(SpaceManager::new(root_cnode, root_cnode_size, root_vnode));
+    unsafe{
+        GLOBAL_SPACEMAN = Some(SpaceManager::new(root_cnode, root_cnode_size, root_vnode));
+    }
 }
 
 pub macro gsm {
-    () => ({
+    () => (unsafe {
         if crate::vm_allocator::GLOBAL_VM_ALLOC.cur_pool_remain() < 512 {
             use rustyl4api::vspace::{FRAME_SIZE, Permission};
 
-            let addr = GLOBAL_SPACEMAN.lock().as_mut().unwrap().map_frame_at(0, 0, FRAME_SIZE, Permission::writable()).unwrap();
+            let addr = GLOBAL_SPACEMAN.as_mut().unwrap().map_frame_at(0, 0, FRAME_SIZE, Permission::writable()).unwrap();
             crate::vm_allocator::GLOBAL_VM_ALLOC.add_mempool(addr, FRAME_SIZE);
         }
-        GLOBAL_SPACEMAN.lock().as_mut().unwrap()
+        GLOBAL_SPACEMAN.as_mut().unwrap()
     }),
 }
 

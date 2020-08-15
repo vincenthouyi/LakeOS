@@ -1,5 +1,6 @@
 use alloc::collections::linked_list::LinkedList;
 
+use rustyl4api::error::SysResult;
 use rustyl4api::object::{Capability, RamObj, RamCap, VTableObj, VTableCap};
 use rustyl4api::vspace::Permission;
 
@@ -96,25 +97,24 @@ impl VSpaceMan {
         }
     }
 
-    pub fn install_entry(&mut self, entry: VSpaceEntry, vaddr: usize, level: usize) -> Result<(), VSpaceManError> {
-        self.root.try_install_entry(1, entry, vaddr, level)
+    pub fn install_entry(&self, entry: VSpaceEntry, vaddr: usize, level: usize) -> SysResult<()> {
+        // self.root.try_install_entry(1, entry, vaddr, level)
+        Ok(())
     }
 
     pub fn root_cap_slot(&self) -> usize {
         self.root.cap.slot
     }
 
-    pub fn map_frame(&mut self, frame: RamCap, vaddr: usize, perm: Permission, level: usize) -> Result<(), VSpaceManError> {
+    pub fn map_frame(&self, frame: RamCap, vaddr: usize, perm: Permission, level: usize) -> SysResult<()> {
         let entry = VSpaceEntry::new_frame(frame.clone());
         self.install_entry(entry, vaddr, level)?;
-        frame.map(self.root_cap_slot(), vaddr, perm).unwrap();
-        Ok(())
+        frame.map(self.root_cap_slot(), vaddr, perm)
     }
 
-    pub fn map_table(&mut self, table: VTableCap, vaddr: usize, level: usize) -> Result<(), VSpaceManError> {
+    pub fn map_table(&self, table: VTableCap, vaddr: usize, level: usize) -> SysResult<()> {
         let entry = VSpaceEntry::new_table(table.clone());
         self.install_entry(entry, vaddr, level)?;
-        table.map(self.root_cap_slot(), vaddr, level + 1).unwrap();
-        Ok(())
+        table.map(self.root_cap_slot(), vaddr, level)
     }
 }

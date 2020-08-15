@@ -73,6 +73,7 @@ version = "0.1.0"
 dependencies = [
  "hashbrown",
  "rustyl4api",
+ "spin",
 ]
 
 [[package]]

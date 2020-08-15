@@ -55,16 +55,16 @@ impl SpaceManager {
         }
     }
 
-    pub fn insert_untyped(&mut self, slot: usize, paddr: usize, bit_sz: u8, is_device: bool, free_offset: usize) {
+    pub fn insert_untyped(&self, slot: usize, paddr: usize, bit_sz: u8, is_device: bool, free_offset: usize) {
         self.utspace_man
             .insert_untyped(slot, paddr, bit_sz, is_device, free_offset)
     }
 
-    pub fn insert_vm_range(&mut self, start: usize, end: usize) {
-        self.vmspace_man.insert_vma(start, end);
-    }
+    // pub fn insert_vm_range(&mut self, start: usize, end: usize) {
+    //     self.vmspace_man.insert_vma(start, end);
+    // }
 
-    pub fn insert_identify(&mut self, slot: usize, result: IdentifyResult) {
+    pub fn insert_identify(&self, slot: usize, result: IdentifyResult) {
         self.cspace_alloc_at(slot);
         match result {
             IdentifyResult::NullObj => { },
@@ -89,25 +89,25 @@ impl SpaceManager {
         }
     }
 
-    pub fn cspace_alloc_at(&mut self, slot: usize) -> Option<usize> {
+    pub fn cspace_alloc_at(&self, slot: usize) -> Option<usize> {
         self.cspace_man
             .allocate_slot_at(slot)
     }
 
-    pub fn cspace_alloc(&mut self) -> Option<usize> {
+    pub fn cspace_alloc(&self) -> Option<usize> {
         self.cspace_man
             .allocate_slot()
     }
 
-    pub fn cspace_free(&mut self, slot: usize) {
+    pub fn cspace_free(&self, slot: usize) {
         unimplemented!()
     }
 
-    pub fn vspace_alloc(&mut self, layout: Layout) -> Option<usize> {
+    pub fn vspace_alloc(&self, layout: Layout) -> Option<usize> {
         Some(self.vmspace_man.allocate_mem(layout))
     }
 
-    pub fn map_frame_at(&mut self, paddr: usize, vaddr: usize, size: usize, perm: Permission) -> Result<*mut u8, ()> {
+    pub fn map_frame_at(&self, paddr: usize, vaddr: usize, size: usize, perm: Permission) -> Result<*mut u8, ()> {
         if paddr != 0 {
             return Err(());
         }
@@ -126,8 +126,8 @@ impl SpaceManager {
     }
 
     /// Insert an RamCap to vspace to manage and handle backed page table
-    pub fn insert_ram_at(&mut self, ram: Capability<RamObj>, vaddr: usize, perm: Permission) -> *mut u8 {
-        use vspace_man::{VSpaceManError};
+    pub fn insert_ram_at(&self, ram: Capability<RamObj>, vaddr: usize, perm: Permission) -> *mut u8 {
+        use rustyl4api::error::SysError;
         // TODO: support large page
         let layout = Layout::from_size_align(4096, 4096).unwrap();
         let vaddr = if vaddr == 0 {
@@ -137,39 +137,42 @@ impl SpaceManager {
         };
         while let Err(e) = self.vspace_man.map_frame(ram.clone(), vaddr, perm, 4) {
             match e {
-                VSpaceManError::SlotOccupied{level} => {
-                    panic!("slot occupied at level {} vaddr {:x}", level, vaddr);
-                }
-                VSpaceManError::SlotTypeError{level} => {
-                    panic!("wrong slot type at level {} vaddr {:x}", level, vaddr);
-                }
-                VSpaceManError::PageTableMiss{level} => {
+                // VSpaceManError::SlotOccupied{level} => {
+                //     panic!("slot occupied at level {} vaddr {:x}", level, vaddr);
+                // }
+                // VSpaceManError::SlotTypeError{level} => {
+                //     panic!("wrong slot type at level {} vaddr {:x}", level, vaddr);
+                // }
+                SysError::VSpaceTableMiss{level} => {
                     let vtable_cap = self.alloc_object::<VTableObj>(12).unwrap();
-                    self.vspace_man.map_table(vtable_cap, vaddr, level).unwrap();
+                    self.vspace_man.map_table(vtable_cap, vaddr, level as usize).unwrap();
+                }
+                e => {
+                    panic!("unexpected error {:?}", e);
                 }
             }
         };
         vaddr as *mut u8
     }
 
-    pub fn insert_vtable(&mut self, table: Capability<VTableObj>, vaddr: usize, level: usize) {
+    pub fn insert_vtable(&self, table: Capability<VTableObj>, vaddr: usize, level: usize) {
         let entry = vspace_man::VSpaceEntry::new_table(table);
         self.vspace_man
             .install_entry(entry, vaddr, level).unwrap();
     }
 
-    pub fn install_ram(&mut self, ram: Capability<RamObj>, vaddr: usize) {
+    pub fn install_ram(&self, ram: Capability<RamObj>, vaddr: usize) {
         let entry = vspace_man::VSpaceEntry::new_frame(ram);
         self.vspace_man
             .install_entry(entry, vaddr, 4).unwrap();
     }
 
-    pub fn alloc_object<T: KernelObject>(&mut self, size: usize) -> Option<Capability<T>> {
+    pub fn alloc_object<T: KernelObject>(&self, size: usize) -> Option<Capability<T>> {
         let slot = self.cspace_alloc()?;
         self.utspace_man.alloc_object::<T>(slot, size)
     }
 
-    pub fn alloc_object_at<T: KernelObject>(&mut self, paddr: usize, bit_sz: usize, maybe_device: bool) -> Option<Capability<RamObj>> {
+    pub fn alloc_object_at<T: KernelObject>(&self, paddr: usize, bit_sz: usize, maybe_device: bool) -> Option<Capability<RamObj>> {
         unimplemented!();
     }
 }

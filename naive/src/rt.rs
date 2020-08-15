@@ -81,12 +81,12 @@ pub fn populate_app_cspace() {
 }
 
 pub fn initialize_vmspace() {
-    use rustyl4api::vspace::{FRAME_SIZE};
+    // use rustyl4api::vspace::{FRAME_SIZE};
 
-    let brk = unsafe{ crate::_end.as_ptr() as usize };
-    let brk = crate::utils::align_up(brk, FRAME_SIZE);
+    // let brk = unsafe{ crate::_end.as_ptr() as usize };
+    // let brk = crate::utils::align_up(brk, FRAME_SIZE);
 
-    gsm!().insert_vm_range(0, brk);
+    // gsm!().insert_vm_range(0, brk);
 }
 
 pub fn initialize_mm() {

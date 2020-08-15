@@ -93,18 +93,22 @@ impl<'a> ProcessBuilder<'a> {
 
                                 while let Err(e) = vspace.map_frame(frame_cap.clone(), vaddr, perm, 4) {
                                     match e {
-                                        VSpaceManError::SlotOccupied{level} => {
-                                            panic!("slot occupied at level {} vaddr {:x}", level, vaddr);
-                                        }
-                                        VSpaceManError::SlotTypeError{level} => {
-                                            panic!("wrong slot type at level {} vaddr {:x}", level, vaddr);
-                                        }
-                                        VSpaceManError::PageTableMiss{level} => {
+                                        // VSpaceManError::SlotOccupied{level} => {
+                                        //     panic!("slot occupied at level {} vaddr {:x}", level, vaddr);
+                                        // }
+                                        // VSpaceManError::SlotTypeError{level} => {
+                                        //     panic!("wrong slot type at level {} vaddr {:x}", level, vaddr);
+                                        // }
+                                        // VSpaceManError::PageTableMiss{level} => {
+                                        rustyl4api::error::SysError::VSpaceTableMiss{level} => {
                                             let vtable_cap = gsm!().alloc_object::<VTableObj>(12).unwrap();
                                             // kprintln!("miss table level {} addr {:x}", level, vaddr);
-                                            vspace.map_table(vtable_cap.clone(), vaddr, level).unwrap();
+                                            vspace.map_table(vtable_cap.clone(), vaddr, level as usize).unwrap();
                                             child_root_cn.cap_copy(cur_free, vtable_cap.slot).map_err(|_| ()).unwrap();
                                             cur_free += 1;
+                                        }
+                                        e => {
+                                            panic!()
                                         }
                                     }
                                 };
@@ -134,18 +138,22 @@ impl<'a> ProcessBuilder<'a> {
 
                             while let Err(e) = vspace.map_frame(frame_cap.clone(), vaddr, perm, 4) {
                                 match e {
-                                    VSpaceManError::SlotOccupied{level} => {
-                                        panic!("slot occupied at level {} vaddr {:x}", level, vaddr);
-                                    }
-                                    VSpaceManError::SlotTypeError{level} => {
-                                        panic!("wrong slot type at level {} vaddr {:x}", level, vaddr);
-                                    }
-                                    VSpaceManError::PageTableMiss{level} => {
+                                    // VSpaceManError::SlotOccupied{level} => {
+                                    //     panic!("slot occupied at level {} vaddr {:x}", level, vaddr);
+                                    // }
+                                    // VSpaceManError::SlotTypeError{level} => {
+                                    //     panic!("wrong slot type at level {} vaddr {:x}", level, vaddr);
+                                    // }
+                                    // VSpaceManError::PageTableMiss{level} => {
+                                    rustyl4api::error::SysError::VSpaceTableMiss{level} => {
                                         let vtable_cap = gsm!().alloc_object::<VTableObj>(12).unwrap();
                                         // kprintln!("miss table level {} addr {:x}", level, vaddr);
-                                        vspace.map_table(vtable_cap.clone(), vaddr, level).unwrap();
+                                        vspace.map_table(vtable_cap.clone(), vaddr, level as usize).unwrap();
                                         child_root_cn.cap_copy(cur_free, vtable_cap.slot).map_err(|_| ()).unwrap();
                                         cur_free += 1;
+                                    }
+                                    _ => {
+                                        panic!()
                                     }
                                 }
                             };
