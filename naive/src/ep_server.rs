@@ -1,5 +1,7 @@
 use core::sync::atomic::{AtomicUsize, Ordering};
 use alloc::collections::BTreeMap;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
 
 use conquer_once::spin::OnceCell;
 use spin::{Mutex, MutexGuard};
@@ -26,15 +28,9 @@ impl Ep {
     }
 }
 
-type EventHandlerCb = fn(&EpServer, IpcMessage, Option<usize>, Context) -> ();
-
-#[derive(Clone, Copy)]
-pub enum Context {
-    Pointer(usize),
-}
-
 pub struct EpServer {
-    event_handlers: OnceCell<Mutex<BTreeMap<usize, (EventHandlerCb, Context)>>>,
+    event_handlers: OnceCell<Mutex<BTreeMap<usize, Arc<Box<dyn EpMsgHandler>>>>>,
+    ntf_handler: Mutex<[Option<Arc<Box<dyn EpNtfHandler>>>; 64]>,
     ep: Ep
 }
 
@@ -43,10 +39,11 @@ impl EpServer {
         Self {
             ep: Ep::from_unbadged(ep),
             event_handlers: OnceCell::uninit(),
+            ntf_handler: Mutex::new([None; 64]),
         }
     }
 
-    fn get_event_handlers(&self) -> MutexGuard<BTreeMap<usize, (EventHandlerCb, Context)>> {
+    fn get_event_handlers(&self) -> MutexGuard<BTreeMap<usize, Arc<Box<dyn EpMsgHandler>>>> {
         self.event_handlers
             .try_get_or_init(|| Mutex::new(BTreeMap::new())).unwrap()
             .lock()
@@ -56,9 +53,9 @@ impl EpServer {
         self.ep.derive_badged_cap()
     }
 
-    pub fn insert_event(&self, badge: usize, cb: EventHandlerCb, ctx: Context) {
+    pub fn insert_event(&self, badge: usize, cb: Box<dyn EpMsgHandler>) {
         self.get_event_handlers()
-            .insert(badge, (cb, ctx));
+            .insert(badge, Arc::new(cb));
     }
 
     pub fn remove_event(&self, badge: usize) {
@@ -66,30 +63,61 @@ impl EpServer {
             .remove(&badge);
     }
 
+    pub fn insert_notification(&self, ntf: usize, cb: Box<dyn EpNtfHandler>) {
+        self.ntf_handler.lock()[ntf] = Some(Arc::new(cb));
+    }
+
     pub fn run(&self) {
         let mut recv_slot = gsm!().cspace_alloc().unwrap();
-        let mut ret = self.ep.ep.receive(Some(recv_slot));
-        while let Ok(IpcMessage::Message{payload, need_reply, cap_transfer, badge}) = ret {
-            if let Some(b) = badge {
-                let cb = self.get_event_handlers()
-                             .get(&b)
-                             .map(|cb| *cb);
-                if let Some((cb, ctx)) = cb {
-                    let cap_trans = if cap_transfer {
-                        Some(recv_slot)
+        loop {
+            let ret = self.ep.ep.receive(Some(recv_slot));
+            match ret {
+                Ok(IpcMessage::Message{payload, need_reply, cap_transfer, badge}) => {
+                    if let Some(b) = badge {
+                        let cb = self.get_event_handlers()
+                                    .get(&b)
+                                    .map(|cb| cb.clone());
+                        if let Some(cb) = cb {
+                            let cap_trans = if cap_transfer {
+                                Some(recv_slot)
+                            } else {
+                                None
+                            };
+                            cb.handle_ipc(self, ret.unwrap(), cap_trans);
+                        }
                     } else {
-                        None
-                    };
-                    cb(self, ret.unwrap(), cap_trans, ctx);
+                        kprintln!("warning: receive unbadged message");
+                    }
+                    //TOO: leak previous alloced slot now. should find some other way...
+                    if cap_transfer {
+                        recv_slot = gsm!().cspace_alloc().unwrap();
+                    }
+                },
+                Ok(IpcMessage::Notification(ntf_mask)) => {
+                    let mut ntf_mask = ntf_mask;
+                    while ntf_mask.trailing_zeros() != 64 {
+                        let ntf = ntf_mask.trailing_zeros() as usize;
+                        let cb = self.ntf_handler.lock()[ntf].clone();
+                        if let Some(c) = cb {
+                            c.handle_notification(self, ntf);
+                        }
+                        ntf_mask &= !(1 << ntf);
+                    }
                 }
-            } else {
-                kprintln!("warning: receive unbadged message");
+                e => {
+                    kprintln!("e {:?}", e);
+                }
             }
-            //TOO: leak previous alloced slot now. should find some other way...
-            if cap_transfer {
-                recv_slot = gsm!().cspace_alloc().unwrap();
-            }
-            ret = self.ep.ep.receive(Some(recv_slot));
         }
     }
+}
+
+pub trait EpMsgHandler {
+    fn handle_ipc(&self, ep_server: &EpServer, msg: IpcMessage, cap_transfer_slot: Option<usize>) { }
+
+    fn handle_fault(&self) { }
+}
+
+pub trait EpNtfHandler {
+    fn handle_notification(&self, ep_server: &EpServer, ntf: usize) { }
 }

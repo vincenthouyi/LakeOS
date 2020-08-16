@@ -57,7 +57,7 @@ impl<'a> ProcessBuilder<'a> {
         let child_tcb = gsm!().alloc_object::<TcbObj>(TCB_OBJ_BIT_SZ).unwrap();
         let child_root_cn = gsm!().alloc_object::<CNodeObj>(rootcn_bitsz).unwrap();
         let child_root_vn = gsm!().alloc_object::<VTableObj>(12).unwrap();
-        let mut vspace = VSpaceMan::new(child_root_vn.clone());
+        let vspace = VSpaceMan::new(child_root_vn.clone());
 
         let mut cur_free = ProcessCSpace::ProcessFixedMax as usize;
         if let Elf::Elf64(e) = elf {

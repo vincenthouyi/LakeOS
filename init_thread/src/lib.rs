@@ -19,7 +19,7 @@ use rustyl4api::object::{EndpointObj};
 use rustyl4api::ipc::IpcMessage;
 
 use naive::space_manager::gsm;
-use naive::ep_server::{EpServer, Context};
+use naive::ep_server::{EpServer, EpMsgHandler};
 use naive::urpc::{UrpcListener, UrpcStream};
 
 static SHELL_ELF: &'static [u8] = include_bytes!("../build/shell.elf");
@@ -36,57 +36,48 @@ static SHELL_ELF: &'static [u8] = include_bytes!("../build/shell.elf");
 
 use rustyl4api::object::{EpCap};
 
-fn urpc_notification_handler(ep_server: &EpServer, msg: IpcMessage, cap_transfer_slot: Option<usize>, ctx: Context) {
-    if let IpcMessage::Message{payload, need_reply, cap_transfer, badge} = msg {
-        let direction = payload[0];
-        let mut stream = {
-            if let Context::Pointer(ptr) = ctx {
-                unsafe{ Box::from_raw(ptr as *mut UrpcStream) }
-            } else {
-                panic!()
-            }
-        };
-        if direction == 0 {
-            let mut buf = [0; 100];
-            let readlen = stream.try_read_bytes(&mut buf).unwrap();
-            for byte in buf[..readlen].iter() {
-                console::tx_buf().push(*byte);
-            }
-        } else if direction == 1 {
-            let mut buf = alloc::vec::Vec::new();
-            while let Ok(byte) = console::rx_buf().pop() {
-                buf.push(byte);
-            }
-            if buf.len() > 0 {
-                stream.write_bytes(&buf).unwrap();
+struct UrpcStreamHandler {
+    inner: UrpcStream
+}
+
+impl EpMsgHandler for UrpcStreamHandler {
+    fn handle_ipc(&self, ep_server: &EpServer, msg: IpcMessage, cap_transfer_slot: Option<usize>) {
+        if let IpcMessage::Message{payload, need_reply, cap_transfer, badge} = msg {
+            let direction = payload[0];
+            if direction == 0 {
+                let mut buf = [0; 100];
+                let readlen = self.inner.try_read_bytes(&mut buf).unwrap();
+                for byte in buf[..readlen].iter() {
+                    console::tx_buf().push(*byte);
+                }
+            } else if direction == 1 {
+                let mut buf = alloc::vec::Vec::new();
+                while let Ok(byte) = console::rx_buf().pop() {
+                    buf.push(byte);
+                }
+                if buf.len() > 0 {
+                    self.inner.write_bytes(&buf).unwrap();
+                }
             }
         }
-
-        core::mem::forget(stream);
+    }
+}
+struct UrpcConnectionHandler {
+    inner: UrpcListener
+}
+impl EpMsgHandler for UrpcConnectionHandler {
+    fn handle_ipc(&self, ep_server: &EpServer, msg: IpcMessage, cap_transfer_slot: Option<usize>) {
+        let c_ntf_cap = EpCap::new(cap_transfer_slot.unwrap());
+        let (conn_badge, s_ntf_cap) = ep_server.derive_badged_cap().unwrap();
+        let stream = Box::new(UrpcStreamHandler{inner: self.inner.accept_with(c_ntf_cap, s_ntf_cap).unwrap()} );
+        stream.inner.sleep_on_read();
+        stream.inner.sleep_on_write();
+        ep_server.insert_event(conn_badge, stream);
     }
 }
 
-fn connection_handler(ep_server: &EpServer, msg: IpcMessage, cap_transfer_slot: Option<usize>, ctx: Context) {
-    //TODO: param checking
-    let listener = {
-        if let Context::Pointer(ptr) = ctx {
-            unsafe{ Box::from_raw(ptr as *mut UrpcListener) }
-        } else {
-            panic!()
-        }
-    };
-    let c_ntf_cap = EpCap::new(cap_transfer_slot.unwrap());
-    let (conn_badge, s_ntf_cap) = ep_server.derive_badged_cap().unwrap();
-    let mut stream = Box::new(listener.accept_with(c_ntf_cap, s_ntf_cap).unwrap());
-    stream.sleep_on_read();
-    stream.sleep_on_write();
-    ep_server.insert_event(conn_badge, urpc_notification_handler, Context::Pointer(Box::into_raw(stream) as usize));
-
-    core::mem::forget(listener);
-}
-
 pub fn worker_thread() -> ! {
-    use naive::task::{Executor, Task};
+    use naive::task::Task;
     use naive::executor;
 
     executor::global_executor().spawn(Task::new(console::read_from_uart()));
@@ -124,8 +115,8 @@ pub fn main() {
         .spawn()
         .expect("spawn process failed");
 
-    let listener = Box::new(UrpcListener::bind(listen_ep, listen_badge).unwrap());
-    ep_server.insert_event(listen_badge, connection_handler, Context::Pointer(Box::into_raw(listener) as usize));
+    let listener = Box::new(UrpcConnectionHandler{inner:  UrpcListener::bind(listen_ep, listen_badge).unwrap() });
+    ep_server.insert_event(listen_badge, listener);
 
     ep_server.run();
 

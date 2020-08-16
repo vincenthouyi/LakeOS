@@ -2,7 +2,7 @@ use core::sync::atomic::{AtomicPtr, AtomicBool, AtomicUsize, Ordering};
 use core::mem::size_of;
 
 use crate::space_manager::gsm;
-use crate::io::{self, ErrorKind};
+use crate::io;
 
 use rustyl4api::object::{EpCap, RamCap, RamObj};
 
@@ -129,7 +129,7 @@ impl UrpcStream {
         self.local_channel_state().write_sleep.store(true, Ordering::SeqCst)
     }
 
-    pub fn try_write_bytes(&mut self, buf: &[u8]) -> io::Result<usize> {
+    pub fn try_write_bytes(&self, buf: &[u8]) -> io::Result<usize> {
         let chan_buf = self.write_buffer();
         let mut write_idx = self.write_idx.load(Ordering::Relaxed);
         let mut write_len = 0;
@@ -161,7 +161,7 @@ impl UrpcStream {
         Ok(())
     }
 
-    pub fn try_read_bytes(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    pub fn try_read_bytes(&self, buf: &mut [u8]) -> io::Result<usize> {
         let chan_buf = self.read_buffer();
         let mut read_idx = self.read_idx.load(Ordering::Relaxed);
         let mut read_len = 0;
@@ -204,7 +204,7 @@ impl UrpcStream {
         Ok(read_len)
     }
 
-    pub fn write_bytes(&mut self, buf: &[u8]) -> io::Result<usize> {
+    pub fn write_bytes(&self, buf: &[u8]) -> io::Result<usize> {
         let mut write_len = 0;
 
         while write_len == 0 {
