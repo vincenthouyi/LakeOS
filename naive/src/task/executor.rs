@@ -1,48 +1,64 @@
-use core::task::{Context, Poll};
-use core::task::{Waker, RawWaker};
-use core::task::RawWakerVTable;
-use alloc::collections::VecDeque;
+use core::task::{Context, Poll, Waker};
+use alloc::collections::BTreeMap;
+use alloc::sync::Arc;
 use crossbeam_queue::ArrayQueue;
 
-use super::Task;
+use super::{Task, TaskId, TaskWaker};
 
 pub struct Executor {
-    task_queue: ArrayQueue<Task>,
+    tasks: BTreeMap<TaskId, Task>,
+    task_queue: Arc<ArrayQueue<TaskId>>,
+    waker_cache: BTreeMap<TaskId, Waker>,
 }
 
 impl Executor {
     pub fn new() -> Executor {
         Executor {
-            task_queue: ArrayQueue::new(100),
+            tasks: BTreeMap::new(),
+            task_queue: Arc::new(ArrayQueue::new(100)),
+            waker_cache: BTreeMap::new(),
         }
     }
 
-    pub fn spawn(&self, task: Task) {
-        self.task_queue.push(task).unwrap()
+    pub fn spawn(&mut self, task: Task) {
+        let task_id = task.id;
+        if self.tasks.insert(task_id, task).is_some() {
+            panic!("task id already in tasks");
+        }
+        self.task_queue.push(task_id).expect("queue full");
     }
 
-    pub fn run(&self) {
-        while let Ok(mut task) = self.task_queue.pop() {
-            let waker = dummy_waker();
-            let mut context = Context::from_waker(&waker);
+    pub fn run_ready_tasks(&mut self) {
+        let Self {
+            tasks,
+            task_queue,
+            waker_cache,
+        } = self;
+
+        while let Ok(task_id) = task_queue.pop() {
+            let task = match tasks.get_mut(&task_id) {
+                Some(task) => task,
+                None => continue, // task no longer exists
+            };
+            let waker = waker_cache
+                .entry(task_id)
+                .or_insert_with(|| TaskWaker::new(task_id, task_queue.clone()));
+            let mut context = Context::from_waker(waker);
             match task.poll(&mut context) {
-                Poll::Ready(()) => {} // task done
-                Poll::Pending => self.task_queue.push(task).unwrap(),
+                Poll::Ready(()) => {
+                    // task done -> remove it and its cached waker
+                    tasks.remove(&task_id);
+                    waker_cache.remove(&task_id);
+                }
+                Poll::Pending => {}
             }
         }
     }
-}
 
-fn dummy_waker() -> Waker {
-    unsafe { Waker::from_raw(dummy_raw_waker()) }
-}
-
-fn dummy_raw_waker() -> RawWaker {
-    fn no_op(_: *const ()) {}
-    fn clone(_: *const ()) -> RawWaker {
-        dummy_raw_waker()
+    pub fn run(&mut self) -> ! {
+        loop {
+            self.run_ready_tasks();
+            // kprintln!("no ready tasks");
+        }
     }
-
-    let vtable = &RawWakerVTable::new(clone, no_op, no_op, no_op);
-    RawWaker::new(0 as *const (), vtable)
 }

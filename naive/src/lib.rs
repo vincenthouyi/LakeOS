@@ -8,6 +8,7 @@
 #![feature(const_saturating_int_methods)]
 #![feature(linked_list_cursors)]
 #![feature(llvm_asm)]
+#![feature(wake_trait)]
 
 #![no_std]
 

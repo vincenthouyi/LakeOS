@@ -78,11 +78,11 @@ impl EpMsgHandler for UrpcConnectionHandler {
 
 pub fn worker_thread() -> ! {
     use naive::task::Task;
-    use naive::executor;
 
-    executor::global_executor().spawn(Task::new(console::read_from_uart()));
-    executor::global_executor().spawn(Task::new(console::write_to_uart()));
-    executor::global_executor().run();
+    let mut exe = naive::task::Executor::new();
+    exe.spawn(Task::new(console::read_from_uart()));
+    exe.spawn(Task::new(console::write_to_uart()));
+    exe.run();
 
     loop {}
 }
