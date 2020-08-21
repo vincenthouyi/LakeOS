@@ -53,7 +53,7 @@ impl Controller {
     }
 
     pub fn enable_mask(&mut self, mask: u64) {
-        let lower = ((mask as u32) & (!0u32));
+        let lower = (mask as u32) & (!0u32);
         let higher = (mask >> 32) as u32;
         if lower != 0 {
             self.registers.EnableIRQ[0].write(lower)

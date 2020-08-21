@@ -1,5 +1,4 @@
 use rustyl4api::object::{TcbObj, RamObj};
-use rustyl4api::init::InitCSpaceSlot::{InitCSpace, InitL1PageTable};
 use rustyl4api::process::ProcessCSpace::{RootCNodeCap, RootVNodeCap};
 
 use crate::space_manager::gsm;

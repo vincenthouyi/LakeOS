@@ -9,6 +9,7 @@ impl Controller {
         Controller { }
     }
 
+    #[allow(dead_code)]
     pub fn enable(&mut self, int: usize) {
         IrqCntl::new(INT_BASE).enable(int)
     }

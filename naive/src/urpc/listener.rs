@@ -1,6 +1,4 @@
-use core::sync::atomic::{AtomicUsize, Ordering};
-
-use rustyl4api::object::{EpCap, RamCap, ReplyCap};
+use rustyl4api::object::{EpCap, RamCap};
 
 use crate::space_manager::gsm;
 use crate::io::Result;

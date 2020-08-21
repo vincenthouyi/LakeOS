@@ -11,7 +11,7 @@ extern crate naive;
 
 mod console;
 mod gpio;
-mod timer;
+// mod timer;
 mod rt;
 
 use alloc::boxed::Box;
@@ -52,9 +52,7 @@ impl EpMsgHandler for UrpcConnectionHandler {
         let (conn_badge, s_ntf_cap) = ep_server.derive_badged_cap().unwrap();
         let stream_inner = self.inner.accept_with(c_ntf_cap, s_ntf_cap).unwrap();
         let stream = UrpcStreamExt::from_stream(stream_inner);
-        unsafe {
-            STREAM.lock().push(stream.clone());
-        }
+        STREAM.lock().push(stream.clone());
         ep_server.insert_event(conn_badge, Box::new(stream));
     }
 }
@@ -62,19 +60,17 @@ impl EpMsgHandler for UrpcConnectionHandler {
 static STREAM: Mutex<Vec<UrpcStreamExt>> = Mutex::new(Vec::new());
 
 fn get_stream() -> Vec<UrpcStreamExt> {
-    unsafe {
-        loop {
-            let streams = STREAM.lock();
-            if streams.len() != 2 {
-                continue;
-            }
-
-            let mut v = Vec::new();
-            for s in streams.iter() {
-                v.push(s.clone());
-            }
-            return v;
+    loop {
+        let streams = STREAM.lock();
+        if streams.len() != 2 {
+            continue;
         }
+
+        let mut v = Vec::new();
+        for s in streams.iter() {
+            v.push(s.clone());
+        }
+        return v;
     }
 }
 
@@ -95,10 +91,10 @@ async fn write_stream() {
 
     let con = console::console();
     let mut con_stream = con.stream();
-    let mut streams = get_stream();
+    let streams = get_stream();
 
     while let Some(b) = con_stream.next().await {
-        streams[1].poll_write(&[b]).await;
+        streams[1].poll_write(&[b]).await.unwrap();
     }
 }
 
@@ -140,9 +136,7 @@ pub fn main() {
 
     gpio::init_gpio_server();
 
-    // console::init_console_server();
-
-    timer::init_timer_server();
+    // timer::init_timer_server();
 
 //    timer_test();
 

@@ -59,7 +59,7 @@ impl Executor {
         }
     }
 
-    pub fn run(&mut self) -> ! {
+    pub fn run(&mut self) {
         loop {
             self.run_ready_tasks();
             // kprintln!("no ready tasks");

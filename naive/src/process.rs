@@ -1,6 +1,6 @@
 use rustyl4api::object::{VTableObj, RamObj, CNodeObj, TcbObj, EpCap, TcbCap, UntypedObj};
 use rustyl4api::vspace::Permission;
-use spaceman::vspace_man::{VSpaceMan, VSpaceManError};
+use spaceman::vspace_man::VSpaceMan;
 
 #[derive(Debug)]
 pub struct ProcessBuilder<'a> {

@@ -34,6 +34,7 @@ impl InterruptController {
             .do_set_signal(1 << irq);
     }
 
+    #[allow(dead_code)]
     pub fn listen_irq(&self, irq: usize) {
         Controller::new().enable(irq);
     }
