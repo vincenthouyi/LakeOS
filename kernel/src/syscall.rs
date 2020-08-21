@@ -224,7 +224,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
         SyscallOp::EndpointReply => {
             let reply = tcb.reply_cap().ok_or(SysError::LookupError)?;
             reply.handle_reply(msginfo, tcb, false)?;
-            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
+            // tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
 
             Ok(())
         }
@@ -232,12 +232,12 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             let reply = tcb.reply_cap().ok_or(SysError::LookupError)?;
             reply.handle_reply(msginfo, tcb, true)?;
 
-            let cap_idx = tcb.get_mr(0);
-            let cspace = tcb.cspace()?;
-            let cap_slot = cspace.lookup_slot(cap_idx)?;
+            // let cap_idx = tcb.get_mr(0);
+            // let cspace = tcb.cspace()?;
+            // let cap_slot = cspace.lookup_slot(cap_idx)?;
 
-            let cap = EndpointCap::try_from(cap_slot)?;
-            cap.handle_recv(msginfo, tcb)?;
+            // let cap = EndpointCap::try_from(cap_slot)?;
+            // cap.handle_recv(msginfo, tcb)?;
 
             Ok(())
         }

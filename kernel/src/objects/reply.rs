@@ -34,9 +34,13 @@ impl<'a> ReplyCap<'a> {
         receiver.set_state(ThreadState::Ready);
         receiver.set_sending_badge(0);
         crate::SCHEDULER.push(receiver);
+        sender.set_reply(None);
         if !will_recv {
             sender.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
-            sender.set_reply(None);
+        } else {
+            receiver.set_reply(Some(sender));
+            sender.set_state(ThreadState::Sending);
+            sender.detach();
         }
 
         Ok(())

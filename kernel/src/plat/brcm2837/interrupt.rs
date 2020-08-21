@@ -24,4 +24,8 @@ impl Controller {
     pub fn pending_irq(&self) -> usize {
         IrqCntl::new(INT_BASE).pending_irq()
     }
+
+    pub fn listen_irq_mask(&self, mask: u64) {
+        IrqCntl::new(INT_BASE).enable_mask(mask)
+    }
 }

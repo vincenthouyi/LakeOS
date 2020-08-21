@@ -52,6 +52,18 @@ impl Controller {
         self.registers.DisableIRQ[int / 32].write(1 << (int % 32));
     }
 
+    pub fn enable_mask(&mut self, mask: u64) {
+        let lower = ((mask as u32) & (!0u32));
+        let higher = (mask >> 32) as u32;
+        if lower != 0 {
+            self.registers.EnableIRQ[0].write(lower)
+        }
+
+        if higher != 0 {
+            self.registers.EnableIRQ[1].write(higher)
+        }
+    }
+
     pub fn is_pending(&self, int: usize) -> bool {
         self.registers.IRQPending[int / 32].has_mask(1 << int % 32)
     }

@@ -37,6 +37,10 @@ impl InterruptController {
     pub fn listen_irq(&self, irq: usize) {
         Controller::new().enable(irq);
     }
+
+    pub fn listen_irq_mask(&self, mask: u64) {
+        Controller::new().listen_irq_mask(mask)
+    }
 }
 
 pub static mut INTERRUPT_CONTROLLER: Mutex<InterruptController> = Mutex::new(InterruptController::new());

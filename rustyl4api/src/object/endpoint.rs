@@ -95,6 +95,8 @@ fn handle_receive_return(respinfo: RespInfo, msgbuf: &[usize], badge: usize)
             IpcMessage::Notification(msgbuf[0])
         }
         IpcMessageType::Invalid => {
+            // FIXME: find why panic without underlying kprintln
+            kprintln!("respinfo {:?} msgbuf {:?} badge {}", respinfo, msgbuf, badge);
             panic!()
         }
     })

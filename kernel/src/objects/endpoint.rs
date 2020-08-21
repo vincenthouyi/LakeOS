@@ -22,6 +22,7 @@ impl core::default::Default for EpState {
 pub struct EndpointObj {
     queue: TcbQueue,
     signal: Cell<u64>,
+    irq: Cell<u64>,
 }
 
 pub type EndpointCap<'a> = CapRef::<'a, EndpointObj>;
@@ -72,6 +73,9 @@ impl<'a> EndpointCap<'a> {
             Attach::Irq(i) => {
                 cap.arg1 = AttachType::IrqController as usize;
                 cap.arg2 = i;
+
+                let irq = self.irq.get() | (1 << i);
+                self.irq.set(irq);
             }
         }
 
@@ -113,7 +117,7 @@ impl<'a> EndpointCap<'a> {
 
         if let EpState::Receiving = state {
             let receiver = self.queue.dequeue().unwrap();
-            receiver.set_mr(1, self.signal.get() as usize);
+            receiver.set_mr(1, self.signal.take() as usize);
             receiver.set_state(ThreadState::Ready);
             receiver.set_respinfo(RespInfo::new_notification());
             crate::SCHEDULER.push(receiver);
@@ -154,9 +158,9 @@ impl<'a> EndpointCap<'a> {
                 tcb.set_state(ThreadState::Receiving);
                 self.queue.enqueue(tcb);
 
-                if let Attach::Irq(irq) = self.get_attach() {
+                if self.irq.get() != 0 {
                     unsafe {
-                        crate::interrupt::INTERRUPT_CONTROLLER.lock().listen_irq(irq);
+                        crate::interrupt::INTERRUPT_CONTROLLER.lock().listen_irq_mask(self.irq.get());
                     }
                 }
 
@@ -169,7 +173,7 @@ impl<'a> EndpointCap<'a> {
                 Ok(())
             }
             EpState::SignalPending => {
-                tcb.set_mr(1, self.signal.get() as usize);
+                tcb.set_mr(1, self.signal.take() as usize);
                 tcb.set_respinfo(RespInfo::new_notification());
                 Ok(())
             }
