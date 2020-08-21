@@ -7,13 +7,14 @@ use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::task::Wake;
 
-use crossbeam_queue::ArrayQueue;
+use spin::Mutex;
+use hashbrown::HashSet;
 
 pub mod executor;
 
 pub use executor::Executor;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TaskId(u64);
 
 impl TaskId {
@@ -44,11 +45,11 @@ impl Task {
 
 pub struct TaskWaker {
     task_id: TaskId,
-    task_queue: Arc<ArrayQueue<TaskId>>,
+    task_queue: Arc<Mutex<HashSet<TaskId>>>,
 }
 
 impl TaskWaker {
-    fn new(task_id: TaskId, task_queue: Arc<ArrayQueue<TaskId>>) -> Waker {
+    fn new(task_id: TaskId, task_queue: Arc<Mutex<HashSet<TaskId>>>) -> Waker {
         Waker::from(Arc::new(TaskWaker {
             task_id,
             task_queue,
@@ -56,7 +57,7 @@ impl TaskWaker {
     }
 
     fn wake_task(&self) {
-        self.task_queue.push(self.task_id).expect("task_queue full");
+        self.task_queue.lock().insert(self.task_id);
     }
 }
 

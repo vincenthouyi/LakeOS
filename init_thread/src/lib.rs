@@ -55,6 +55,7 @@ impl EpMsgHandler for UrpcConnectionHandler {
         unsafe {
             STREAM.lock().push(stream.clone());
         }
+        ep_server.insert_event(conn_badge, Box::new(stream));
     }
 }
 

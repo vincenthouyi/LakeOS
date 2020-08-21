@@ -171,7 +171,7 @@ impl<'a> ProcessBuilder<'a> {
                         }
                     }
                     p_type => {
-                        panic!("Unable to handle section type {:?}", p_type);
+                        // panic!("Unable to handle section type {:?}", p_type);
                     }
                 }
             }
