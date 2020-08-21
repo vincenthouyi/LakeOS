@@ -6,6 +6,7 @@
 
 extern crate alloc;
 extern crate naive;
+#[macro_use] extern crate futures_util;
 #[macro_use] extern crate rustyl4api;
 
 mod console;
@@ -14,13 +15,17 @@ mod timer;
 mod rt;
 
 use alloc::boxed::Box;
+use alloc::vec::Vec;
 
 use rustyl4api::object::{EndpointObj};
 use rustyl4api::ipc::IpcMessage;
 
 use naive::space_manager::gsm;
 use naive::ep_server::{EpServer, EpMsgHandler};
-use naive::urpc::{UrpcListener, UrpcStream};
+use naive::urpc::{UrpcListener};
+use naive::urpc::stream::{UrpcStreamExt, UrpcStreamReader};
+
+use futures_util::StreamExt;
 
 static SHELL_ELF: &'static [u8] = include_bytes!("../build/shell.elf");
 
@@ -35,44 +40,81 @@ static SHELL_ELF: &'static [u8] = include_bytes!("../build/shell.elf");
 // }
 
 use rustyl4api::object::{EpCap};
+use spin::Mutex;
 
-struct UrpcStreamHandler {
-    inner: UrpcStream
-}
-
-impl EpMsgHandler for UrpcStreamHandler {
-    fn handle_ipc(&self, ep_server: &EpServer, msg: IpcMessage, cap_transfer_slot: Option<usize>) {
-        if let IpcMessage::Message{payload, need_reply, cap_transfer, badge} = msg {
-            let direction = payload[0];
-            if direction == 0 {
-                let mut buf = [0; 100];
-                let readlen = self.inner.try_read_bytes(&mut buf).unwrap();
-                for byte in buf[..readlen].iter() {
-                    console::tx_buf().push(*byte);
-                }
-            } else if direction == 1 {
-                let mut buf = alloc::vec::Vec::new();
-                while let Ok(byte) = console::rx_buf().pop() {
-                    buf.push(byte);
-                }
-                if buf.len() > 0 {
-                    self.inner.write_bytes(&buf).unwrap();
-                }
-            }
-        }
-    }
-}
 struct UrpcConnectionHandler {
     inner: UrpcListener
 }
+
 impl EpMsgHandler for UrpcConnectionHandler {
     fn handle_ipc(&self, ep_server: &EpServer, msg: IpcMessage, cap_transfer_slot: Option<usize>) {
         let c_ntf_cap = EpCap::new(cap_transfer_slot.unwrap());
         let (conn_badge, s_ntf_cap) = ep_server.derive_badged_cap().unwrap();
-        let stream = Box::new(UrpcStreamHandler{inner: self.inner.accept_with(c_ntf_cap, s_ntf_cap).unwrap()} );
-        stream.inner.sleep_on_read();
-        stream.inner.sleep_on_write();
-        ep_server.insert_event(conn_badge, stream);
+        let stream_inner = self.inner.accept_with(c_ntf_cap, s_ntf_cap).unwrap();
+        let stream = UrpcStreamExt::from_stream(stream_inner);
+        unsafe {
+            STREAM.lock().push(stream.clone());
+        }
+    }
+}
+
+static STREAM: Mutex<Vec<UrpcStreamExt>> = Mutex::new(Vec::new());
+
+fn get_stream() -> Vec<UrpcStreamExt> {
+    unsafe {
+        loop {
+            let streams = STREAM.lock();
+            if streams.len() != 2 {
+                continue;
+            }
+
+            let mut v = Vec::new();
+            for s in streams.iter() {
+                v.push(s.clone());
+            }
+            return v;
+        }
+    }
+}
+
+async fn read_stream() {
+    // use futures_util::stream::select_all;
+
+    let mut readers: Vec<UrpcStreamReader> = get_stream().into_iter().map(|x| x.reader()).collect();
+    // FIXME: find why merged stream triggers memory fault
+    // let mut merged = select_all(readers);
+
+    // while let Some(b) = merged.next().await {
+    while let Some(b) = readers[0].next().await {
+        console::console().poll_write(&[b]).await;
+    }
+}
+
+async fn write_stream() {
+
+    let con = console::console();
+    let mut con_stream = con.stream();
+    let mut streams = get_stream();
+
+    while let Some(b) = con_stream.next().await {
+        streams[1].poll_write(&[b]).await;
+    }
+}
+
+async fn worker_main() {
+    use crate::futures_util::FutureExt;
+
+    let read_stream = read_stream().fuse();
+    let write_stream = write_stream().fuse(); 
+
+    pin_mut!(read_stream, write_stream);
+
+    loop {
+        select! {
+            () = read_stream => { },
+            () = write_stream => { },
+            complete => { break }
+        }
     }
 }
 
@@ -80,8 +122,12 @@ pub fn worker_thread() -> ! {
     use naive::task::Task;
 
     let mut exe = naive::task::Executor::new();
+<<<<<<< HEAD
     exe.spawn(Task::new(console::read_from_uart()));
     exe.spawn(Task::new(console::write_to_uart()));
+=======
+    exe.spawn(Task::new(worker_main()));
+>>>>>>> 43dc10a... use modified futures-util async console io
     exe.run();
 
     loop {}
@@ -99,8 +145,6 @@ pub fn main() {
 
 //    timer_test();
 
-    console::console();
-
     naive::thread::spawn(worker_thread);
 
     let ep = gsm!().alloc_object::<EndpointObj>(12).unwrap();
@@ -114,6 +158,13 @@ pub fn main() {
         .stderr(listen_ep.clone())
         .spawn()
         .expect("spawn process failed");
+
+    let con = console::console_server();
+    let (irq_badge, irq_ep) = ep_server.derive_badged_cap().unwrap();
+    use rustyl4api::object::{Capability, InterruptObj};
+    let irq_cntl_cap = Capability::<InterruptObj>::new(rustyl4api::init::InitCSpaceSlot::IrqController as usize);
+    irq_cntl_cap.attach_ep_to_irq(irq_ep.slot, pi::interrupt::Interrupt::Aux as usize).unwrap();
+    ep_server.insert_notification(pi::interrupt::Interrupt::Aux as usize, Box::new(con));
 
     let listener = Box::new(UrpcConnectionHandler{inner:  UrpcListener::bind(listen_ep, listen_badge).unwrap() });
     ep_server.insert_event(listen_badge, listener);
