@@ -6,6 +6,7 @@ use super::{Capability, KernelObject};
 
 #[derive(Debug)]
 pub struct InterruptObj {}
+pub type InterruptCap = Capability<InterruptObj>;
 
 impl KernelObject for InterruptObj {
     fn obj_type() -> ObjType { ObjType::Interrupt }

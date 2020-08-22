@@ -18,7 +18,7 @@ pub use endpoint::{EndpointObj, EpCap};
 pub use reply::{ReplyObj, ReplyCap};
 pub use untyped::UntypedObj;
 pub use monitor::MonitorObj;
-pub use interrupt::InterruptObj;
+pub use interrupt::{InterruptObj, InterruptCap};
 pub use vtable::{VTableObj, VTableCap};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, FromPrimitive, ToPrimitive)]

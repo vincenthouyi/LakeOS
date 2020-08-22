@@ -34,6 +34,10 @@ pub struct EpServer {
     ep: Ep
 }
 
+// TODO: impl Sync and Send as a walkaround for now
+unsafe impl Sync for EpServer { }
+unsafe impl Send for EpServer { }
+
 impl EpServer {
     pub const fn new(ep: EpCap) -> Self {
         Self {
@@ -120,4 +124,9 @@ pub trait EpMsgHandler {
 
 pub trait EpNtfHandler {
     fn handle_notification(&self, ep_server: &EpServer, ntf: usize) { }
+}
+
+pub static EP_SERVER: OnceCell<EpServer> = OnceCell::uninit();
+pub fn ep_server() -> &'static EpServer {
+    EP_SERVER.get().unwrap()
 }

@@ -1,4 +1,4 @@
-use core::sync::atomic::{AtomicPtr, AtomicBool, AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicPtr, AtomicBool, Ordering};
 use core::mem::size_of;
 use core::pin::Pin;
 use core::task::{Context, Poll, Waker};
@@ -47,47 +47,25 @@ pub enum Role {
 }
 
 #[derive(Debug)]
-pub struct UrpcStream {
+pub struct UrpcStreamChannel {
     role: Role,
     ntf_ep: EpCap,
     buf_cap: RamCap,
     buf_ptr: AtomicPtr<u8>,
-    read_idx: AtomicUsize,
-    write_idx: AtomicUsize,
+    read_idx: usize,
+    write_idx: usize,
 }
 
-impl UrpcStream {
+impl UrpcStreamChannel {
     pub fn new(role: Role, ntf_ep: EpCap, buf_cap: RamCap, buf_ptr: *mut u8) -> Self {
         Self {
             role,
             ntf_ep,
             buf_cap,
             buf_ptr: AtomicPtr::new(buf_ptr),
-            read_idx: AtomicUsize::new(0),
-            write_idx: AtomicUsize::new(0),
+            read_idx: 0,
+            write_idx: 0,
         }
-    }
-
-    pub fn connect(ep: EpCap, ntf_ep: EpCap, ntf_badge: usize) -> io::Result<Self> {
-        use rustyl4api::vspace::Permission;
-        use rustyl4api::object::ReplyCap;
-
-        /* Connect by sending client notification ep */
-        let trans_cap_slot = ntf_ep.slot;
-        let ret = ep.call(&[], Some(trans_cap_slot)).unwrap();
-        let svr_ntf_ep = EpCap::new(trans_cap_slot);
-
-        /* Generate buffer cap and map to current VSpace */
-        let buf_cap = gsm!().alloc_object::<RamObj>(12).unwrap();
-        let buf_ptr = gsm!().insert_ram_at(buf_cap.clone(), 0, Permission::writable());
-
-        /* Derive a copy of buffer cap and send to server */
-        let copied_buf_cap_slot = gsm!().cspace_alloc().unwrap();
-        buf_cap.derive(copied_buf_cap_slot).unwrap();
-        let reply_cap = ReplyCap::new(0);
-        reply_cap.reply(&[], Some(copied_buf_cap_slot)).unwrap();
-
-        Ok(Self::new(Role::Client, svr_ntf_ep, buf_cap, buf_ptr))
     }
 
     fn local_channel_state(&self) -> &ChannelState {
@@ -152,9 +130,9 @@ impl UrpcStream {
         self.remote_channel_state().write_sleep.load(Ordering::SeqCst)
     }
 
-    pub fn try_write_bytes(&self, buf: &[u8]) -> io::Result<usize> {
+    pub fn try_write_bytes(&mut self, buf: &[u8]) -> io::Result<usize> {
         let chan_buf = self.write_buffer();
-        let mut write_idx = self.write_idx.load(Ordering::Relaxed);
+        let mut write_idx = self.write_idx;
         let mut write_len = 0;
 
         for chunk in buf.chunks(MSG_PAYLOAD_LEN) {
@@ -174,7 +152,7 @@ impl UrpcStream {
             return Err(ErrorKind::WouldBlock)
         }
 
-        self.write_idx.store(write_idx % CHANNEL_MSG_SLOTS, Ordering::Relaxed);
+        self.write_idx = write_idx % CHANNEL_MSG_SLOTS;
 
         Ok(write_len)
     }
@@ -183,9 +161,9 @@ impl UrpcStream {
         Ok(())
     }
 
-    pub fn try_read_bytes(&self, buf: &mut [u8]) -> io::Result<usize> {
+    pub fn try_read_bytes(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let chan_buf = self.read_buffer();
-        let mut read_idx = self.read_idx.load(Ordering::Relaxed);
+        let mut read_idx = self.read_idx;
         let mut read_len = 0;
         let mut buf_rem_len = buf.len();
 
@@ -212,55 +190,9 @@ impl UrpcStream {
             return Err(ErrorKind::WouldBlock)
         }
 
-        self.read_idx.store(read_idx % CHANNEL_MSG_SLOTS, Ordering::Relaxed);
+        self.read_idx = read_idx % CHANNEL_MSG_SLOTS;
 
         Ok(read_len)
-    }
-
-    pub fn read_bytes(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let mut read_len = 0;
-
-        while read_len == 0 {
-            let ret = self.try_read_bytes(buf);
-            match ret {
-                Ok(len) => { read_len += len }
-                Err(ErrorKind::WouldBlock) => {
-                    if self.remote_sleep_on_write() {
-                        self.notify_remote_write();
-                    }
-                    continue
-                }
-                e => { return e }
-            }
-        }
-        if self.remote_sleep_on_write() {
-            self.notify_remote_write();
-        }
-
-        Ok(read_len)
-    }
-
-    pub fn write_bytes(&self, buf: &[u8]) -> io::Result<usize> {
-        let mut write_len = 0;
-
-        while write_len < buf.len() {
-            let ret = self.try_write_bytes(buf);
-            match ret {
-                Ok(len) => { write_len += len }
-                Err(ErrorKind::WouldBlock) => {
-                    if self.remote_sleep_on_read() {
-                        self.notify_remote_read();
-                    }
-                    continue
-                }
-                e => { return e }
-            }
-        }
-        if self.remote_sleep_on_read() {
-            self.notify_remote_read();
-        }
-
-        Ok(write_len)
     }
 
     pub fn notify_remote_write(&self) {
@@ -272,43 +204,46 @@ impl UrpcStream {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct UrpcStreamExt {
-    pub inner: Arc<Mutex<UrpcStream>>,
+pub struct UrpcStream {
+    inner: UrpcStreamChannel,
     read_waker: Arc<Mutex<VecDeque<Waker>>>,
     write_waker: Arc<Mutex<VecDeque<Waker>>>,
-}
-
-impl UrpcStreamExt {
-    pub fn from_stream(stream: UrpcStream) -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(stream)),
-            read_waker: Arc::new(Mutex::new(VecDeque::new())),
-            write_waker: Arc::new(Mutex::new(VecDeque::new())),
-        }
-    }
-
-    pub fn reader(&self) -> UrpcStreamReader {
-        UrpcStreamReader::from_stream(self.clone())
-    }
-
-    pub fn poll_write<'a>(&self, buf: &'a[u8]) -> WriteFuture<'a> {
-        WriteFuture::new(self.clone(), buf)
-    }
-}
-
-pub struct UrpcStreamReader {
-    inner: UrpcStreamExt,
     buffer: [u8; MSG_PAYLOAD_LEN],
     buf_start: usize,
     buf_end: usize,
 }
 
-impl UrpcStreamReader {
-    pub fn from_stream(stream: UrpcStreamExt) -> Self {
+impl UrpcStream {
+    pub fn connect(ep: EpCap, ntf_ep: EpCap, _ntf_badge: usize) -> io::Result<Self> {
+        use rustyl4api::vspace::Permission;
+        use rustyl4api::object::ReplyCap;
+
+        /* Connect by sending client notification ep */
+        let trans_cap_slot = ntf_ep.slot;
+        let _ret = ep.call(&[], Some(trans_cap_slot)).unwrap();
+        let svr_ntf_ep = EpCap::new(trans_cap_slot);
+
+        /* Generate buffer cap and map to current VSpace */
+        let buf_cap = gsm!().alloc_object::<RamObj>(12).unwrap();
+        let buf_ptr = gsm!().insert_ram_at(buf_cap.clone(), 0, Permission::writable());
+
+        /* Derive a copy of buffer cap and send to server */
+        let copied_buf_cap_slot = gsm!().cspace_alloc().unwrap();
+        buf_cap.derive(copied_buf_cap_slot).unwrap();
+        let reply_cap = ReplyCap::new(0);
+        reply_cap.reply(&[], Some(copied_buf_cap_slot)).unwrap();
+
+        let channel = UrpcStreamChannel::new(Role::Client, svr_ntf_ep, buf_cap, buf_ptr);
+
+        Ok(Self::from_stream(channel))
+    }
+
+    pub fn from_stream(stream: UrpcStreamChannel) -> Self {
         Self {
             inner: stream,
-            buffer: [0; MSG_PAYLOAD_LEN],
+            read_waker: Arc::new(Mutex::new(VecDeque::new())),
+            write_waker: Arc::new(Mutex::new(VecDeque::new())),
+            buffer: [0u8; MSG_PAYLOAD_LEN],
             buf_start: 0,
             buf_end: 0,
         }
@@ -333,16 +268,87 @@ impl UrpcStreamReader {
             return Ok(byte);
         }
 
-        let len = self.inner.inner.lock().try_read_bytes(&mut self.buffer)?;
+        let len = self.inner.try_read_bytes(&mut self.buffer)?;
 
         self.buf_start = 0;
         self.buf_end = len;
 
         Ok(self.read_from_buffer().unwrap())
     }
+
+    pub fn read_bytes(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let mut read_len = 0;
+
+        while read_len == 0 {
+            let ret = self.inner.try_read_bytes(buf);
+            match ret {
+                Ok(len) => { read_len += len }
+                Err(ErrorKind::WouldBlock) => {
+                    if self.inner.remote_sleep_on_write() {
+                        self.inner.notify_remote_write();
+                    }
+                    continue
+                }
+                e => { return e }
+            }
+        }
+        if self.inner.remote_sleep_on_write() {
+            self.inner.notify_remote_write();
+        }
+
+        Ok(read_len)
+    }
+
+    pub fn write_bytes(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let mut write_len = 0;
+
+        while write_len < buf.len() {
+            let ret = self.inner.try_write_bytes(buf);
+            match ret {
+                Ok(len) => { write_len += len }
+                Err(ErrorKind::WouldBlock) => {
+                    if self.inner.remote_sleep_on_read() {
+                        self.inner.notify_remote_read();
+                    }
+                    continue
+                }
+                e => { return e }
+            }
+        }
+        if self.inner.remote_sleep_on_read() {
+            self.inner.notify_remote_read();
+        }
+
+        Ok(write_len)
+    }
 }
 
-impl Stream for UrpcStreamReader {
+#[derive(Clone)]
+pub struct UrpcStreamHandle (Arc<Mutex<UrpcStream>>);
+
+impl UrpcStreamHandle {
+    pub fn from_stream(stream: UrpcStream) -> Self {
+        Self(Arc::new(Mutex::new(stream)))
+    }
+
+    pub fn poll_write<'a>(&self, buf: &'a[u8]) -> WriteFuture<'a> {
+        WriteFuture::new(self.clone(), buf)
+    }
+
+    pub fn read_byte(&self) -> io::Result<u8> {
+        self.0.lock().read_byte()
+    }
+
+    pub fn read_bytes(&self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.lock().read_bytes(buf)
+    }
+
+    pub fn write_bytes(&self, buf: &[u8]) -> io::Result<usize> {
+        self.0.lock().write_bytes(buf)
+    }
+}
+
+impl Stream for UrpcStreamHandle {
     type Item = u8;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<u8>> {
@@ -350,43 +356,44 @@ impl Stream for UrpcStreamReader {
         match reader.read_byte() {
             Ok(byte) => Poll::Ready(Some(byte)),
             Err(_) => {
-                reader.inner.inner.lock().sleep_on_read(true);
-                reader.inner.read_waker.lock().push_back(cx.waker().clone());
+                reader.0.lock().inner.sleep_on_read(true);
+                reader.0.lock().read_waker.lock().push_back(cx.waker().clone());
                 Poll::Pending
             }
         }
     }
 }
 
-impl EpMsgHandler for UrpcStreamExt {
-    fn handle_ipc(&self, ep_server: &EpServer, msg: IpcMessage, cap_transfer_slot: Option<usize>) {
-        if let IpcMessage::Message{payload, need_reply, cap_transfer, badge} = msg {
+impl EpMsgHandler for UrpcStreamHandle {
+    fn handle_ipc(&self, _ep_server: &EpServer, msg: IpcMessage, _cap_transfer_slot: Option<usize>) {
+        if let IpcMessage::Message{payload, need_reply: _, cap_transfer: _, badge: _} = msg {
             let direction = payload[0];
+            let inner = self.0.lock();
             if direction == 0 {
-                let mut read_waker = self.read_waker.lock();
+                let mut read_waker = inner.read_waker.lock();
                 while let Some(waker) = read_waker.pop_front() {
                     waker.wake();
                 }
-                self.inner.lock().sleep_on_read(false);
+                inner.inner.sleep_on_read(false);
             } else if direction == 1 {
-                let mut write_waker = self.write_waker.lock();
+                let mut write_waker = inner.write_waker.lock();
                 while let Some(waker) = write_waker.pop_front() {
                     waker.wake();
                 }
-                self.inner.lock().sleep_on_write(false);
+                inner.inner.sleep_on_write(false);
             }
         }
     }
 }
 
 pub struct WriteFuture<'a> {
-    inner: UrpcStreamExt,
+    inner: UrpcStreamHandle,
     buf: &'a [u8],
     write_len: usize,
 }
 
 impl<'a> WriteFuture<'a> {
-    pub fn new(urpc: UrpcStreamExt, buf: &'a [u8]) -> Self {
+    pub fn new(urpc: UrpcStreamHandle, buf: &'a [u8]) -> Self {
         Self { inner: urpc, buf: buf, write_len : 0 }
     }
 }
@@ -396,12 +403,13 @@ impl<'a> Future for WriteFuture<'a> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let inner = Pin::into_inner(self);
         while inner.write_len < inner.buf.len() {
-            let ret = inner.inner.inner.lock().try_write_bytes(&inner.buf[inner.write_len..]);
+            let mut stream = inner.inner.0.lock();
+            let ret = stream.inner.try_write_bytes(&inner.buf[inner.write_len..]);
             match ret {
                 Ok(write_len) => { inner.write_len += write_len }
                 Err(ErrorKind::WouldBlock) => {
-                    inner.inner.inner.lock().sleep_on_write(true);
-                    inner.inner.write_waker.lock().push_back(cx.waker().clone());
+                    stream.inner.sleep_on_write(true);
+                    stream.write_waker.lock().push_back(cx.waker().clone());
                     return Poll::Pending;
                 }
                 e => { return Poll::Ready(e) }

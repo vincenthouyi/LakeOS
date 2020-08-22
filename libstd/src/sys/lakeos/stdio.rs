@@ -3,12 +3,12 @@ use crate::mem::ManuallyDrop;
 // use crate::sys::fd::FileDesc;
 use spin::{Mutex, MutexGuard};
 // use crate::sync::Arc;
-use super::urpc::UrpcStream;
+use super::urpc::{UrpcStream, UrpcStreamHandle};
 use naive::space_manager::gsm;
 use rustyl4api::object::EndpointObj;
 
-static STDIN_IMP: Mutex<Option<UrpcStream>> = Mutex::new(None);
-static STDOUT_IMP: Mutex<Option<UrpcStream>> = Mutex::new(None);
+static STDIN_IMP: Mutex<Option<UrpcStreamHandle>> = Mutex::new(None);
+static STDOUT_IMP: Mutex<Option<UrpcStreamHandle>> = Mutex::new(None);
 
 pub struct Stdin(());
 pub struct Stdout(());
@@ -24,6 +24,7 @@ impl Stdin {
             let cap = EpCap::new(ProcessCSpace::Stdin as usize);
             let ntf_ep = gsm!().alloc_object::<EndpointObj>(12).unwrap();
             let chan = UrpcStream::connect(cap, ntf_ep, 1234).unwrap();
+            let chan = UrpcStreamHandle::from_stream(chan);
             *guard = Some(chan);
         }
 
@@ -57,6 +58,7 @@ impl Stdout {
             let cap = EpCap::new(ProcessCSpace::Stdout as usize);
             let ntf_ep = gsm!().alloc_object::<EndpointObj>(12).unwrap();
             let chan = UrpcStream::connect(cap, ntf_ep, 2345).unwrap();
+            let chan = UrpcStreamHandle::from_stream(chan);
             *guard = Some(chan);
         }
 
