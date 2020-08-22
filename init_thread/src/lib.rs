@@ -23,7 +23,7 @@ use rustyl4api::ipc::IpcMessage;
 use naive::space_manager::gsm;
 use naive::ep_server::{EpServer, EpMsgHandler};
 use naive::urpc::{UrpcListener};
-use naive::urpc::stream::{UrpcStreamExt, UrpcStreamReader};
+use naive::urpc::stream::UrpcStreamExt;
 
 use futures_util::StreamExt;
 
@@ -75,14 +75,12 @@ fn get_stream() -> Vec<UrpcStreamExt> {
 }
 
 async fn read_stream() {
-    // use futures_util::stream::select_all;
+    use futures_util::stream::select_all;
 
-    let mut readers: Vec<UrpcStreamReader> = get_stream().into_iter().map(|x| x.reader()).collect();
-    // FIXME: find why merged stream triggers memory fault
-    // let mut merged = select_all(readers);
+    let readers = get_stream().into_iter().map(|x| x.reader());
+    let mut merged = select_all(readers);
 
-    // while let Some(b) = merged.next().await {
-    while let Some(b) = readers[0].next().await {
+    while let Some(b) = merged.next().await {
         console::console().poll_write(&[b]).await;
     }
 }

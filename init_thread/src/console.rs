@@ -7,6 +7,7 @@ use alloc::sync::Arc;
 
 use futures_util::stream::Stream;
 use spin::Mutex;
+use crossbeam_queue::ArrayQueue;
 
 use pi::uart::{MiniUart, IrqStatus};
 use naive::ep_server::{EpServer, EpNtfHandler};
@@ -15,10 +16,18 @@ pub struct Console {
     inner: MiniUart,
     rx_waker: LinkedList<Waker>,
     tx_waker: LinkedList<Waker>,
+    rx_buf: ArrayQueue<u8>,
+    tx_buf: ArrayQueue<u8>,
 }
 impl Console {
-    pub const fn new(mini_uart: MiniUart) -> Console {
-        Console { inner: mini_uart, tx_waker: LinkedList::new(), rx_waker: LinkedList::new() }
+    pub fn new(mini_uart: MiniUart) -> Console {
+        Console {
+            inner: mini_uart,
+            tx_waker: LinkedList::new(),
+            rx_waker: LinkedList::new(),
+            rx_buf: ArrayQueue::new(128),
+            tx_buf: ArrayQueue::new(128),
+        }
     }
 
     pub fn can_read(&self) -> bool {
@@ -69,16 +78,8 @@ impl ConsoleExt {
     }
 
     pub fn stream(&self) -> ConsoleReader {
-        ConsoleReader { inner: self.clone() }
+        ConsoleReader::from_inner(self.clone())
     }
-
-    pub fn can_read(&self) -> bool { self.inner.lock().can_read() }
-
-    pub fn read_byte(&self) -> u8 { self.inner.lock().read_byte() }
-
-    pub fn can_write(&self) -> bool { self.inner.lock().can_write() }
-
-    pub fn write_byte(&self, byte: u8) { self.inner.lock().write_byte(byte) }
 
     pub fn poll_write<'a>(&self, buf: &'a [u8]) -> WriteFuture<'a> {
         WriteFuture {
@@ -94,23 +95,33 @@ impl EpNtfHandler for ConsoleExt {
         let mut inner = self.inner.lock();
         match inner.irq_status() {
             IrqStatus::Rx => {
-                // TODO: find out why irq is generated when tx/rx irq disabled
-                // if inner.tx_waker.is_empty() {
-                //     kprintln!("rx_waker is empty");
-                // }
+                while inner.can_read() && !inner.rx_buf.is_full() {
+                    let b = inner.read_byte();
+                    inner.rx_buf.push(b).unwrap();
+                }
                 while let Some(waker) = inner.rx_waker.pop_front() {
                     waker.wake();
                 }
-                inner.disable_rx_irq();
+                if inner.rx_buf.is_full() {
+                    inner.disable_rx_irq();
+                }
             }
             IrqStatus::Tx => {
-                // if inner.tx_waker.is_empty() {
-                //     kprintln!("tx_waker is empty");
-                // }
+                while inner.can_write() {
+                    if let Ok(b) = inner.tx_buf.pop() {
+                        inner.write_byte(b);
+                    } else {
+                        break;
+                    }
+                }
+
                 while let Some(waker) = inner.tx_waker.pop_front() {
                     waker.wake();
                 }
-                inner.disable_tx_irq();
+
+                if inner.tx_buf.is_empty() {
+                    inner.disable_tx_irq();
+                }
             }
             IrqStatus::Clear => {
                 kprintln!("in clear");
@@ -154,18 +165,29 @@ pub struct ConsoleReader {
     inner: ConsoleExt
 }
 
+impl ConsoleReader {
+    pub fn from_inner(inner: ConsoleExt) -> Self {
+        Self {
+            inner: inner,
+        }
+    }
+}
+
 impl Stream for ConsoleReader {
     type Item = u8;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<u8>> {
-        if self.inner.can_read() {
-            Poll::Ready(Some(self.inner.read_byte()))
+        let mut inner = self.inner.inner.lock();
+
+        let ret = if let Ok(b) = inner.rx_buf.pop() {
+            Poll::Ready(Some(b))
         } else {
-            let mut inner = self.inner.inner.lock();
             inner.rx_waker.push_back(cx.waker().clone());
-            inner.enable_rx_irq();
             Poll::Pending
-        }
+        };
+
+        inner.enable_rx_irq();
+        ret
     }
 }
 
@@ -177,20 +199,19 @@ pub struct WriteFuture<'a> {
 
 impl<'a> Future for WriteFuture<'a> {
     type Output = usize;
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        while self.write_len < self.buf.len() {
-            if !self.inner.can_write() {
-                let mut inner = self.inner.inner.lock();
-                inner.tx_waker.push_back(cx.waker().clone());
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let Self { inner, buf, write_len } = Pin::into_inner(self);
+        let mut inner = inner.inner.lock();
+        while *write_len < buf.len() {
+            if let Ok(()) = inner.tx_buf.push(buf[*write_len]) {
                 inner.enable_tx_irq();
-                return Poll::Pending;
+                *write_len += 1;
             } else {
-                let byte = self.buf[self.write_len];
-                self.inner.write_byte(byte);
-                self.write_len += 1;
+                inner.tx_waker.push_back(cx.waker().clone());
+                return Poll::Pending;
             }
         }
 
-        Poll::Ready(self.write_len)
+        Poll::Ready(*write_len)
     }
 }
