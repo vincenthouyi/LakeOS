@@ -20,7 +20,7 @@
     "os": "lakeos",
     "panic": "abort",
     "panic-strategy": "abort",
-    "position-independent-executables": true,
+    "position-independent-executables": false,
     "target-c-int-width": "32",
     "target-endian": "little",
     "target-family": "unix",

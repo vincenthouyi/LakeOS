@@ -50,6 +50,7 @@ impl<'a> ProcessBuilder<'a> {
         use rustyl4api::vspace::{FRAME_BIT_SIZE, FRAME_SIZE};
         use crate::space_manager::gsm;
         use rustyl4api::process::{ProcessCSpace, PROCESS_ROOT_CNODE_SIZE};
+        use crate::utils::align_down;
 
         let elf = Elf::from_bytes(self.elf).map_err(|_| ())?;
 
@@ -74,13 +75,16 @@ impl<'a> ProcessBuilder<'a> {
 
                 match p_type {
                     ProgramType::LOAD => {
-                        let sec_base = ph.ph.offset() as usize;
+                        let align = ph.ph.align() as usize;
+                        let sec_off = ph.ph.offset() as usize;
+                        let sec_base = align_down(sec_off, align);
                         let sec_len= ph.ph.filesz() as usize;
-                        let section = &self.elf[sec_base.. sec_base + sec_len];
+                        let section = &self.elf[sec_base.. sec_off + sec_len];
 
                         let vaddr = ph.ph.vaddr() as usize;
+                        let vaddr_base = align_down(vaddr, align);
                         let mem_len = ph.ph.memsz() as usize;
-                        let memrange = vaddr..vaddr+mem_len;
+                        let memrange = vaddr_base..vaddr+mem_len;
 
                         memrange.step_by(FRAME_SIZE)
                             .map(|vaddr| {
