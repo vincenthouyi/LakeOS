@@ -480,21 +480,21 @@ pub mod sync;
 // #[unstable(feature = "once_cell", issue = "74465")]
 // pub mod lazy;
 
-// #[stable(feature = "futures_api", since = "1.36.0")]
-// pub mod task {
-//     //! Types and Traits for working with asynchronous tasks.
+#[stable(feature = "futures_api", since = "1.36.0")]
+pub mod task {
+    //! Types and Traits for working with asynchronous tasks.
 
-//     #[doc(inline)]
-//     #[stable(feature = "futures_api", since = "1.36.0")]
-//     pub use core::task::*;
+    #[doc(inline)]
+    #[stable(feature = "futures_api", since = "1.36.0")]
+    pub use core::task::*;
 
-//     #[doc(inline)]
-//     #[unstable(feature = "wake_trait", issue = "69912")]
-//     pub use alloc::task::*;
-// }
+    #[doc(inline)]
+    #[unstable(feature = "wake_trait", issue = "69912")]
+    pub use alloc_crate::task::*;
+}
 
-// #[stable(feature = "futures_api", since = "1.36.0")]
-// pub mod future;
+#[stable(feature = "futures_api", since = "1.36.0")]
+pub mod future;
 
 // Platform-abstraction modules
 #[macro_use]
