@@ -1,9 +1,5 @@
 use naive::space_manager::{gsm};
 
-extern "Rust" {
-    fn main();
-}
-
 fn run_app_cpus() {
     use rustyl4api::object::{Capability, TcbObj, MonitorObj};
     use rustyl4api::init::InitCSpaceSlot::{InitL1PageTable,InitCSpace, Monitor};
@@ -42,6 +38,7 @@ pub fn _start() -> ! {
 
     run_app_cpus();
 
-    unsafe { main(); }
+    crate::main();
+
     unreachable!("Init Returns!");
 }

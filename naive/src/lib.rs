@@ -29,6 +29,8 @@ pub mod task;
 mod panic;
 pub mod executor;
 
+pub use naive_attributes::main;
+
 extern "C" {
     static _end: [u8; 0];
 }

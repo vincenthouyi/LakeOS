@@ -126,11 +126,16 @@ dependencies = [
  "elf_rs",
  "futures-util",
  "hashbrown",
+ "naive-attributes",
  "rustyl4api",
  "spaceman",
  "spin",
  "static_assertions",
 ]
+
+[[package]]
+name = "naive-attributes"
+version = "0.1.0"
 
 [[package]]
 name = "num-derive"

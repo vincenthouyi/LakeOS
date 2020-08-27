@@ -1,12 +1,13 @@
 [package]
-name = "shell"
+name = "naive-attributes"
 version = "0.1.0"
 authors = ["Vincent Hou <vincent.houyi@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = ["proc-macro"]
 
 [dependencies]
-rustyl4api = { path = "../rustyl4api" }
-std = { path = "../libstd" }
-naive = { path = "../naive" }
+syn = { version = "1.0", features = ["full"] }
+quote = "1.0"

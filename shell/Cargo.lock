@@ -126,10 +126,19 @@ dependencies = [
  "elf_rs",
  "futures-util",
  "hashbrown",
+ "naive-attributes",
  "rustyl4api",
  "spaceman",
  "spin",
  "static_assertions",
+]
+
+[[package]]
+name = "naive-attributes"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -220,6 +229,7 @@ dependencies = [
 name = "shell"
 version = "0.1.0"
 dependencies = [
+ "naive",
  "rustyl4api",
  "std",
 ]
