@@ -25,7 +25,7 @@ use naive::urpc::stream::{UrpcStreamHandle};
 
 use futures_util::StreamExt;
 
-static SHELL_ELF: &'static [u8] = include_bytes!("../build/shell.elf");
+static SHELL_ELF: &'static [u8] = include_bytes!("../build/shell");
 
 // fn timer_test() {
 //     for i in 0..5 {
