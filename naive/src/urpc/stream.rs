@@ -263,33 +263,28 @@ impl UrpcStream {
         None
     }
 
-    pub fn read_byte(&mut self) -> io::Result<u8> {
-        if let Some(byte) = self.read_from_buffer() {
-            return Ok(byte);
-        }
-
-        let len = self.inner.try_read_bytes(&mut self.buffer)?;
-
-        self.buf_start = 0;
-        self.buf_end = len;
-
-        Ok(self.read_from_buffer().unwrap())
-    }
-
     pub fn read_bytes(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let mut read_len = 0;
 
-        while read_len == 0 {
-            let ret = self.inner.try_read_bytes(buf);
-            match ret {
-                Ok(len) => { read_len += len }
-                Err(ErrorKind::WouldBlock) => {
-                    if self.inner.remote_sleep_on_write() {
-                        self.inner.notify_remote_write();
+        while read_len < buf.len() {
+            if let Some(b) = self.read_from_buffer() {
+                buf[read_len] = b;
+                read_len += 1;
+            } else {
+                let ret = self.inner.try_read_bytes(&mut self.buffer);
+                match ret {
+                    Ok(len) => {
+                        self.buf_start = 0;
+                        self.buf_end = len;
                     }
-                    continue
+                    Err(ErrorKind::WouldBlock) => {
+                        if self.inner.remote_sleep_on_write() {
+                            self.inner.notify_remote_write();
+                        }
+                        break;
+                    }
+                    e => { return e }
                 }
-                e => { return e }
             }
         }
         if self.inner.remote_sleep_on_write() {
@@ -336,7 +331,9 @@ impl UrpcStreamHandle {
     }
 
     pub fn read_byte(&self) -> io::Result<u8> {
-        self.0.lock().read_byte()
+        let mut buf = [0u8; 1];
+        self.read_bytes(&mut buf)?;
+        Ok(buf[0])
     }
 
     pub fn read_bytes(&self, buf: &mut [u8]) -> io::Result<usize> {
