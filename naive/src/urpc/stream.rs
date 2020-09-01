@@ -161,38 +161,23 @@ impl UrpcStreamChannel {
         Ok(())
     }
 
-    pub fn try_read_bytes(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    pub fn try_read_slot(&mut self, buf: &mut [u8; MSG_PAYLOAD_LEN]) -> io::Result<usize> {
         let chan_buf = self.read_buffer();
-        let mut read_idx = self.read_idx;
-        let mut read_len = 0;
-        let mut buf_rem_len = buf.len();
+        let read_idx = self.read_idx;
 
-        while buf_rem_len > 0 {
-            let msg_slot = &chan_buf[read_idx % CHANNEL_MSG_SLOTS];
-            let msg_len = msg_slot.hdr.len as usize;
-            if !msg_slot.hdr.valid.load(Ordering::SeqCst) {
-                break;
-            } else if buf_rem_len < msg_len {
-                break;
-            }
-
-            buf[read_len..read_len + msg_len]
-                .copy_from_slice(&msg_slot.payload[..msg_len]);
-
-            read_len += msg_len;
-            read_idx += 1;
-            buf_rem_len -= msg_len;
-
-            msg_slot.hdr.valid.store(false, Ordering::SeqCst);
-        }
-
-        if read_len == 0 {
+        let msg_slot = &chan_buf[read_idx % CHANNEL_MSG_SLOTS];
+        if !msg_slot.hdr.valid.load(Ordering::SeqCst) {
             return Err(ErrorKind::WouldBlock)
         }
 
-        self.read_idx = read_idx % CHANNEL_MSG_SLOTS;
+        let msg_len = msg_slot.hdr.len as usize;
+        buf[..msg_len].copy_from_slice(&msg_slot.payload[..msg_len]);
 
-        Ok(read_len)
+        msg_slot.hdr.valid.store(false, Ordering::SeqCst);
+
+        self.read_idx = (read_idx + 1) % CHANNEL_MSG_SLOTS;
+
+        Ok(msg_len)
     }
 
     pub fn notify_remote_write(&self) {
@@ -263,6 +248,13 @@ impl UrpcStream {
         None
     }
 
+    fn refill_buffer(&mut self) -> io::Result<usize> {
+        let len = self.inner.try_read_slot(&mut self.buffer)?;
+        self.buf_start = 0;
+        self.buf_end = len;
+        return Ok(len);
+    }
+
     pub fn read_bytes(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let mut read_len = 0;
 
@@ -271,18 +263,9 @@ impl UrpcStream {
                 buf[read_len] = b;
                 read_len += 1;
             } else {
-                let ret = self.inner.try_read_bytes(&mut self.buffer);
-                match ret {
-                    Ok(len) => {
-                        self.buf_start = 0;
-                        self.buf_end = len;
-                    }
-                    Err(ErrorKind::WouldBlock) => {
-                        if self.inner.remote_sleep_on_write() {
-                            self.inner.notify_remote_write();
-                        }
-                        break;
-                    }
+                match self.refill_buffer() {
+                    Ok(_) => { }
+                    Err(ErrorKind::WouldBlock) => { break }
                     e => { return e }
                 }
             }
@@ -291,7 +274,11 @@ impl UrpcStream {
             self.inner.notify_remote_write();
         }
 
-        Ok(read_len)
+        if read_len == 0 {
+            Err(io::ErrorKind::WouldBlock)
+        } else {
+            Ok(read_len)
+        }
     }
 
     pub fn write_bytes(&mut self, buf: &[u8]) -> io::Result<usize> {
@@ -330,14 +317,18 @@ impl UrpcStreamHandle {
         WriteFuture::new(self.clone(), buf)
     }
 
-    pub fn read_byte(&self) -> io::Result<u8> {
-        let mut buf = [0u8; 1];
-        self.read_bytes(&mut buf)?;
-        Ok(buf[0])
-    }
-
+    // Blocking read
     pub fn read_bytes(&self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.lock().read_bytes(buf)
+        let mut readlen = 0;
+        let mut guard = self.0.lock();
+        while readlen == 0 {
+            match guard.read_bytes(&mut buf[readlen..]) {
+                Ok(len) => { readlen += len }
+                Err(io::ErrorKind::WouldBlock) => { continue }
+                Err(e) => { return Err(e) }
+            }
+        }
+        Ok(readlen)
     }
 
     pub fn write_bytes(&self, buf: &[u8]) -> io::Result<usize> {
@@ -349,14 +340,16 @@ impl Stream for UrpcStreamHandle {
     type Item = u8;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<u8>> {
-        let reader = Pin::into_inner(self);
-        match reader.read_byte() {
-            Ok(byte) => Poll::Ready(Some(byte)),
-            Err(_) => {
-                reader.0.lock().inner.sleep_on_read(true);
-                reader.0.lock().read_waker.lock().push_back(cx.waker().clone());
+        let mut reader = Pin::into_inner(self).0.lock();
+        let mut buf = [0; 1];
+        match reader.read_bytes(&mut buf[..]) {
+            Ok(_) => Poll::Ready(Some(buf[0])),
+            Err(io::ErrorKind::WouldBlock) => {
+                reader.inner.sleep_on_read(true);
+                reader.read_waker.lock().push_back(cx.waker().clone());
                 Poll::Pending
             }
+            Err(_) => { Poll::Ready(None) }
         }
     }
 }
