@@ -32,13 +32,13 @@ struct ChannelState {
 }
 
 const MSG_PAYLOAD_LEN: usize = CACHELINE_SIZE - size_of::<MsgHdr>();
-const CHANNEL_SLOTS: usize = 4096 / 2 / size_of::<Msg>();
+const CHANNEL_SLOTS: usize = 4096 / 2 / size_of::<MsgSlot>();
 const CHANNEL_MSG_SLOTS: usize = CHANNEL_SLOTS - 1;
-struct Msg {
+struct MsgSlot {
     hdr: MsgHdr,
     payload: [u8; MSG_PAYLOAD_LEN],
 }
-const_assert_eq!(size_of::<Msg>(), CACHELINE_SIZE);
+const_assert_eq!(size_of::<MsgSlot>(), CACHELINE_SIZE);
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Role {
@@ -88,27 +88,27 @@ impl UrpcStreamChannel {
         }
     } 
 
-    fn read_buffer(&self) -> &[Msg] {
+    fn read_buffer(&self) -> &[MsgSlot] {
         use core::slice::from_raw_parts;
         let buf_base_ptr = self.buf_ptr.load(Ordering::Relaxed);
         let part = if self.role == Role::Server { 0 } else { 1 };
 
         unsafe {
             from_raw_parts(
-                (buf_base_ptr.offset(part * 2048) as *mut Msg).offset(1),
+                (buf_base_ptr.offset(part * 2048) as *mut MsgSlot).offset(1),
                 CHANNEL_MSG_SLOTS,
             )
         }
     }
 
-    fn write_buffer(&self) -> &mut [Msg] {
+    fn write_buffer(&self) -> &mut [MsgSlot] {
         use core::slice::from_raw_parts_mut;
         let buf_base_ptr = self.buf_ptr.load(Ordering::Relaxed);
         let part = if self.role == Role::Server { 1 } else { 0 };
 
         unsafe {
             from_raw_parts_mut(
-                (buf_base_ptr.offset(part * 2048) as *mut Msg).offset(1),
+                (buf_base_ptr.offset(part * 2048) as *mut MsgSlot).offset(1),
                 CHANNEL_MSG_SLOTS,
             )
         }
@@ -130,38 +130,26 @@ impl UrpcStreamChannel {
         self.remote_channel_state().write_sleep.load(Ordering::SeqCst)
     }
 
-    pub fn try_write_bytes(&mut self, buf: &[u8]) -> io::Result<usize> {
+    pub fn write_slot(&mut self, buf: &[u8]) -> io::Result<usize> {
         let chan_buf = self.write_buffer();
-        let mut write_idx = self.write_idx;
-        let mut write_len = 0;
+        let write_idx = self.write_idx;
 
-        for chunk in buf.chunks(MSG_PAYLOAD_LEN) {
-            let chunk_len = chunk.len();
-            let mut msg_ptr = &mut chan_buf[write_idx % CHANNEL_MSG_SLOTS];
-            if msg_ptr.hdr.valid.load(Ordering::SeqCst) || chunk_len == 0 {
-                break;
-            }
-            msg_ptr.payload[..chunk_len].copy_from_slice(chunk);
-            msg_ptr.hdr.len = chunk_len as u8;
-            write_len += chunk_len;
-            write_idx += 1;
-            msg_ptr.hdr.valid.store(true, Ordering::SeqCst);
+        let msg_slot = &mut chan_buf[write_idx % CHANNEL_MSG_SLOTS];
+        if msg_slot.hdr.valid.load(Ordering::SeqCst) {
+            return Err(io::ErrorKind::WouldBlock);
         }
 
-        if write_len == 0 {
-            return Err(ErrorKind::WouldBlock)
-        }
+        let msglen = buf.len().min(MSG_PAYLOAD_LEN);
+        msg_slot.payload[..msglen].copy_from_slice(&buf[..msglen]);
+        msg_slot.hdr.len = msglen as u8;
+        msg_slot.hdr.valid.store(true, Ordering::SeqCst);
 
-        self.write_idx = write_idx % CHANNEL_MSG_SLOTS;
+        self.write_idx = (write_idx + 1) % CHANNEL_MSG_SLOTS;
 
-        Ok(write_len)
+        Ok(msglen)
     }
 
-    pub fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-
-    pub fn try_read_slot(&mut self, buf: &mut [u8; MSG_PAYLOAD_LEN]) -> io::Result<usize> {
+    pub fn read_slot(&mut self, buf: &mut [u8; MSG_PAYLOAD_LEN]) -> io::Result<usize> {
         let chan_buf = self.read_buffer();
         let read_idx = self.read_idx;
 
@@ -249,7 +237,7 @@ impl UrpcStream {
     }
 
     fn refill_buffer(&mut self) -> io::Result<usize> {
-        let len = self.inner.try_read_slot(&mut self.buffer)?;
+        let len = self.inner.read_slot(&mut self.buffer)?;
         self.buf_start = 0;
         self.buf_end = len;
         return Ok(len);
@@ -285,14 +273,10 @@ impl UrpcStream {
         let mut write_len = 0;
 
         while write_len < buf.len() {
-            let ret = self.inner.try_write_bytes(buf);
-            match ret {
+            match self.inner.write_slot(&buf[write_len..]) {
                 Ok(len) => { write_len += len }
                 Err(ErrorKind::WouldBlock) => {
-                    if self.inner.remote_sleep_on_read() {
-                        self.inner.notify_remote_read();
-                    }
-                    continue
+                    break;
                 }
                 e => { return e }
             }
@@ -332,7 +316,17 @@ impl UrpcStreamHandle {
     }
 
     pub fn write_bytes(&self, buf: &[u8]) -> io::Result<usize> {
-        self.0.lock().write_bytes(buf)
+        let mut writelen = 0;
+        let mut guard = self.0.lock();
+
+        while writelen < buf.len() {
+            match guard.write_bytes(&buf[writelen..]) {
+                Ok(len) => { writelen += len }
+                Err(io::ErrorKind::WouldBlock) => { continue }
+                Err(e) => { return Err(e) }
+            }
+        }
+        Ok(writelen)
     }
 }
 
@@ -394,7 +388,7 @@ impl<'a> Future for WriteFuture<'a> {
         let inner = Pin::into_inner(self);
         while inner.write_len < inner.buf.len() {
             let mut stream = inner.inner.0.lock();
-            let ret = stream.inner.try_write_bytes(&inner.buf[inner.write_len..]);
+            let ret = stream.inner.write_slot(&inner.buf[inner.write_len..]);
             match ret {
                 Ok(write_len) => { inner.write_len += write_len }
                 Err(ErrorKind::WouldBlock) => {
