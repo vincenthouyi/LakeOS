@@ -2,7 +2,7 @@
 pub const FRAME_BIT_SIZE: usize = 12;
 pub const FRAME_SIZE: usize = 1 << FRAME_BIT_SIZE;
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Permission {
     pub readable: bool,
     pub writable: bool,

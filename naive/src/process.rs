@@ -112,7 +112,7 @@ impl<'a> ProcessBuilder<'a> {
                                             cur_free += 1;
                                         }
                                         e => {
-                                            panic!()
+                                            panic!("vaddr {:x} perm {:?} error: {:?}", vaddr, perm, e);
                                         }
                                     }
                                 };
@@ -156,8 +156,8 @@ impl<'a> ProcessBuilder<'a> {
                                         child_root_cn.cap_copy(cur_free, vtable_cap.slot).map_err(|_| ()).unwrap();
                                         cur_free += 1;
                                     }
-                                    _ => {
-                                        panic!()
+                                    e => {
+                                        panic!("vaddr {:x} perm {:?} error: {:?}", vaddr, perm, e);
                                     }
                                 }
                             };
