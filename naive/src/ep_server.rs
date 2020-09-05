@@ -1,10 +1,10 @@
 use core::sync::atomic::{AtomicUsize, Ordering};
-use alloc::collections::BTreeMap;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 
 use conquer_once::spin::OnceCell;
 use spin::{Mutex, MutexGuard};
+use hashbrown::HashMap;
 
 use rustyl4api::object::{EpCap};
 use rustyl4api::ipc::{IpcMessage};
@@ -29,7 +29,7 @@ impl Ep {
 }
 
 pub struct EpServer {
-    event_handlers: OnceCell<Mutex<BTreeMap<usize, Arc<Box<dyn EpMsgHandler + Sync + Send>>>>>,
+    event_handlers: OnceCell<Mutex<HashMap<usize, Arc<Box<dyn EpMsgHandler + Sync + Send>>>>>,
     ntf_handler: Mutex<[Option<Arc<Box<dyn EpNtfHandler + Sync + Send>>>; 64]>,
     ep: Ep
 }
@@ -43,9 +43,9 @@ impl EpServer {
         }
     }
 
-    fn get_event_handlers(&self) -> MutexGuard<BTreeMap<usize, Arc<Box<dyn EpMsgHandler + Sync + Send>>>> {
+    fn get_event_handlers(&self) -> MutexGuard<HashMap<usize, Arc<Box<dyn EpMsgHandler + Sync + Send>>>> {
         self.event_handlers
-            .try_get_or_init(|| Mutex::new(BTreeMap::new())).unwrap()
+            .try_get_or_init(|| Mutex::new(HashMap::new())).unwrap()
             .lock()
     }
 
