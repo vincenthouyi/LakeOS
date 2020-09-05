@@ -29,14 +29,10 @@ impl Ep {
 }
 
 pub struct EpServer {
-    event_handlers: OnceCell<Mutex<BTreeMap<usize, Arc<Box<dyn EpMsgHandler>>>>>,
-    ntf_handler: Mutex<[Option<Arc<Box<dyn EpNtfHandler>>>; 64]>,
+    event_handlers: OnceCell<Mutex<BTreeMap<usize, Arc<Box<dyn EpMsgHandler + Sync + Send>>>>>,
+    ntf_handler: Mutex<[Option<Arc<Box<dyn EpNtfHandler + Sync + Send>>>; 64]>,
     ep: Ep
 }
-
-// TODO: impl Sync and Send as a walkaround for now
-unsafe impl Sync for EpServer { }
-unsafe impl Send for EpServer { }
 
 impl EpServer {
     pub const fn new(ep: EpCap) -> Self {
@@ -47,7 +43,7 @@ impl EpServer {
         }
     }
 
-    fn get_event_handlers(&self) -> MutexGuard<BTreeMap<usize, Arc<Box<dyn EpMsgHandler>>>> {
+    fn get_event_handlers(&self) -> MutexGuard<BTreeMap<usize, Arc<Box<dyn EpMsgHandler + Sync + Send>>>> {
         self.event_handlers
             .try_get_or_init(|| Mutex::new(BTreeMap::new())).unwrap()
             .lock()
@@ -57,7 +53,7 @@ impl EpServer {
         self.ep.derive_badged_cap()
     }
 
-    pub fn insert_event(&self, badge: usize, cb: Box<dyn EpMsgHandler>) {
+    pub fn insert_event(&self, badge: usize, cb: Box<dyn EpMsgHandler + Sync + Send>) {
         self.get_event_handlers()
             .insert(badge, Arc::new(cb));
     }
@@ -67,7 +63,7 @@ impl EpServer {
             .remove(&badge);
     }
 
-    pub fn insert_notification(&self, ntf: usize, cb: Box<dyn EpNtfHandler>) {
+    pub fn insert_notification(&self, ntf: usize, cb: Box<dyn EpNtfHandler + Sync + Send>) {
         self.ntf_handler.lock()[ntf] = Some(Arc::new(cb));
     }
 
