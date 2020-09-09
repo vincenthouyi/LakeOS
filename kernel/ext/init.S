@@ -12,7 +12,10 @@
 #define TCR_TG1_4K                      (2 << 30)
 #define TCR_A1                          (0 << 22) // Use TTBR0_EL1.ASID as ASID
 #define TCR_AS                          (1 << 36) // 16 bit ASID size
-#define TCR_VALUE                       (TCR_T0SZ | TCR_T1SZ | TCR_TG0_4K | TCR_TG1_4K | TCR_AS | TCR_A1)
+#define TCR_IRGN_WBWA                   ((1 << 8) | (1 << 24))
+#define TCR_ORGN_WBWA                   ((1 << 10) | (1 << 26))
+#define TCR_SHARED                      ((3 << 12) | (3 << 28))
+#define TCR_VALUE                       (TCR_T0SZ | TCR_T1SZ | TCR_TG0_4K | TCR_TG1_4K | TCR_AS | TCR_A1 | TCR_IRGN_WBWA | TCR_ORGN_WBWA | TCR_SHARED)
 
 #define vector(handler) \
     .align 7; \
