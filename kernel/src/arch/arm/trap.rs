@@ -161,7 +161,7 @@ impl From<u32> for Syndrome {
 pub fn handle_vfault(tcb: &mut TcbObj) -> ! {
     let fault_addr = arch::get_far();
 
-    kprintln!("faulting addr 0x{:x} elr {:x}", fault_addr, tcb.tf.get_elr());
+    kprintln!("thread {:x} faulting addr 0x{:x} elr {:x}", tcb.thread_id() ,fault_addr, tcb.tf.get_elr());
 
     let vspace = tcb.vspace().unwrap();
     let slot = vspace.lookup_pt_slot(fault_addr);
@@ -215,7 +215,7 @@ pub unsafe extern "C" fn lower64_sync_handler(tf: &mut TrapFrame) -> ! {
             unreachable!()
         },
         syn => {
-            panic!("Unhandled synchronous trap: {:?}", syn)
+            panic!("Unhandled synchronous trap: {:?} thread_id {:x} elr {:x} tcb {:x?}", syn, tcb.thread_id(), tf.get_elr(), tf);
         }
     };
 }
