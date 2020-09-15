@@ -87,11 +87,11 @@ fn connection_handler(ep_server: &EpServer, msg: IpcMessage, cap_transfer_slot: 
 
 pub fn worker_thread() -> ! {
     use naive::task::{Executor, Task};
+    use naive::executor;
 
-    let mut exe = Executor::new();
-    exe.spawn(Task::new(console::read_from_uart()));
-    exe.spawn(Task::new(console::write_to_uart()));
-    exe.run();
+    executor::global_executor().spawn(Task::new(console::read_from_uart()));
+    executor::global_executor().spawn(Task::new(console::write_to_uart()));
+    executor::global_executor().run();
 
     loop {}
 }

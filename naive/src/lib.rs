@@ -26,6 +26,7 @@ pub mod io;
 pub mod ep_server;
 pub mod task;
 mod panic;
+pub mod executor;
 
 extern "C" {
     static _end: [u8; 0];
