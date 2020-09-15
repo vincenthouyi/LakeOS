@@ -2,31 +2,32 @@ use core::task::{Context, Poll};
 use core::task::{Waker, RawWaker};
 use core::task::RawWakerVTable;
 use alloc::collections::VecDeque;
+use crossbeam_queue::SegQueue;
 
 use super::Task;
 
 pub struct Executor {
-    task_queue: VecDeque<Task>,
+    task_queue: SegQueue<Task>,
 }
 
 impl Executor {
     pub fn new() -> Executor {
         Executor {
-            task_queue: VecDeque::new(),
+            task_queue: SegQueue::new(),
         }
     }
 
-    pub fn spawn(&mut self, task: Task) {
-        self.task_queue.push_back(task)
+    pub fn spawn(&self, task: Task) {
+        self.task_queue.push(task)
     }
 
-    pub fn run(&mut self) {
-        while let Some(mut task) = self.task_queue.pop_front() {
+    pub fn run(&self) {
+        while let Ok(mut task) = self.task_queue.pop() {
             let waker = dummy_waker();
             let mut context = Context::from_waker(&waker);
             match task.poll(&mut context) {
                 Poll::Ready(()) => {} // task done
-                Poll::Pending => self.task_queue.push_back(task),
+                Poll::Pending => self.task_queue.push(task),
             }
         }
     }
