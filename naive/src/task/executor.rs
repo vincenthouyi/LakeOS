@@ -2,23 +2,23 @@ use core::task::{Context, Poll};
 use core::task::{Waker, RawWaker};
 use core::task::RawWakerVTable;
 use alloc::collections::VecDeque;
-use crossbeam_queue::SegQueue;
+use crossbeam_queue::ArrayQueue;
 
 use super::Task;
 
 pub struct Executor {
-    task_queue: SegQueue<Task>,
+    task_queue: ArrayQueue<Task>,
 }
 
 impl Executor {
     pub fn new() -> Executor {
         Executor {
-            task_queue: SegQueue::new(),
+            task_queue: ArrayQueue::new(100),
         }
     }
 
     pub fn spawn(&self, task: Task) {
-        self.task_queue.push(task)
+        self.task_queue.push(task).unwrap()
     }
 
     pub fn run(&self) {
@@ -27,7 +27,7 @@ impl Executor {
             let mut context = Context::from_waker(&waker);
             match task.poll(&mut context) {
                 Poll::Ready(()) => {} // task done
-                Poll::Pending => self.task_queue.push(task),
+                Poll::Pending => self.task_queue.push(task).unwrap(),
             }
         }
     }
