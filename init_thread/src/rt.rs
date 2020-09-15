@@ -13,7 +13,7 @@ fn run_app_cpus() {
         let init_tcb = gsm!().alloc_object::<TcbObj>(12)
                              .unwrap();
         let stack_base = gsm!().map_frame_at(0, 0, FRAME_SIZE, Permission::writable()).unwrap();
-        init_tcb.configure(InitL1PageTable as usize, InitCSpace as usize)
+        init_tcb.configure(Some(InitL1PageTable as usize), Some(InitCSpace as usize))
         .expect("Error Configuring TCB");
         init_tcb.set_registers(0b1100, app_cpu_entry as usize, stack_base as usize + FRAME_SIZE)
         .expect("Error Setting Registers");

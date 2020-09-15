@@ -16,9 +16,9 @@ impl KernelObject for TcbObj {
 }
 
 impl Capability<TcbObj> {
-    pub fn configure(&self, vspace_cap: usize, cspace_cap: usize) -> SysResult<()> {
+    pub fn configure(&self, vspace_cap: Option<usize>, cspace_cap: Option<usize>) -> SysResult<()> {
         let info = MsgInfo::new(SyscallOp::TcbConfigure, 2);
-        let mut args = [self.slot, vspace_cap, cspace_cap, 0, 0, 0];
+        let mut args = [self.slot, vspace_cap.unwrap_or(0), cspace_cap.unwrap_or(0), 0, 0, 0];
         syscall(info, &mut args).map(|_|())
     }
 

@@ -170,7 +170,7 @@ impl<'a> ProcessBuilder<'a> {
 
             let start_addr = e.header().entry_point() as usize;
 
-            child_tcb.configure(child_root_vn.slot, child_root_cn.slot)
+            child_tcb.configure(Some(child_root_vn.slot), Some(child_root_cn.slot))
                 .expect("Error Configuring TCB");
             child_tcb.set_registers(0b1100, start_addr, 0x8000000)
                 .expect("Error Setting Registers");

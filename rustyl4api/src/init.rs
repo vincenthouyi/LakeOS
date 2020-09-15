@@ -3,10 +3,10 @@
 #[repr(C)]
 pub enum InitCSpaceSlot {
     NullCap = 0,
-    Monitor,
     InitTCB,
     InitCSpace,
     InitL1PageTable,
+    Monitor,
     IrqController,
 
     UntypedStart,
