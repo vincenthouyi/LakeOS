@@ -4,7 +4,7 @@ use core::mem::size_of;
 use crate::space_manager::gsm;
 use crate::io;
 
-use rustyl4api::object::{EpCap, RamCap, RamObj};
+use rustyl4api::object::{EpCap, RamCap, RamObj, ReplyCap};
 
 const CACHELINE_SIZE: usize = 64;
 
@@ -70,7 +70,8 @@ impl UrpcStream {
         /* Derive a copy of buffer cap and send to server */
         let copied_buf_cap_slot = gsm!().cspace_alloc().unwrap();
         buf_cap.derive(copied_buf_cap_slot).unwrap();
-        ep.send(&[], Some(copied_buf_cap_slot)).unwrap();
+        let reply = ReplyCap::new(0);
+        reply.reply(&[], Some(copied_buf_cap_slot)).unwrap();
 
         Ok(Self::new(Role::Client, svr_ntf_ep, buf_cap, buf_ptr))
     }
