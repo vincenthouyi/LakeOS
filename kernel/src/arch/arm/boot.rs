@@ -339,6 +339,8 @@ pub extern "C" fn kmain() -> ! {
     timer.initialize(cpuid);
     timer.tick_in(crate::TICK);
 
+    crate::arch::clean_l1_cache();
+
     //TODO: somehow SCHEDULER not zeroed in bss. manually init it.
     SCHEDULER.activate()
 }
