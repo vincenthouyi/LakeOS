@@ -4,24 +4,24 @@ use spin::Mutex;
 
 use crate::prelude::*;
 
-use crate::objects::{CNodeEntry, NullCap, EndpointCap};
+use crate::objects::{CapRaw, CNodeEntry, NullCap, EndpointCap};
 use crate::plat::interrupt::Controller;
 
 const NUM_IRQ: usize = 64;
 
 pub struct InterruptController {
-    IrqEp: [CNodeEntry; NUM_IRQ],
+    IrqEp: [CapRaw; NUM_IRQ],
 }
 
 impl InterruptController {
     pub const fn new() -> Self {
         Self {
-            IrqEp: [Cell::new(NullCap::mint()); NUM_IRQ]
+            IrqEp: [NullCap::mint(); NUM_IRQ]
         }
     }
 
     pub fn attach_irq(&mut self, irq: usize, ep: CNodeEntry) {
-        self.IrqEp[irq] = ep;
+        self.IrqEp[irq] = ep.get();
     }
 
     pub fn receive_irq(&self) {
@@ -29,7 +29,9 @@ impl InterruptController {
 
         Controller::new().disable(irq);
 
-        EndpointCap::try_from(&self.IrqEp[irq])
+        let cap = Cell::new(self.IrqEp[irq]);
+
+        EndpointCap::try_from(&cap)
             .expect("Receiving interrupt from unattached irq!")
             .do_set_signal(1 << irq);
     }

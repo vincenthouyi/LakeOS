@@ -234,7 +234,7 @@ pub unsafe extern "C" fn lower64_irq_handler(tf: &mut TrapFrame) -> ! {
         INTERRUPT_CONTROLLER.lock().receive_irq();
     }
 
-    crate::SCHEDULER.activate();
+    crate::SCHEDULER.get().activate();
 }
 
 #[no_mangle]
@@ -248,7 +248,7 @@ pub unsafe extern "C" fn irq_trap() -> ! {
     use super::generic_timer::Timer;
 
     // INTERRUPT_CONTROLLER.lock().receive_irq();
-    super::boot::IDLE_THREADS.timeslice_sub(crate::TICK as usize);
+    super::boot::IDLE_THREADS.get_mut().timeslice_sub(crate::TICK as usize);
     Timer::new().tick_in(crate::TICK);
-    crate::SCHEDULER.activate();
+    crate::SCHEDULER.get_mut().activate();
 }

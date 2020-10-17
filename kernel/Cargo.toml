@@ -19,6 +19,8 @@ debug = true
 panic = "abort"
 lto = true
 
+[unstable]
+build-std = ["core", "compiler_builtins"]
 
 [dependencies]
 elf_rs = "0.1.2"

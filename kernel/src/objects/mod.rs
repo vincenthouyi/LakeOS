@@ -38,7 +38,7 @@ pub use sysapi::object::ObjType;
  * |                  59                    |    |
  * -----------------------------------------------
  */
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct CapRef<'a, T: KernelObject + ?Sized> {
     raw: &'a CNodeEntry,
     cap_type: PhantomData<T>
@@ -96,6 +96,10 @@ impl<'a, T: KernelObject + ?Sized> CapRef<'a, T> {
 impl<'a, T: KernelObject + Sized> CapRef<'a, T> {
     fn obj_ptr(&self) -> NonNull<T> {
         NonNull::new(self.vaddr() as *mut T).unwrap()
+    }
+
+    pub unsafe fn get_obj_mut(&self) -> &mut T {
+        &mut *self.obj_ptr().as_ptr()
     }
 }
 

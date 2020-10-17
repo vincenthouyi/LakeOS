@@ -51,11 +51,11 @@ picocom:
 
 $(RUST_DEBUG_LIB): $(RUST_DEPS) $(BUILD_DIR)/init_thread.elf
 	@echo "+ Building $@ [xargo]"
-	@$(CARGO) xbuild --target=$(TARGET).json
+	@$(CARGO) build --target=$(TARGET).json
 
 $(RUST_RELEASE_LIB): $(RUST_DEPS) $(BUILD_DIR)/init_thread.elf
 	@echo "+ Building $@ [xargo --release]"
-	@$(CARGO) xbuild --target ${TARGET}.json --release
+	@$(CARGO) build --target ${TARGET}.json --release
 #	@$(CARGO) xbuild --target ${TARGET}.json
 #	@$(XARGO) build --release --target=$(TARGET)
 

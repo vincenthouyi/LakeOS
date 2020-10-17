@@ -26,6 +26,7 @@ mod syscall;
 mod scheduler;
 mod utils;
 mod interrupt;
+mod cspace;
 
 pub use scheduler::SCHEDULER;
 

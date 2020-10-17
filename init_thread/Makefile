@@ -13,14 +13,14 @@ BINARIES = shell
 all: $(RUST_LIB) $(BINARIES)
 
 $(RUST_LIB): $(BINARIES) $(BUILD)
-	$(CARGO) xbuild --target=$(TARGET_FILE) --release
+	$(CARGO) build --target=$(TARGET_FILE) --release
 	$(CROSS)-ld $(LD_FLAGS) $(RUST_LIB) -o $(BUILD)/init_thread.elf
 
 $(BUILD):
 	mkdir -p $(BUILD)
 
 $(BINARIES): $(BUILD)
-	cd ../$@; $(CARGO) xbuild -Z unstable-options --target=$(TARGET_FILE) --out-dir $(BUILD) --release
+	cd ../$@; $(CARGO) build -Z unstable-options --target=$(TARGET_FILE) --out-dir $(BUILD) --release
 
 clean:
 	rm -rf build target

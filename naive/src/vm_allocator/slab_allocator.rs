@@ -1,5 +1,5 @@
 use spin::Mutex;
-use core::alloc::{Layout, AllocErr};
+use core::alloc::{Layout, AllocError};
 use core::ptr::{NonNull};
 use core::cmp::max;
 use crate::utils::prev_power_of_two;
@@ -50,7 +50,7 @@ impl SlabPool {
         }
     }
 
-    pub fn slab_alloc(&self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+    pub fn slab_alloc(&self, layout: Layout) -> Result<NonNull<u8>, AllocError> {
         let bit_sz = chunk_size(layout).trailing_zeros() as usize;
 
         (bit_sz..=MEMPOOL_MAX_BITSZ)
@@ -74,7 +74,7 @@ impl SlabPool {
 
                 NonNull::new_unchecked(ptr as *mut u8)
             })
-            .ok_or(AllocErr {})
+            .ok_or(AllocError {})
     }
 
     pub fn slab_dealloc(&self, ptr: NonNull<u8>, layout: Layout) {
@@ -146,7 +146,7 @@ impl SlabAllocator {
         self.backup_pool().add_pool(base, size)
     }
 
-    pub fn slab_alloc(&self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+    pub fn slab_alloc(&self, layout: Layout) -> Result<NonNull<u8>, AllocError> {
         self.current_pool().slab_alloc(layout)
     }
 

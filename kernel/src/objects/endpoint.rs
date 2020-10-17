@@ -120,20 +120,20 @@ impl<'a> EndpointCap<'a> {
             receiver.set_mr(1, self.signal.take() as usize);
             receiver.set_state(ThreadState::Ready);
             receiver.set_respinfo(RespInfo::new_notification());
-            crate::SCHEDULER.push(receiver);
+            crate::SCHEDULER.get_mut().push(receiver);
 
             self.signal.set(0);
         }
     }
 
-    pub fn handle_send(&self, info: MsgInfo, tcb: &TcbObj) -> SysResult<()> {
+    pub fn handle_send(&self, info: MsgInfo, tcb: &mut TcbObj) -> SysResult<()> {
         match self.state() {
             EpState::Receiving => {
                 let receiver = self.queue.dequeue().unwrap();
                 let badge = self.badge();
                 do_ipc(receiver, receiver.get_msginfo().unwrap(), tcb, info, badge, false, false)?;
                 receiver.set_state(ThreadState::Ready);
-                crate::SCHEDULER.push(receiver);
+                crate::SCHEDULER.get_mut().push(receiver);
 
                 Ok(())
             }
@@ -150,7 +150,7 @@ impl<'a> EndpointCap<'a> {
         }
     }
 
-    pub fn handle_recv(&self, info: MsgInfo, tcb: &TcbObj) -> SysResult<()> {
+    pub fn handle_recv(&self, info: MsgInfo, tcb: &mut TcbObj) -> SysResult<()> {
         match self.state() {
             EpState::Free => {
 
@@ -190,7 +190,7 @@ impl<'a> EndpointCap<'a> {
                     tcb.set_reply(Some(sender));
                 } else {
                     sender.set_state(ThreadState::Ready);
-                    crate::SCHEDULER.push(sender);
+                    crate::SCHEDULER.get_mut().push(sender);
                 }
 
                 Ok(())
@@ -198,7 +198,7 @@ impl<'a> EndpointCap<'a> {
         }
     }
 
-    pub fn handle_call(&self, info: MsgInfo, sender: &TcbObj) -> SysResult<()> {
+    pub fn handle_call(&self, info: MsgInfo, sender: &mut TcbObj) -> SysResult<()> {
         match self.state() {
             EpState::Receiving => {
                 let receiver = self.queue.dequeue().unwrap();
@@ -209,7 +209,7 @@ impl<'a> EndpointCap<'a> {
                 sender.detach();
                 receiver.set_state(ThreadState::Ready);
                 receiver.set_reply(Some(sender));
-                crate::SCHEDULER.push(receiver);
+                crate::SCHEDULER.get_mut().push(receiver);
 
                 Ok(ret)
             }
@@ -243,7 +243,7 @@ impl<'a> EndpointCap<'a> {
         EndpointCap::mint(self.paddr(), badge)
     }
 
-    pub fn identify(&self, tcb: &TcbObj) -> usize {
+    pub fn identify(&self, tcb: &mut TcbObj) -> usize {
         tcb.set_mr(1, self.cap_type() as usize);
         1
     }
@@ -253,7 +253,7 @@ impl<'a> EndpointCap<'a> {
     }
 }
 
-pub fn do_ipc(recv: &TcbObj, recv_info: MsgInfo, send: &TcbObj,
+pub fn do_ipc(recv: &mut TcbObj, recv_info: MsgInfo, send: &mut TcbObj,
             send_info: MsgInfo, badge: Option<usize>, is_call: bool, is_reply: bool)
     -> SysResult<()>
 {

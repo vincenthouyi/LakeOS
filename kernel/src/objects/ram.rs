@@ -130,7 +130,7 @@ impl<'a> CapRef<'a, RamObj>{
         Ok(())
     }
 
-    pub fn identify(&self, tcb: &TcbObj) -> usize {
+    pub fn identify(&self, tcb: &mut TcbObj) -> usize {
         tcb.set_mr(1, self.cap_type() as usize);
         tcb.set_mr(2, self.size());
         tcb.set_mr(3, self.mapped_vaddr());

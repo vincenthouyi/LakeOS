@@ -1,10 +1,11 @@
+use core::cell::UnsafeCell;
 use crate::prelude::*;
 use crate::NCPU;
 use crate::objects::TcbObj;
 use crate::utils::tcb_queue::TcbQueue;
 use crate::utils::percore::PerCore;
 
-pub static SCHEDULER: PerCore<Scheduler, NCPU> = PerCore([Scheduler::new(); NCPU]);
+pub static SCHEDULER: PerCore<Scheduler, NCPU> = PerCore([UnsafeCell::new(Scheduler::new()); NCPU]);
 
 #[derive(Debug)]
 pub struct Scheduler {

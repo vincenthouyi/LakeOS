@@ -329,6 +329,7 @@
 #![feature(wake_trait)]
 // NB: the above list is sorted to minimize merge conflicts.
 #![default_lib_allocator]
+#![allow(rustc::ineffective_unstable_trait_impl)]
 
 // Explicitly import the prelude. The compiler uses this same unstable attribute
 // to import the prelude implicitly when building crates that depend on std.

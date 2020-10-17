@@ -143,7 +143,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             let cap_idx = tcb.get_mr(0);
             let cspace = tcb.cspace()?;
             let cap_slot = cspace.lookup_slot(cap_idx)?;
-            let cap = TcbCap::try_from(cap_slot)?;
+            let mut cap = TcbCap::try_from(cap_slot)?;
 
             let reg_flags = tcb.get_mr(1);
             if reg_flags & 0b1000 == 0b1000 {
@@ -165,7 +165,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             let cap_slot = cspace.lookup_slot(cap_idx)?;
 
             let cap = TcbCap::try_from(cap_slot)?;
-            crate::SCHEDULER.push(&cap);
+            crate::SCHEDULER.get_mut().push(&cap);
 
             tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
             Ok(())
@@ -389,5 +389,5 @@ pub fn handle_syscall(tcb: &mut TcbObj) -> ! {
         tcb.set_respinfo(RespInfo::new_syscall_resp(e, 0));
     }
 
-    crate::SCHEDULER.activate()
+    crate::SCHEDULER.get_mut().activate()
 }

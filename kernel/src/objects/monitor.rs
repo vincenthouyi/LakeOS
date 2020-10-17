@@ -14,7 +14,7 @@ impl<'a> MonitorCap<'a> {
         return;
     }
 
-    pub fn identify(&self, tcb: &TcbObj) -> usize {
+    pub fn identify(&self, tcb: &mut TcbObj) -> usize {
         tcb.set_mr(1, self.cap_type() as usize);
         1
     }

@@ -83,6 +83,16 @@ impl<'a> CNodeCap<'a> {
         }
     }
 
+    pub fn as_object_mut(&self) -> &'static mut [CNodeEntry] {
+        use core::slice::from_raw_parts_mut;
+
+        unsafe {
+            from_raw_parts_mut(
+                self.vaddr() as *mut CNodeEntry,
+                self.size())
+        }
+    }
+
     pub fn init(&self) {
         let node : &[CNodeEntry] = self.as_object();
 
@@ -161,7 +171,7 @@ impl<'a> CNodeCap<'a> {
          .field("guard", &c.guard());
     }
 
-    pub fn identify(&self, tcb: &TcbObj) -> usize {
+    pub fn identify(&self, tcb: &mut TcbObj) -> usize {
         tcb.set_mr(1, self.cap_type() as usize);
         tcb.set_mr(2, self.size());
 

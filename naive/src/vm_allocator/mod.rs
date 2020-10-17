@@ -1,7 +1,7 @@
 mod linked_list;
 mod slab_allocator;
 
-use core::alloc::{GlobalAlloc, Layout, AllocErr};
+use core::alloc::{GlobalAlloc, Layout, AllocError};
 use core::ptr::NonNull;
 use core::sync::atomic::{AtomicBool, Ordering};
 
@@ -39,12 +39,12 @@ impl VmAllocator {
         self.add_backup_mempool(addr, FRAME_SIZE);
     }
 
-    pub fn vm_alloc(&self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
+    pub fn vm_alloc(&self, layout: Layout) -> Result<NonNull<u8>, AllocError> {
 
         // TODO: support object larger than a page
         let obj_bitsz = layout.size().trailing_zeros();
         if obj_bitsz > SLAB_ALLOC_BITSZ as u32 {
-            return Err(AllocErr{});
+            return Err(AllocError{});
         }
 
         self.slab_alloc

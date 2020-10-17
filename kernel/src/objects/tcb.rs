@@ -7,6 +7,7 @@ use crate::arch::trapframe::TrapFrame;
 use crate::syscall::{MsgInfo, RespInfo};
 use crate::utils::tcb_queue::TcbQueueNode;
 use crate::objects::NullCap;
+use crate::cspace::CSpace;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ThreadState {
@@ -69,7 +70,7 @@ impl TcbObj {
         }
     }
 
-    pub fn configure_idle_thread(&self) {
+    pub fn configure_idle_thread(&mut self) {
         self.tf.configure_idle_thread()
     }
 
@@ -77,16 +78,17 @@ impl TcbObj {
         cspace.derive(&NullCap::try_from(&self.cspace)?)
     }
 
-    pub fn install_vspace(&self, vspace: VTableCap) {
+    pub fn install_vspace(&mut self, vspace: VTableCap) {
         let asid = (vspace.paddr() >> 12) & MASK!(16);
         vspace.set_mapped_vaddr_asid(0, asid, 1);
         let raw = vspace.raw();
         self.vspace.set(raw);
     }
 
-    pub fn cspace(&self) -> SysResult<CNodeCap> {
-        CNodeCap::try_from(&self.cspace)
-            .map_err(|_| SysError::CSpaceNotFound)
+    pub fn cspace(&self) -> SysResult<CSpace<'static>> {
+        let cap = CNodeCap::try_from(&self.cspace)
+            .map_err(|_| SysError::CSpaceNotFound)?;
+        Ok(CSpace(cap.as_object_mut()))
     }
 
     pub fn vspace(&self) -> Option<VSpace> {
@@ -123,7 +125,7 @@ impl TcbObj {
         self.tf.get_mr(idx)
     }
 
-    pub fn set_mr(&self, idx: usize, mr: usize) {
+    pub fn set_mr(&mut self, idx: usize, mr: usize) {
         self.tf.set_mr(idx, mr)
     }
 
@@ -131,7 +133,7 @@ impl TcbObj {
         self.tf.get_msginfo()
     }
 
-    pub fn set_respinfo(&self, respinfo: RespInfo) {
+    pub fn set_respinfo(&mut self, respinfo: RespInfo) {
         self.tf.set_respinfo(respinfo)
     }
 
@@ -145,8 +147,9 @@ impl TcbObj {
         }
     }
 
-    pub fn reply_cap(&self) -> Option<ReplyCap> {
-        ReplyCap::try_from(&self.reply_cap).ok()
+    pub fn reply_cap(&self) -> Option<ReplyObj> {
+        let cap = ReplyCap::try_from(&self.reply_cap).ok()?;
+        Some(ReplyObj(cap.waiting_tcb()))
     }
 
     pub fn asid(&self) -> SysResult<usize> {
@@ -226,7 +229,7 @@ impl<'a> TcbCap<'a> {
         )
     }
 
-    pub fn identify(&self, tcb: &TcbObj) -> usize {
+    pub fn identify(&self, tcb: &mut TcbObj) -> usize {
         tcb.set_mr(1, self.cap_type() as usize);
         1
     }

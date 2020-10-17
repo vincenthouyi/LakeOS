@@ -5,7 +5,7 @@
 #![feature(optin_builtin_traits)]
 #![feature(const_fn)]
 #![feature(allocator_api)]
-#![feature(const_saturating_int_methods)]
+// #![feature(const_saturating_int_methods)]
 #![feature(linked_list_cursors)]
 #![feature(llvm_asm)]
 #![feature(wake_trait)]

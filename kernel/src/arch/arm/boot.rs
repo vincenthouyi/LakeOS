@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use core::cell::Cell;
+use core::cell::{Cell, UnsafeCell};
 use core::convert::TryFrom;
 use core::mem::MaybeUninit;
 
@@ -27,7 +27,7 @@ static mut KERNEL_PD: Table = Table::zero();
 static mut INIT_CNODE: MaybeUninit<[CNodeEntry; INIT_CSPACE_SIZE]> = MaybeUninit::uninit();
 static INIT_THREAD_ELF: &'static [u8] = include_bytes!("../../../build/init_thread.elf");
 
-pub static IDLE_THREADS: PerCore<TcbObj, NCPU> = PerCore([TcbObj::new(); NCPU]);
+pub static IDLE_THREADS: PerCore<TcbObj, NCPU> = PerCore([UnsafeCell::new(TcbObj::new()); NCPU]);
 
 #[link_section=".boot.text"]
 unsafe fn init_kernel_vspace() {
@@ -164,7 +164,7 @@ fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut u
 
     vspace.lookup_pgd_slot(vaddr).map(|slot| {
         if slot.is_invalid() {
-            alloc_obj::<VTableObj>(cspace.as_object(), 12, &cspace[*cur_free_slot])
+            alloc_obj::<VTableObj>(&cspace, 12, &cspace[*cur_free_slot])
                 .expect("Allocating PUD failed")
                 .map_vtable(&vspace, vaddr, 2)
                 .expect("Installing PUD failed");
@@ -174,7 +174,7 @@ fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut u
 
     vspace.lookup_pud_slot(vaddr).map(|slot| {
         if slot.is_invalid() {
-            alloc_obj::<VTableObj>(cspace.as_object(), 12, &cspace[*cur_free_slot])
+            alloc_obj::<VTableObj>(&cspace, 12, &cspace[*cur_free_slot])
                 .expect("Allocating PD failed")
                 .map_vtable(&vspace, vaddr, 3)
                 .expect("Installing PD failed");
@@ -184,7 +184,7 @@ fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut u
 
     vspace.lookup_pd_slot(vaddr).map(|slot| {
         if slot.is_invalid() {
-            alloc_obj::<VTableObj>(cspace.as_object(), 12, &cspace[*cur_free_slot])
+            alloc_obj::<VTableObj>(&cspace, 12, &cspace[*cur_free_slot])
                 .expect("Allocating PT failed")
                 .map_vtable(&vspace, vaddr, 4)
                 .expect("Installing PT failed");
@@ -192,7 +192,7 @@ fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut u
         }
     }).expect("Looking up PT slot failed");
 
-    let frame_cap = alloc_obj::<RamObj>(cspace.as_object(), 12, &cspace[*cur_free_slot])
+    let frame_cap = alloc_obj::<RamObj>(&cspace, 12, &cspace[*cur_free_slot])
                             .expect("Allocating Frame failed");
     *cur_free_slot += 1;
     frame_cap.map_page(&vspace, vaddr, perm)
@@ -279,8 +279,8 @@ fn init_app_cpu() {
     use crate::scheduler::SCHEDULER;
 
     kprintln!("application cpu start");
-    IDLE_THREADS.configure_idle_thread();
-    SCHEDULER.push(&*IDLE_THREADS);
+    IDLE_THREADS.get_mut().configure_idle_thread();
+    SCHEDULER.get_mut().push(IDLE_THREADS.get());
 }
 
 fn init_bsp_cpu() {
@@ -293,7 +293,7 @@ fn init_bsp_cpu() {
     kprintln!("PRAISE THE SUN!");
 
     let init_cnode_obj = unsafe {
-        let cnode = INIT_CNODE.get_mut();
+        let cnode = INIT_CNODE.assume_init_mut();
         for slot in cnode.iter_mut() {
             *slot = Cell::new(CapRef::<NullObj>::mint());
         }
@@ -313,10 +313,10 @@ fn init_bsp_cpu() {
 //    kprintln!("Init Thread Info: {:x?}", *init_tcb_cap);
     kprintln!("Jumping to User Space!");
 
-    IDLE_THREADS.configure_idle_thread();
+    IDLE_THREADS.get_mut().configure_idle_thread();
 
-    SCHEDULER.push(&*IDLE_THREADS);
-    SCHEDULER.push(&mut init_tcb_cap);
+    SCHEDULER.get_mut().push(IDLE_THREADS.get());
+    SCHEDULER.get_mut().push(&mut init_tcb_cap);
 }
 
 #[no_mangle]
@@ -342,5 +342,5 @@ pub extern "C" fn kmain() -> ! {
     crate::arch::clean_l1_cache();
 
     //TODO: somehow SCHEDULER not zeroed in bss. manually init it.
-    SCHEDULER.activate()
+    SCHEDULER.get_mut().activate()
 }
