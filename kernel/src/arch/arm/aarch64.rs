@@ -198,8 +198,6 @@ pub fn clean_dcache_poc() {
             let assoc = ((s >> 3) & MASK!(10)) + 1;
             let assoc_bits = 64 - (assoc - 1).leading_zeros();
             let nsets = ((s >> 13) & MASK!(15)) + 1;
-            crate::prelude::kprintln!("s {} line_bits {} assoc {} assoc_bits {} nsets {}",
-                s, line_bits, assoc, assoc_bits, nsets);
 
             for w in 0..assoc {
                 for s in 0..nsets {
