@@ -31,3 +31,4 @@ spin = "0.5.2"
 atags = { git = "https://github.com/vincenthouyi/LakeOS-atags" }
 pi = { path = "../pi" }
 static_assertions = "1.1.0"
+align-data = "0.1.0"

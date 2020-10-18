@@ -13,6 +13,8 @@ use sysapi::vspace::Permission;
 use crate::utils::percore::PerCore;
 use crate::arch::affinity;
 
+use align_data::{include_aligned, Align64};
+
 #[derive(Copy, Clone)]
 #[repr(align(4096))]
 struct Frame([usize; 4096]);
@@ -25,7 +27,7 @@ static mut KERNEL_PUD: Table = Table::zero();
 static mut KERNEL_PD: Table = Table::zero();
 
 static mut INIT_CNODE: MaybeUninit<[CNodeEntry; INIT_CSPACE_SIZE]> = MaybeUninit::uninit();
-static INIT_THREAD_ELF: &'static [u8] = include_bytes!("../../../build/init_thread");
+static INIT_THREAD_ELF: &'static [u8] = include_aligned!(Align64, "../../../build/init_thread");
 
 pub static IDLE_THREADS: PerCore<TcbObj, NCPU> = PerCore([UnsafeCell::new(TcbObj::new()); NCPU]);
 
