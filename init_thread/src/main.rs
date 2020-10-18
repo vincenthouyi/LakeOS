@@ -3,6 +3,7 @@
 #![feature(const_fn)]
 
 #![no_std]
+#![no_main]
 
 extern crate alloc;
 extern crate naive;

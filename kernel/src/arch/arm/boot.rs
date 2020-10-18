@@ -25,7 +25,7 @@ static mut KERNEL_PUD: Table = Table::zero();
 static mut KERNEL_PD: Table = Table::zero();
 
 static mut INIT_CNODE: MaybeUninit<[CNodeEntry; INIT_CSPACE_SIZE]> = MaybeUninit::uninit();
-static INIT_THREAD_ELF: &'static [u8] = include_bytes!("../../../build/init_thread.elf");
+static INIT_THREAD_ELF: &'static [u8] = include_bytes!("../../../build/init_thread");
 
 pub static IDLE_THREADS: PerCore<TcbObj, NCPU> = PerCore([UnsafeCell::new(TcbObj::new()); NCPU]);
 
@@ -204,6 +204,7 @@ fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut u
 fn load_init_thread(tcb: &mut TcbObj, elf_file: &[u8], cur_free_slot: &mut usize) {
     use elf_rs::{Elf, ProgramType};
     use sysapi::init::{INIT_STACK_TOP, INIT_STACK_PAGES};
+    use crate::utils::align_down;
 
     let cspace = tcb.cspace().expect("Init CSpace not installed");
     let pgd_cap = VTableCap::try_from(&cspace[InitL1PageTable as usize])
@@ -225,13 +226,16 @@ fn load_init_thread(tcb: &mut TcbObj, elf_file: &[u8], cur_free_slot: &mut usize
 
             match p_type {
                 ProgramType::LOAD => {
-                    let sec_base = ph.ph.offset() as usize;
+                    let align = ph.ph.align() as usize;
+                    let sec_off = ph.ph.offset() as usize;
+                    let sec_base = align_down(sec_off, align);
                     let sec_len= ph.ph.filesz() as usize;
-                    let section = &elf_file[sec_base.. sec_base + sec_len];
+                    let section = &elf_file[sec_base.. sec_off + sec_len];
 
                     let vaddr = ph.ph.vaddr() as usize;
+                    let vaddr_base = align_down(vaddr, align);
                     let mem_len = ph.ph.memsz() as usize;
-                    let memrange = vaddr..vaddr+mem_len;
+                    let memrange = vaddr_base .. vaddr+mem_len;
 
                     memrange.step_by(PAGE_SIZE)
                         .map(|vaddr| {
@@ -252,7 +256,7 @@ fn load_init_thread(tcb: &mut TcbObj, elf_file: &[u8], cur_free_slot: &mut usize
                 }
                 ProgramType::NOTE => {}
                 p_type => {
-                    panic!("Unable to handle section type {:?}", p_type);
+                    kprintln!("Unable to handle section type {:?}", p_type);
                 }
             }
         }

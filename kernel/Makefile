@@ -28,7 +28,7 @@ RUST_LIB := $(BUILD_DIR)/$(RUST_BINARY).a
 INIT_THREAD_DIR := $(PWD)/../init_thread
 INIT_THREAD_TARGET := $(INIT_THREAD_DIR)/target/$(TARGET)/release/init_thread
 
-.PHONY: all test clean check install $(RUST_LIB) $(BUILD_DIR)/init_thread.elf
+.PHONY: all test clean check install $(RUST_LIB) $(BUILD_DIR)/init_thread
 
 VPATH = ext
 
@@ -49,11 +49,11 @@ tftp: $(KERNEL).bin
 picocom:
 	picocom -b 115200 $(PI_TTY)
 
-$(RUST_DEBUG_LIB): $(RUST_DEPS) $(BUILD_DIR)/init_thread.elf
+$(RUST_DEBUG_LIB): $(RUST_DEPS) $(BUILD_DIR)/init_thread
 	@echo "+ Building $@ [xargo]"
 	@$(CARGO) build --target=$(TARGET).json
 
-$(RUST_RELEASE_LIB): $(RUST_DEPS) $(BUILD_DIR)/init_thread.elf
+$(RUST_RELEASE_LIB): $(RUST_DEPS) $(BUILD_DIR)/init_thread
 	@echo "+ Building $@ [xargo --release]"
 	@$(CARGO) build --target ${TARGET}.json --release
 #	@$(CARGO) xbuild --target ${TARGET}.json
@@ -108,12 +108,9 @@ qemu-debug: $(KERNEL).bin
 qemu: $(KERNEL).bin
 	qemu-system-aarch64 -nographic -M raspi3 -serial null -serial mon:stdio -kernel $(KERNEL).bin
 
-$(BUILD_DIR)/init_thread.elf:
+$(BUILD_DIR)/init_thread:
 	make -C $(INIT_THREAD_DIR)
-	cp $(INIT_THREAD_DIR)/build/init_thread.elf $(BUILD_DIR)/init_thread.elf
-#	cd $(INIT_THREAD_DIR); $(CARGO) xbuild --target $(TARGET).json --release
-#	cp $(INIT_THREAD_TARGET) $(BUILD_DIR)/init_thread.elf
-#	$(CROSS)-objcopy --input binary --output elf64-littleaarch64 --binary-architecture aarch64 $(BUILD_DIR)/init_thread.elf $(BUILD_DIR)/init_thread.o
+	cp $(INIT_THREAD_DIR)/build/init_thread $(BUILD_DIR)/init_thread
 
 gdb:
 	$(GDB)

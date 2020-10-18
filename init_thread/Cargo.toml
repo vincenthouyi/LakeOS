@@ -4,9 +4,6 @@ version = "0.1.0"
 authors = ["Vincent Hou <vincent.houyi@gmail.com>"]
 edition = "2018"
 
-[lib]
-crate-type = ["staticlib"]
-
 [dependencies]
 rustyl4api = { path = "../rustyl4api" }
 naive = { path = "../naive" }

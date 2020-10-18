@@ -13,8 +13,8 @@ BINARIES = shell
 all: $(RUST_LIB) $(BINARIES)
 
 $(RUST_LIB): $(BINARIES) $(BUILD)
-	$(CARGO) build --target=$(TARGET_FILE) --release
-	$(CROSS)-ld $(LD_FLAGS) $(RUST_LIB) -o $(BUILD)/init_thread.elf
+	$(CARGO) build -Z unstable-options --target=$(TARGET_FILE) --release --out-dir $(BUILD)
+	# $(CROSS)-ld $(LD_FLAGS) $(RUST_LIB) -o $(BUILD)/init_thread.elf
 
 $(BUILD):
 	mkdir -p $(BUILD)
