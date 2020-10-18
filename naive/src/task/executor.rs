@@ -3,12 +3,13 @@ use alloc::collections::BTreeMap;
 use alloc::sync::Arc;
 use hashbrown::HashSet;
 use spin::Mutex;
+use crossbeam_queue::SegQueue;
 
 use super::{Task, TaskId, TaskWaker};
 
 pub struct Executor {
     tasks: BTreeMap<TaskId, Task>,
-    task_queue: Arc<Mutex<HashSet<TaskId>>>,
+    task_queue: Arc<SegQueue<TaskId>>,
     waker_cache: BTreeMap<TaskId, Waker>,
 }
 
@@ -16,7 +17,7 @@ impl Executor {
     pub fn new() -> Executor {
         Executor {
             tasks: BTreeMap::new(),
-            task_queue: Arc::new(Mutex::new(HashSet::new())),
+            task_queue: Arc::new(SegQueue::new()),
             waker_cache: BTreeMap::new(),
         }
     }
@@ -26,7 +27,7 @@ impl Executor {
         if self.tasks.insert(task_id, task).is_some() {
             panic!("task id already in tasks");
         }
-        self.task_queue.lock().insert(task_id);
+        self.task_queue.push(task_id);
     }
 
     pub fn run_ready_tasks(&mut self) {
@@ -38,8 +39,7 @@ impl Executor {
             waker_cache,
         } = self;
 
-        let ready_tasks: Vec<TaskId> = task_queue.lock().drain().collect();
-        for task_id in ready_tasks {
+        while let Ok(task_id) = task_queue.pop() {
             let task = match tasks.get_mut(&task_id) {
                 Some(task) => task,
                 None => continue, // task no longer exists

@@ -9,6 +9,7 @@ use alloc::task::Wake;
 
 use spin::Mutex;
 use hashbrown::HashSet;
+use crossbeam_queue::SegQueue;
 
 pub mod executor;
 
@@ -45,11 +46,11 @@ impl Task {
 
 pub struct TaskWaker {
     task_id: TaskId,
-    task_queue: Arc<Mutex<HashSet<TaskId>>>,
+    task_queue: Arc<SegQueue<TaskId>>,
 }
 
 impl TaskWaker {
-    fn new(task_id: TaskId, task_queue: Arc<Mutex<HashSet<TaskId>>>) -> Waker {
+    fn new(task_id: TaskId, task_queue: Arc<SegQueue<TaskId>>) -> Waker {
         Waker::from(Arc::new(TaskWaker {
             task_id,
             task_queue,
@@ -57,7 +58,7 @@ impl TaskWaker {
     }
 
     fn wake_task(&self) {
-        self.task_queue.lock().insert(self.task_id);
+        self.task_queue.push(self.task_id);
     }
 }
 
