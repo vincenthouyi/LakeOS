@@ -32,3 +32,4 @@ atags = { git = "https://github.com/vincenthouyi/LakeOS-atags" }
 pi = { path = "../pi" }
 static_assertions = "1.1.0"
 align-data = "0.1.0"
+aarch64 = { git = "https://github.com/rcore-os/aarch64" }

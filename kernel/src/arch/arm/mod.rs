@@ -6,4 +6,4 @@ pub mod generic_timer;
 mod boot;
 mod idle;
 
-pub use aarch64::*;
+pub use self::aarch64::*;

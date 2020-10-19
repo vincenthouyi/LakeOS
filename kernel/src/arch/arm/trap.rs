@@ -3,7 +3,7 @@ use crate::arch;
 use crate::objects::TcbObj;
 use super::trapframe::TrapFrame;
 use crate::interrupt::INTERRUPT_CONTROLLER;
-use super::affinity;
+use super::cpuid;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Fault {
@@ -164,7 +164,7 @@ pub fn handle_vfault(tcb: &mut TcbObj) -> ! {
     kprintln!("thread {:x} faulting addr 0x{:x} elr {:x}", tcb.thread_id() ,fault_addr, tcb.tf.get_elr());
 
     let vspace = tcb.vspace().unwrap();
-    let slot = vspace.lookup_pt_slot(fault_addr);
+    let slot = vspace.lookup_pt_slot(fault_addr as usize);
     kprintln!("slot {:x?}", slot.unwrap());
 
     unimplemented!("unable to handle vfault!");
@@ -224,7 +224,7 @@ pub unsafe extern "C" fn lower64_sync_handler(tf: &mut TrapFrame) -> ! {
 pub unsafe extern "C" fn lower64_irq_handler(tf: &mut TrapFrame) -> ! {
     use super::generic_timer::Timer;
 
-    let cpuid = affinity();
+    let cpuid = cpuid();
     let tcb = tf.get_tcb();
     let mut timer = Timer::new();
     if timer.is_pending(cpuid) {

@@ -106,7 +106,7 @@ impl TcbObj {
 
     pub fn activate(&mut self) -> ! {
         unsafe {
-            let cpuid = crate::arch::affinity() << 48;
+            let cpuid = crate::arch::cpuid() << 48;
             llvm_asm!("msr tpidrro_el0, $0"::"r"(cpuid | self.thread_id()));
             self.switch_vspace().unwrap_or(()); // explicitly ignore error for idle thread
             self.tf.restore();

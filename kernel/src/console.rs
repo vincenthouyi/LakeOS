@@ -1,11 +1,11 @@
 pub use crate::plat::uart::console_print;
-use crate::arch::affinity;
+use crate::arch::cpuid;
 
 /// Like `println!`, but for kernel-space.
 pub macro kprintln {
-    () => (kprint!("[Kernel:{}]\n", affinity())),
-    ($fmt:expr) => (kprint!(concat!("[Kernel:{}] ", $fmt, "\n"), affinity())),
-    ($fmt:expr, $($arg:tt)*) => (kprint!(concat!("[Kernel:{}] ",$fmt, "\n"), affinity(),$($arg)*))
+    () => (kprint!("[Kernel:{}]\n", cpuid())),
+    ($fmt:expr) => (kprint!(concat!("[Kernel:{}] ", $fmt, "\n"), cpuid())),
+    ($fmt:expr, $($arg:tt)*) => (kprint!(concat!("[Kernel:{}] ",$fmt, "\n"), cpuid(),$($arg)*))
 }
 
 /// Like `print!`, but for kernel-space.

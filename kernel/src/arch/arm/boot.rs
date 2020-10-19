@@ -11,7 +11,7 @@ use sysapi::init::InitCSpaceSlot::*;
 use sysapi::init::INIT_CSPACE_SIZE;
 use sysapi::vspace::Permission;
 use crate::utils::percore::PerCore;
-use crate::arch::affinity;
+use crate::arch::cpuid;
 
 use align_data::{include_aligned, Align64};
 
@@ -67,7 +67,7 @@ unsafe fn init_kernel_vspace() {
 pub unsafe fn init_cpu() {
     use crate::arch::vspace::{enable_mmu};
 
-    let cpuid = affinity();
+    let cpuid = cpuid();
     if cpuid == 0 {
         init_kernel_vspace();
     }
@@ -329,9 +329,9 @@ fn init_bsp_cpu() {
 #[link_section=".boot.text"]
 pub extern "C" fn kmain() -> ! {
     use crate::scheduler::SCHEDULER;
-    let cpuid = affinity();
+    let cpuid = cpuid();
 
-    if affinity() == 0 {
+    if cpuid == 0 {
         init_bsp_cpu()
     } else {
         init_app_cpu()
@@ -345,6 +345,9 @@ pub extern "C" fn kmain() -> ! {
     timer.initialize(cpuid);
     timer.tick_in(crate::TICK);
 
+    unsafe {
+        crate::arch::vspace::flush_tlb_allel1_is();
+    }
     crate::arch::clean_l1_cache();
 
     //TODO: somehow SCHEDULER not zeroed in bss. manually init it.
