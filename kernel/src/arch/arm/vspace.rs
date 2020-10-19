@@ -202,7 +202,7 @@ impl VSpace {
             return Err(SysError::VSpaceSlotOccupied{ level: 2 });
         }
         *pgd_slot = entry;
-        crate::arch::dc_clean_by_va_PoC(pgd_slot as *const _ as usize);
+        crate::arch::dc_clean_by_va_PoU(pgd_slot as *const _ as usize);
         Ok(())
     }
 
@@ -212,7 +212,7 @@ impl VSpace {
             return Err(SysError::VSpaceSlotOccupied{ level: 3 });
         }
         *pud_slot = entry;
-        crate::arch::dc_clean_by_va_PoC(pud_slot as *const _ as usize);
+        crate::arch::dc_clean_by_va_PoU(pud_slot as *const _ as usize);
         Ok(())
     }
 
@@ -222,7 +222,7 @@ impl VSpace {
             return Err(SysError::VSpaceSlotOccupied{ level: 4 });
         }
         *pd_slot = entry;
-        crate::arch::dc_clean_by_va_PoC(pd_slot as *const _ as usize);
+        crate::arch::dc_clean_by_va_PoU(pd_slot as *const _ as usize);
         Ok(())
     }
 
@@ -232,7 +232,7 @@ impl VSpace {
             return Err(SysError::VSpaceSlotOccupied{ level: 5 });
         }
         *pt_slot = entry;
-        crate::arch::dc_clean_by_va_PoC(pt_slot as *const _ as usize);
+        crate::arch::dc_clean_by_va_PoU(pt_slot as *const _ as usize);
         Ok(())
     }
 

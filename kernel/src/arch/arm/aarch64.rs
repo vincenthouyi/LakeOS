@@ -142,9 +142,9 @@ pub fn get_far() -> usize
 //    dmb();
 //}
 
-pub fn dc_clean_by_va_PoC(vaddr: usize)
+pub fn dc_clean_by_va_PoU(vaddr: usize)
 {
-    unsafe { llvm_asm!("dc cvac, $0": : "r"(vaddr): :"volatile") }
+    unsafe { llvm_asm!("dc cvau, $0": : "r"(vaddr): :"volatile") }
     dmb();
 }
 
