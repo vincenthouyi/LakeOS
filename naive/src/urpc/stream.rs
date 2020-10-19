@@ -1,13 +1,14 @@
-use core::sync::atomic::{AtomicPtr, AtomicBool, Ordering};
 use core::mem::size_of;
 use core::pin::Pin;
 use core::task::{Context, Poll, Waker};
 use core::future::Future;
+use core::sync::atomic::{fence, Ordering};
 
 use alloc::sync::Arc;
 use alloc::collections::VecDeque;
 
 use futures_util::stream::Stream;
+use volatile::Volatile;
 
 use spin::Mutex;
 
@@ -20,15 +21,16 @@ use crate::ep_server::{EpServer, EpMsgHandler};
 
 const CACHELINE_SIZE: usize = 64;
 
+#[repr(C)]
 struct MsgHdr {
-    valid: AtomicBool,
+    valid: u8,
     len: u8,
+    padding: [u8; 6],
 }
 
-#[derive(Debug)]
 struct ChannelState {
-    write_sleep: AtomicBool,
-    read_sleep: AtomicBool
+    write_sleep: bool,
+    read_sleep: bool 
 }
 
 const MSG_PAYLOAD_LEN: usize = CACHELINE_SIZE - size_of::<MsgHdr>();
@@ -51,7 +53,7 @@ pub struct UrpcStreamChannel {
     role: Role,
     ntf_ep: EpCap,
     buf_cap: RamCap,
-    buf_ptr: AtomicPtr<u8>,
+    buf_ptr: usize,
     read_idx: usize,
     write_idx: usize,
 }
@@ -62,24 +64,24 @@ impl UrpcStreamChannel {
             role,
             ntf_ep,
             buf_cap,
-            buf_ptr: AtomicPtr::new(buf_ptr),
+            buf_ptr: buf_ptr as usize,
             read_idx: 0,
             write_idx: 0,
         }
     }
 
-    fn local_channel_state(&self) -> &ChannelState {
-        let buf_base_ptr = self.buf_ptr.load(Ordering::Relaxed);
+    fn local_channel_state(&self) -> &mut ChannelState {
+        let buf_base_ptr = self.buf_ptr as *mut u8;
         let part = if self.role == Role::Server { 1 } else { 0 };
 
         unsafe {
             let channel_base_ptr = buf_base_ptr.offset(part * 2048);
-            &*(channel_base_ptr as *const ChannelState)
+            &mut *(channel_base_ptr as *mut ChannelState)
         }
     }
 
     fn remote_channel_state(&self) -> &ChannelState {
-        let buf_base_ptr = self.buf_ptr.load(Ordering::Relaxed);
+        let buf_base_ptr = self.buf_ptr as *mut u8;
         let part = if self.role == Role::Server { 0 } else { 1 };
 
         unsafe {
@@ -88,13 +90,13 @@ impl UrpcStreamChannel {
         }
     } 
 
-    fn read_buffer(&self) -> &[MsgSlot] {
-        use core::slice::from_raw_parts;
-        let buf_base_ptr = self.buf_ptr.load(Ordering::Relaxed);
+    fn read_buffer(&self) -> &mut [MsgSlot] {
+        use core::slice::from_raw_parts_mut;
+        let buf_base_ptr = self.buf_ptr as *mut u8;
         let part = if self.role == Role::Server { 0 } else { 1 };
 
         unsafe {
-            from_raw_parts(
+            from_raw_parts_mut(
                 (buf_base_ptr.offset(part * 2048) as *mut MsgSlot).offset(1),
                 CHANNEL_MSG_SLOTS,
             )
@@ -103,7 +105,7 @@ impl UrpcStreamChannel {
 
     fn write_buffer(&self) -> &mut [MsgSlot] {
         use core::slice::from_raw_parts_mut;
-        let buf_base_ptr = self.buf_ptr.load(Ordering::Relaxed);
+        let buf_base_ptr = self.buf_ptr as *mut u8;
         let part = if self.role == Role::Server { 1 } else { 0 };
 
         unsafe {
@@ -114,20 +116,20 @@ impl UrpcStreamChannel {
         }
     }
 
-    fn sleep_on_read(&self, x: bool) {
-        self.local_channel_state().read_sleep.store(x, Ordering::SeqCst)
+    fn sleep_on_read(&mut self, x: bool) {
+        Volatile::new(&mut self.local_channel_state().read_sleep).write(x)
     }
 
-    fn sleep_on_write(&self, x: bool) {
-        self.local_channel_state().write_sleep.store(x, Ordering::SeqCst)
+    fn sleep_on_write(&mut self, x: bool) {
+        Volatile::new(&mut self.local_channel_state().write_sleep).write(x)
     }
 
     fn remote_sleep_on_read(&self) -> bool {
-        self.remote_channel_state().read_sleep.load(Ordering::SeqCst)
+        Volatile::new(&self.remote_channel_state().read_sleep).read()
     }
 
     fn remote_sleep_on_write(&self) -> bool {
-        self.remote_channel_state().write_sleep.load(Ordering::SeqCst)
+        Volatile::new(&self.remote_channel_state().write_sleep).read()
     }
 
     pub fn write_slot(&mut self, buf: &[u8]) -> io::Result<usize> {
@@ -135,14 +137,19 @@ impl UrpcStreamChannel {
         let write_idx = self.write_idx;
 
         let msg_slot = &mut chan_buf[write_idx % CHANNEL_MSG_SLOTS];
-        if msg_slot.hdr.valid.load(Ordering::SeqCst) {
+        fence(Ordering::SeqCst);
+        let mut valid = Volatile::new(&mut msg_slot.hdr.valid);
+        if valid.read() == 1 {
+            fence(Ordering::SeqCst);
             return Err(io::ErrorKind::WouldBlock);
         }
+        fence(Ordering::SeqCst);
 
         let msglen = buf.len().min(MSG_PAYLOAD_LEN);
         msg_slot.payload[..msglen].copy_from_slice(&buf[..msglen]);
         msg_slot.hdr.len = msglen as u8;
-        msg_slot.hdr.valid.store(true, Ordering::SeqCst);
+        fence(Ordering::SeqCst);
+        valid.write(1);
 
         self.write_idx = (write_idx + 1) % CHANNEL_MSG_SLOTS;
 
@@ -153,15 +160,21 @@ impl UrpcStreamChannel {
         let chan_buf = self.read_buffer();
         let read_idx = self.read_idx;
 
-        let msg_slot = &chan_buf[read_idx % CHANNEL_MSG_SLOTS];
-        if !msg_slot.hdr.valid.load(Ordering::SeqCst) {
+        let msg_slot = &mut chan_buf[read_idx % CHANNEL_MSG_SLOTS];
+        let mut valid = Volatile::new(&mut msg_slot.hdr.valid);
+
+        fence(Ordering::SeqCst);
+        if valid.read() != 1 {
+            fence(Ordering::SeqCst);
             return Err(ErrorKind::WouldBlock)
         }
+        fence(Ordering::SeqCst);
 
         let msg_len = msg_slot.hdr.len as usize;
         buf[..msg_len].copy_from_slice(&msg_slot.payload[..msg_len]);
 
-        msg_slot.hdr.valid.store(false, Ordering::SeqCst);
+        fence(Ordering::SeqCst);
+        valid.write(0);
 
         self.read_idx = (read_idx + 1) % CHANNEL_MSG_SLOTS;
 
@@ -352,16 +365,14 @@ impl EpMsgHandler for UrpcStreamHandle {
     fn handle_ipc(&self, _ep_server: &EpServer, msg: IpcMessage, _cap_transfer_slot: Option<usize>) {
         if let IpcMessage::Message{payload, need_reply: _, cap_transfer: _, badge: _} = msg {
             let direction = payload[0];
-            let inner = self.0.lock();
+            let mut inner = self.0.lock();
             if direction == 0 {
-                let mut read_waker = inner.read_waker.lock();
-                while let Some(waker) = read_waker.pop_front() {
+                while let Some(waker) = inner.read_waker.lock().pop_front() {
                     waker.wake();
                 }
                 inner.inner.sleep_on_read(false);
             } else if direction == 1 {
-                let mut write_waker = inner.write_waker.lock();
-                while let Some(waker) = write_waker.pop_front() {
+                while let Some(waker) = inner.write_waker.lock().pop_front() {
                     waker.wake();
                 }
                 inner.inner.sleep_on_write(false);
