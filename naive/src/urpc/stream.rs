@@ -399,7 +399,7 @@ impl<'a> Future for WriteFuture<'a> {
         let inner = Pin::into_inner(self);
         while inner.write_len < inner.buf.len() {
             let mut stream = inner.inner.0.lock();
-            let ret = stream.inner.write_slot(&inner.buf[inner.write_len..]);
+            let ret = stream.write_bytes(&inner.buf[inner.write_len..]);
             match ret {
                 Ok(write_len) => { inner.write_len += write_len }
                 Err(ErrorKind::WouldBlock) => {
