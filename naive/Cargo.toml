@@ -20,3 +20,4 @@ futures-util = { path = "../../git_repo/futures-rs/futures-util", default-featur
 naive-attributes = { path = "../naive-attributes" }
 volatile = "0.4.1"
 bare-io = { version = "0.2", features = ["alloc"] }
+r0 = "1.0.0"

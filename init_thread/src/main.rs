@@ -13,7 +13,7 @@ extern crate naive;
 mod console;
 mod gpio;
 // mod timer;
-mod rt;
+// mod rt;
 
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -48,27 +48,28 @@ async fn get_stream(listener: &UrpcListenerHandle) -> Vec<UrpcStreamHandle> {
 }
 
 async fn read_stream(streams: Vec<UrpcStreamHandle>) {
-    use futures_util::stream::select_all;
+    loop {}
+    // use futures_util::stream::select_all;
 
-    let mut merged = select_all(streams.into_iter());
+    // let mut merged = select_all(streams.into_iter());
 
-    while let Some(b) = merged.next().await {
-        console::console().poll_write(&[b]).await;
-    }
+    // while let Some(b) = merged.next().await {
+    //     console::console().poll_write(&[b]).await;
+    // }
 }
 
 async fn write_stream(streams: Vec<UrpcStreamHandle>) {
+    loop {}
 
-    let con = console::console();
-    let mut con_stream = con.stream();
+    // let con = console::console();
+    // let mut con_stream = con.stream();
 
-    while let Some(b) = con_stream.next().await {
-        streams[1].poll_write(&[b]).await.unwrap();
-    }
+    // while let Some(b) = con_stream.next().await {
+    //     streams[1].poll_write(&[b]).await.unwrap();
+    // }
 }
 
 #[naive::main]
-#[no_mangle]
 async fn main() {
     use crate::futures_util::FutureExt;
 

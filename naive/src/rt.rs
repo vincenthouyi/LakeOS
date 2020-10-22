@@ -99,3 +99,31 @@ pub fn initialize_mm() {
                          INIT_ALLOC_BACKUP_MEMPOOL.0.len());
     }
 }
+
+extern "C" {
+    static mut __bss_start__: [u8; 0];
+    static mut __bss_end__: [u8; 0];
+}
+
+extern "Rust" {
+    fn main() -> !;
+}
+
+#[no_mangle]
+pub fn _start() -> ! {
+    unsafe {
+        r0::zero_bss(__bss_start__.as_mut_ptr(), __bss_end__.as_mut_ptr());
+    }
+
+    initialize_mm();
+
+    populate_init_cspace();
+
+    initialize_vmspace();
+
+    unsafe {
+        main();
+    }
+
+    unreachable!("main thread returns!");
+}

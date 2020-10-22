@@ -25,28 +25,3 @@ fn app_cpu_entry() {
 
     loop {}
 }
-
-extern "C" {
-    static mut __bss_start__: [u8; 0];
-    static mut __bss_end__: [u8; 0];
-}
-
-#[no_mangle]
-pub fn _start() -> ! {
-    unsafe {
-        r0::zero_bss(__bss_start__.as_mut_ptr(), __bss_end__.as_mut_ptr());
-    }
-    kprintln!("赞美太阳！");
-
-    naive::rt::initialize_mm();
-
-    naive::rt::populate_init_cspace();
-
-    naive::rt::initialize_vmspace();
-
-    run_app_cpus();
-
-    crate::main();
-
-    unreachable!("Init Returns!");
-}

@@ -28,6 +28,7 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 
     let result = quote! {
+        #[no_mangle]
         #vis fn main() #ret {
             #(#attrs)*
             async fn main(#inputs) #ret {
