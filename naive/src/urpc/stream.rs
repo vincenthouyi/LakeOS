@@ -16,7 +16,7 @@ use rustyl4api::object::{EpCap, RamCap, RamObj};
 use rustyl4api::ipc::IpcMessage;
 
 use crate::space_manager::gsm;
-use crate::io::{self, ErrorKind};
+use crate::io;
 use crate::ep_server::{EpServer, EpMsgHandler};
 
 const CACHELINE_SIZE: usize = 64;
@@ -141,7 +141,7 @@ impl UrpcStreamChannel {
         let mut valid = Volatile::new(&mut msg_slot.hdr.valid);
         if valid.read() == 1 {
             fence(Ordering::SeqCst);
-            return Err(io::ErrorKind::WouldBlock);
+            return Err(io::ErrorKind::WouldBlock.into());
         }
         fence(Ordering::SeqCst);
 
@@ -166,7 +166,7 @@ impl UrpcStreamChannel {
         fence(Ordering::SeqCst);
         if valid.read() != 1 {
             fence(Ordering::SeqCst);
-            return Err(ErrorKind::WouldBlock)
+            return Err(io::ErrorKind::WouldBlock.into())
         }
         fence(Ordering::SeqCst);
 
@@ -266,7 +266,7 @@ impl UrpcStream {
             } else {
                 match self.refill_buffer() {
                     Ok(_) => { }
-                    Err(ErrorKind::WouldBlock) => { break }
+                    Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => { break }
                     e => { return e }
                 }
             }
@@ -276,7 +276,7 @@ impl UrpcStream {
         }
 
         if read_len == 0 {
-            Err(io::ErrorKind::WouldBlock)
+            Err(io::ErrorKind::WouldBlock.into())
         } else {
             Ok(read_len)
         }
@@ -288,9 +288,7 @@ impl UrpcStream {
         while write_len < buf.len() {
             match self.inner.write_slot(&buf[write_len..]) {
                 Ok(len) => { write_len += len }
-                Err(ErrorKind::WouldBlock) => {
-                    break;
-                }
+                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => { break }
                 e => { return e }
             }
         }
@@ -321,7 +319,7 @@ impl UrpcStreamHandle {
         while readlen == 0 {
             match guard.read_bytes(&mut buf[readlen..]) {
                 Ok(len) => { readlen += len }
-                Err(io::ErrorKind::WouldBlock) => { continue }
+                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => { continue }
                 Err(e) => { return Err(e) }
             }
         }
@@ -335,7 +333,7 @@ impl UrpcStreamHandle {
         while writelen < buf.len() {
             match guard.write_bytes(&buf[writelen..]) {
                 Ok(len) => { writelen += len }
-                Err(io::ErrorKind::WouldBlock) => { continue }
+                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => { continue }
                 Err(e) => { return Err(e) }
             }
         }
@@ -351,7 +349,7 @@ impl Stream for UrpcStreamHandle {
         let mut buf = [0; 1];
         match reader.read_bytes(&mut buf[..]) {
             Ok(_) => Poll::Ready(Some(buf[0])),
-            Err(io::ErrorKind::WouldBlock) => {
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                 reader.inner.sleep_on_read(true);
                 reader.read_waker.lock().push_back(cx.waker().clone());
                 Poll::Pending
@@ -402,7 +400,7 @@ impl<'a> Future for WriteFuture<'a> {
             let ret = stream.write_bytes(&inner.buf[inner.write_len..]);
             match ret {
                 Ok(write_len) => { inner.write_len += write_len }
-                Err(ErrorKind::WouldBlock) => {
+                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                     stream.inner.sleep_on_write(true);
                     stream.write_waker.lock().push_back(cx.waker().clone());
                     return Poll::Pending;

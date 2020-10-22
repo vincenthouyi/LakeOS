@@ -19,3 +19,4 @@ crossbeam-queue = { version = "0.2.1", default-features = false, features = ["al
 futures-util = { path = "../../git_repo/futures-rs/futures-util", default-features = false, features = ["alloc", "async-await", "async-await-macro"] }
 naive-attributes = { path = "../naive-attributes" }
 volatile = "0.4.1"
+bare-io = { version = "0.2", features = ["alloc"] }
