@@ -16,7 +16,7 @@ spin = "0.5.2"
 static_assertions = "1.1.0"
 conquer-once = { version = "0.2.0", default-features = false }
 crossbeam-queue = { version = "0.2.1", default-features = false, features = ["alloc"] }
-futures-util = { path = "../../git_repo/futures-rs/futures-util", default-features = false, features = ["alloc", "async-await", "async-await-macro"] }
+futures-util = { path = "../futures-rs/futures-util", default-features = false, features = ["alloc", "async-await", "async-await-macro"] }
 naive-attributes = { path = "../naive-attributes" }
 volatile = "0.4.1"
 bare-io = { version = "0.2", features = ["alloc"] }
