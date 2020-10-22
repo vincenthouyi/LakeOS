@@ -1,10 +1,13 @@
-use std::vec::Vec;
+use alloc::vec::Vec;
+use alloc::string::String;
 // use crate::prelude::*;
 //use std::path::PathBuf;
 //use super::FILE_SYSTEM;
 //use fat32::traits::{FileSystem, Dir, Entry};
 //use std::io;
 //use std::str;
+
+use naive::stream::StreamExt;
 
 /// Error type for `Command` parse failures.
 #[derive(Debug)]
@@ -192,32 +195,30 @@ const BEL: u8 = 0x07;
 const LF: u8 = 0x0A;
 const CR: u8 = 0x0D;
 const DEL: u8 = 0x7F;
-use std::string::String;
-fn read_line() -> String {
-    use std::io::Read;
-    let mut read = 0;
+async fn read_line() -> String {
+    let mut read: usize = 0;
 
-    let mut cmd = std::vec::Vec::new();
+    let mut cmd = Vec::new();
     'outer: loop {
-        for b in std::io::stdin().bytes() {
-            match b.unwrap() {
+        while let Some(b) = naive::io::stdin().next().await {
+            match b {
                 BS | DEL if read > 0 => {
-                    print!("{}", BS as char);
-                    print!(" ");
-                    print!("{}", BS as char);
+                    print!("{}", BS as char).await;
+                    print!(" ").await;
+                    print!("{}", BS as char).await;
                     read -= 1;
                 }
                 LF | CR => {
-                    println!("");
+                    println!("").await;
                     break 'outer;
                 }
                 byte @ b' ' ..= b'~' => {
-                    print!("{}", byte as char);
+                    print!("{}", byte as char).await;
                     cmd.push(byte);
                     read += 1;
                 }
                 _ => {
-                    print!("{}", BEL as char);
+                    print!("{}", BEL as char).await;
                 }
             }
         }
@@ -229,16 +230,16 @@ const MAXBUF: usize = 512;
 const MAXARGS: usize = 64;
 /// Starts a shell using `prefix` as the prefix for each line. This function
 /// returns if the `exit` command is called.
-pub fn shell(prefix: &str) {
+pub async fn shell(prefix: &str) {
 //    let mut pwd = PathBuf::from("/");
 
     loop {
 //        print!("{} {}", pwd.to_str().unwrap(), prefix);
-        print!("{} ", prefix);
-        match Command::parse(&read_line()) {
+        print!("{} ", prefix).await;
+        match Command::parse(&read_line().await) {
             //TODO exit
 //            Ok(cmd) => cmd.exec(&mut pwd),
-            Ok(cmd) => { println!("command: {:?}", cmd) },
+            Ok(cmd) => { println!("command: {:?}", cmd).await },
             Err(Error::Empty) => { }
         }
     }

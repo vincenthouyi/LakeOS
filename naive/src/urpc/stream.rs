@@ -1,22 +1,20 @@
 use core::mem::size_of;
 use core::pin::Pin;
 use core::task::{Context, Poll, Waker};
-use core::future::Future;
 use core::sync::atomic::{fence, Ordering};
 
 use alloc::sync::Arc;
 use alloc::collections::VecDeque;
 
-use futures_util::stream::Stream;
 use volatile::Volatile;
-
 use spin::Mutex;
 
 use rustyl4api::object::{EpCap, RamCap, RamObj};
 use rustyl4api::ipc::IpcMessage;
 
 use crate::space_manager::gsm;
-use crate::io;
+use crate::io::{self, AsyncRead, AsyncWrite};
+use crate::stream::Stream;
 use crate::ep_server::{EpServer, EpMsgHandler};
 
 const CACHELINE_SIZE: usize = 64;
@@ -300,16 +298,57 @@ impl UrpcStream {
     }
 }
 
+impl AsyncRead for UrpcStream {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8]
+    ) -> Poll<Result<usize, io::Error>> {
+        let reader = Pin::into_inner(self);
+        match reader.read_bytes(buf) {
+            Ok(n) => Poll::Ready(Ok(n)),
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                reader.inner.sleep_on_read(true);
+                reader.read_waker.lock().push_back(cx.waker().clone());
+                Poll::Pending
+            }
+            e => { Poll::Ready(e) }
+        }
+    }
+}
+
+impl AsyncWrite for UrpcStream
+{
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8])
+        -> Poll<io::Result<usize>>
+    {
+        let inner = Pin::into_inner(self);
+        match inner.write_bytes(buf) {
+            Ok(n) => Poll::Ready(Ok(n)),
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                inner.inner.sleep_on_write(true);
+                inner.write_waker.lock().push_back(cx.waker().clone());
+                Poll::Pending
+            },
+            e => { Poll::Ready(e) }
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
 #[derive(Clone)]
 pub struct UrpcStreamHandle (Arc<Mutex<UrpcStream>>);
 
 impl UrpcStreamHandle {
     pub fn from_stream(stream: UrpcStream) -> Self {
         Self(Arc::new(Mutex::new(stream)))
-    }
-
-    pub fn poll_write<'a>(&self, buf: &'a[u8]) -> WriteFuture<'a> {
-        WriteFuture::new(self.clone(), buf)
     }
 
     // Blocking read
@@ -341,21 +380,13 @@ impl UrpcStreamHandle {
     }
 }
 
-impl Stream for UrpcStreamHandle {
+impl Stream for UrpcStream {
     type Item = u8;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<u8>> {
-        let mut reader = Pin::into_inner(self).0.lock();
         let mut buf = [0; 1];
-        match reader.read_bytes(&mut buf[..]) {
-            Ok(_) => Poll::Ready(Some(buf[0])),
-            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                reader.inner.sleep_on_read(true);
-                reader.read_waker.lock().push_back(cx.waker().clone());
-                Poll::Pending
-            }
-            Err(_) => { Poll::Ready(None) }
-        }
+        self.poll_read(cx, &mut buf)
+            .map(|e| e.ok().map(|_| buf[0]))
     }
 }
 
@@ -379,35 +410,37 @@ impl EpMsgHandler for UrpcStreamHandle {
     }
 }
 
-pub struct WriteFuture<'a> {
-    inner: UrpcStreamHandle,
-    buf: &'a [u8],
-    write_len: usize,
-}
-
-impl<'a> WriteFuture<'a> {
-    pub fn new(urpc: UrpcStreamHandle, buf: &'a [u8]) -> Self {
-        Self { inner: urpc, buf: buf, write_len : 0 }
+impl AsyncRead for UrpcStreamHandle {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8]
+    ) -> Poll<Result<usize, io::Error>> {
+        Pin::new(&mut *(&*self).0.lock()).poll_read(cx, buf)
     }
 }
 
-impl<'a> Future for WriteFuture<'a> {
-    type Output = io::Result<usize>;
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let inner = Pin::into_inner(self);
-        while inner.write_len < inner.buf.len() {
-            let mut stream = inner.inner.0.lock();
-            let ret = stream.write_bytes(&inner.buf[inner.write_len..]);
-            match ret {
-                Ok(write_len) => { inner.write_len += write_len }
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    stream.inner.sleep_on_write(true);
-                    stream.write_waker.lock().push_back(cx.waker().clone());
-                    return Poll::Pending;
-                }
-                e => { return Poll::Ready(e) }
-            }
-        }
-        Poll::Ready(Ok(inner.write_len))
+impl AsyncWrite for UrpcStreamHandle
+{
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8])
+        -> Poll<io::Result<usize>>
+    {
+        Pin::new(&mut *(&*self).0.lock()).poll_write(cx, buf)
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut *(&*self).0.lock()).poll_flush(cx)
+    }
+
+    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut *(&*self).0.lock()).poll_close(cx)
+    }
+}
+
+impl Stream for UrpcStreamHandle {
+    type Item = u8;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<u8>> {
+        Pin::new(&mut *(&*self).0.lock()).poll_next(cx)
     }
 }

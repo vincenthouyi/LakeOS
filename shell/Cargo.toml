@@ -8,6 +8,4 @@ edition = "2018"
 
 [dependencies]
 rustyl4api = { path = "../rustyl4api" }
-std = { path = "../libstd" }
 naive = { path = "../naive" }
-futures-util = { path = "../futures-rs/futures-util", default-features = false, features = ["alloc", "async-await", "async-await-macro"] }

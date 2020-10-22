@@ -1,4 +1,3 @@
-use core::marker::{Sync, Send};
 use core::{future::Future, pin::Pin};
 use core::task::{Context, Poll, Waker};
 use core::sync::atomic::{Ordering, AtomicU64};
@@ -7,8 +6,6 @@ use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::task::Wake;
 
-use spin::Mutex;
-use hashbrown::HashSet;
 use crossbeam_queue::SegQueue;
 
 pub mod executor;
@@ -27,12 +24,12 @@ impl TaskId {
 }
 
 pub struct Task {
-    future: Pin<Box<dyn Future<Output = ()> + Sync + Send>>,
+    future: Pin<Box<dyn Future<Output = ()>>>,
     id: TaskId,
 }
 
 impl Task {
-    pub fn new(future: impl Future<Output = ()> + 'static + Sync + Send) -> Task {
+    pub fn new(future: impl Future<Output = ()> + 'static) -> Task {
         Task {
             future: Box::pin(future),
             id: TaskId::new(),

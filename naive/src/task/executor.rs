@@ -1,8 +1,6 @@
 use core::task::{Context, Poll, Waker};
 use alloc::collections::BTreeMap;
 use alloc::sync::Arc;
-use hashbrown::HashSet;
-use spin::Mutex;
 use crossbeam_queue::SegQueue;
 
 use super::{Task, TaskId, TaskWaker};
@@ -31,8 +29,6 @@ impl Executor {
     }
 
     pub fn run_ready_tasks(&mut self) {
-        use alloc::vec::Vec;
-
         let Self {
             tasks,
             task_queue,

@@ -17,6 +17,7 @@ extern crate alloc;
 #[macro_use] extern crate rustyl4api;
 
 #[macro_use] mod utils;
+mod macros;
 pub mod rt;
 pub mod space_manager;
 mod vm_allocator;
@@ -27,7 +28,7 @@ pub mod io;
 pub mod ep_server;
 pub mod task;
 mod panic;
-pub mod executor;
+pub mod stream;
 
 pub use naive_attributes::main;
 

@@ -85,6 +85,4 @@ pub fn _start() -> ! {
     unsafe {
         main();
     }
-
-    unreachable!("main thread returns!");
 }

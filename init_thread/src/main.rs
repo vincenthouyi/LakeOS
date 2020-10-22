@@ -20,9 +20,9 @@ use alloc::vec::Vec;
 
 use rustyl4api::object::{InterruptCap};
 
-use naive::ep_server::{EP_SERVER};
 use naive::urpc::{UrpcListener, UrpcListenerHandle};
 use naive::urpc::stream::{UrpcStreamHandle};
+use naive::io::AsyncWriteExt;
 
 use futures_util::StreamExt;
 
@@ -57,12 +57,12 @@ async fn read_stream(streams: Vec<UrpcStreamHandle>) {
     }
 }
 
-async fn write_stream(streams: Vec<UrpcStreamHandle>) {
+async fn write_stream(mut streams: Vec<UrpcStreamHandle>) {
     let con = console::console();
     let mut con_stream = con.stream();
 
     while let Some(b) = con_stream.next().await {
-        streams[1].poll_write(&[b]).await.unwrap();
+        streams[1].write(&[b]).await.unwrap();
     }
 }
 
