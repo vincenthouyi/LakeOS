@@ -1,8 +1,8 @@
 use futures_core::future::Future;
 use futures_core::task::{Context, Poll};
 use futures_io::AsyncWrite;
-use std::io;
-use std::pin::Pin;
+use bare_io as io;
+use core::pin::Pin;
 
 /// Future for the [`flush`](super::AsyncWriteExt::flush) method.
 #[derive(Debug)]

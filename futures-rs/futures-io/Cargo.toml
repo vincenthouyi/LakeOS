@@ -12,7 +12,7 @@ The `AsyncRead`, `AsyncWrite`, `AsyncSeek`, and `AsyncBufRead` traits for the fu
 """
 
 [features]
-default = ["std"]
+default = []
 std = []
 
 # Unstable features
@@ -22,6 +22,7 @@ unstable = []
 read-initializer = []
 
 [dependencies]
+bare-io = { version = "0.2", features = ["alloc"] }
 
 [package.metadata.docs.rs]
 all-features = true

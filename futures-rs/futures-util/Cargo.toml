@@ -20,7 +20,7 @@ async-await-macro = ["async-await", "futures-macro", "proc-macro-hack", "proc-ma
 compat = ["std", "futures_01"]
 io-compat = ["io", "compat", "tokio-io"]
 sink = ["futures-sink"]
-io = ["std", "futures-io", "memchr"]
+io = ["futures-io", "memchr"]
 channel = ["std", "futures-channel"]
 
 # Unstable features
@@ -42,11 +42,12 @@ futures-macro = { path = "../futures-macro", version = "0.3.5", default-features
 proc-macro-hack = { version = "0.5.9", optional = true }
 proc-macro-nested = { version = "0.1.2", optional = true }
 slab = { version = "0.4.2", optional = true }
-memchr = { version = "2.2", optional = true }
+memchr = { version = "2.2", default-features = false, optional = true }
 futures_01 = { version = "0.1.25", optional = true, package = "futures" }
 tokio-io = { version = "0.1.9", optional = true }
 pin-utils = "0.1.0"
 pin-project = "0.4.20"
+bare-io = { version = "0.2", features = ["alloc"] }
 
 [dev-dependencies]
 futures = { path = "../futures", version = "0.3.5", features = ["async-await", "thread-pool"] }

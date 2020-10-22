@@ -1,9 +1,9 @@
 use futures_core::future::Future;
 use futures_core::task::{Context, Poll};
 use futures_io::AsyncWrite;
-use std::io;
-use std::mem;
-use std::pin::Pin;
+use bare_io as io;
+use core::mem;
+use core::pin::Pin;
 
 /// Future for the [`write_all`](super::AsyncWriteExt::write_all) method.
 #[derive(Debug)]
