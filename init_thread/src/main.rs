@@ -42,7 +42,6 @@ async fn get_stream(listener: &UrpcListenerHandle) -> Vec<UrpcStreamHandle> {
     let mut ret = Vec::new();
 
     ret.push(listener.accept().await.unwrap());
-    ret.push(listener.accept().await.unwrap());
 
     ret
 }
@@ -62,7 +61,7 @@ async fn write_stream(mut streams: Vec<UrpcStreamHandle>) {
     let mut con_stream = con.stream();
 
     while let Some(b) = con_stream.next().await {
-        streams[1].write(&[b]).await.unwrap();
+        streams[0].write(&[b]).await.unwrap();
     }
 }
 
@@ -76,9 +75,7 @@ async fn main() {
     let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
 
     naive::process::ProcessBuilder::new(&SHELL_ELF)
-        .stdin(listen_ep.clone())
-        .stdout(listen_ep.clone())
-        .stderr(listen_ep.clone())
+        .stdio(listen_ep.clone())
         .spawn()
         .expect("spawn process failed");
 

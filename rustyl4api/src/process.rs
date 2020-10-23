@@ -8,8 +8,6 @@ pub enum ProcessCSpace {
     RootCNodeCap,
     RootVNodeCap,
     InitUntyped,
-    Stdin,
-    Stdout,
-    Stderr,
+    Stdio,
     ProcessFixedMax,
 }

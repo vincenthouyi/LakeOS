@@ -5,45 +5,29 @@ use spaceman::vspace_man::VSpaceMan;
 #[derive(Debug)]
 pub struct ProcessBuilder<'a> {
     elf: &'a [u8],
-    stdin: Option<EpCap>,
-    stdout: Option<EpCap>,
-    stderr: Option<EpCap>,
+    stdio: Option<EpCap>,
 }
 
 pub struct Child {
     vspace: VSpaceMan,
     tcb: TcbCap,
-    stdin: EpCap,
-    stdout: EpCap,
-    stderr: EpCap,
+    stdio: Option<EpCap>,
 }
 
 impl<'a> ProcessBuilder<'a> {
     pub fn new(elf: &'a [u8]) -> Self {
         Self {
             elf: elf,
-            stdin: None,
-            stdout: None,
-            stderr: None,
+            stdio: None,
         }
     }
 
-    pub fn stdin(&mut self, ep: EpCap) -> &mut Self {
-        self.stdin = Some(ep);
+    pub fn stdio(mut self, ep: EpCap) -> Self {
+        self.stdio = Some(ep);
         self
     }
 
-    pub fn stdout(&mut self, ep: EpCap) -> &mut Self {
-        self.stdout = Some(ep);
-        self
-    }
-
-    pub fn stderr(&mut self, ep: EpCap) -> &mut Self {
-        self.stderr = Some(ep);
-        self
-    }
-
-    pub fn spawn(&mut self) -> Result<Child, ()> {
+    pub fn spawn(self) -> Result<Child, ()> {
         use rustyl4api::object::cnode::{CNODE_ENTRY_SZ};
         use rustyl4api::object::tcb::TCB_OBJ_BIT_SZ;
         use elf_rs::{Elf, ProgramType};
@@ -193,9 +177,9 @@ impl<'a> ProcessBuilder<'a> {
         child_root_cn.cap_copy(ProcessCSpace::TcbCap as usize, child_tcb.slot).map_err(|_| ())?;
         child_root_cn.cap_copy(ProcessCSpace::RootCNodeCap as usize, child_root_cn.slot).map_err(|_| ())?;
         child_root_cn.cap_copy(ProcessCSpace::RootVNodeCap as usize, child_root_vn.slot).map_err(|_| ())?;
-        child_root_cn.cap_copy(ProcessCSpace::Stdin as usize, self.stdin.as_ref().unwrap().slot).map_err(|_| ())?;
-        child_root_cn.cap_copy(ProcessCSpace::Stdout as usize, self.stdout.as_ref().unwrap().slot).map_err(|_| ())?;
-        child_root_cn.cap_copy(ProcessCSpace::Stderr as usize, self.stderr.as_ref().unwrap().slot).map_err(|_| ())?;
+        if let Some(ep) = &self.stdio {
+            child_root_cn.cap_copy(ProcessCSpace::Stdio as usize, ep.slot).map_err(|_| ())?;
+        }
         let init_untyped = gsm!().alloc_object::<UntypedObj>(16).ok_or(())?;
         child_root_cn.cap_copy(ProcessCSpace::InitUntyped as usize, init_untyped.slot).map_err(|_| ())?;
 
@@ -205,9 +189,7 @@ impl<'a> ProcessBuilder<'a> {
         Ok(Child {
             vspace: vspace,
             tcb: child_tcb,
-            stdin: self.stdin.as_ref().unwrap().clone(),
-            stdout: self.stdout.as_ref().unwrap().clone(),
-            stderr: self.stderr.as_ref().unwrap().clone(),
+            stdio: self.stdio,
         })
     }
 }
