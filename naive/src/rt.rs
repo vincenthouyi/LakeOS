@@ -20,7 +20,7 @@ pub fn populate_app_cspace() {
     gsm!().cspace_alloc_at(0);
 
     let mut cap_max = 1;
-    for i in 1 .. PROCESS_ROOT_CNODE_SIZE {
+    for i in ProcessCSpace::ProcessFixedMax as usize .. PROCESS_ROOT_CNODE_SIZE {
         let res = cap_identify(i).unwrap();
         if let IdentifyResult::NullObj = res {
             cap_max = i;
@@ -31,11 +31,6 @@ pub fn populate_app_cspace() {
 
     for i in 1 .. cap_max {
         let res = cap_identify(i).unwrap();
-
-        // rustyl4api::kprintln!("ret cap[{}]: {:x?}", i, res);
-        if let IdentifyResult::NullObj = res {
-            break;
-        }
 
         gsm!().insert_identify(i, res);
     }
