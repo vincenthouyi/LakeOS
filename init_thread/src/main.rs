@@ -74,10 +74,9 @@ async fn main() {
     let ep_server = EP_SERVER.try_get().unwrap();
     let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
 
-    naive::process::ProcessBuilder::new(&SHELL_ELF)
-        .stdio(listen_ep.clone())
-        .spawn()
-        .expect("spawn process failed");
+    let listener = UrpcListener::bind(listen_ep.clone(), listen_badge).unwrap();
+    let listener = UrpcListenerHandle::from_listener(listener);
+    ep_server.insert_event(listen_badge, Box::new(listener.clone()));
 
     let con = console::console_server();
     let (irq_badge, irq_ep) = ep_server.derive_badged_cap().unwrap();
@@ -85,9 +84,10 @@ async fn main() {
     irq_cntl_cap.attach_ep_to_irq(irq_ep.slot, pi::interrupt::Interrupt::Aux as usize).unwrap();
     ep_server.insert_notification(pi::interrupt::Interrupt::Aux as usize, Box::new(con));
 
-    let listener = UrpcListener::bind(listen_ep, listen_badge).unwrap();
-    let listener = UrpcListenerHandle::from_listener(listener);
-    ep_server.insert_event(listen_badge, Box::new(listener.clone()));
+    naive::process::ProcessBuilder::new(&SHELL_ELF)
+        .stdio(listen_ep.clone())
+        .spawn()
+        .expect("spawn process failed");
 
     let streams = get_stream(&listener).await;
 
