@@ -7,7 +7,8 @@ macro_rules! pud_index { ($x:expr) => (($x >> 30) & MASK!(9)) }
 macro_rules! pd_index  { ($x:expr) => (($x >> 21) & MASK!(9)) }
 macro_rules! pt_index  { ($x:expr) => (($x >> 12) & MASK!(9)) }
 
-pub const PAGE_SIZE: usize = 0x1000;
+pub use sysapi::vspace::{FRAME_BIT_SIZE, FRAME_SIZE as PAGE_SIZE};
+
 pub const PADDR_MASK : usize = MASK!(48) | (!MASK!(12));
 const VALID_OFFSET: usize = 0;
 const TABLE_OFFSET: usize = 1;

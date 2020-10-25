@@ -23,7 +23,6 @@ lto = true
 build-std = ["core", "compiler_builtins"]
 
 [dependencies]
-elf_rs = "0.1.2"
 rustyl4api = { path = "../rustyl4api" }
 num-traits = { version = "0.2", default-features = false }
 num-derive = { git = "https://github.com/vincenthouyi/num-derive" }
@@ -33,3 +32,4 @@ pi = { path = "../pi" }
 static_assertions = "1.1.0"
 align-data = "0.1.0"
 aarch64 = { git = "https://github.com/rcore-os/aarch64" }
+elfloader = { path = "../elfloader" }

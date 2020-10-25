@@ -5,7 +5,6 @@ use core::mem::MaybeUninit;
 
 use crate::vspace::*;
 use crate::objects::*;
-use crate::console::kprintln;
 use crate::NCPU;
 use sysapi::init::InitCSpaceSlot::*;
 use sysapi::init::INIT_CSPACE_SIZE;
@@ -204,72 +203,32 @@ fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut u
 
 #[link_section=".boot.text"]
 fn load_init_thread(tcb: &mut TcbObj, elf_file: &[u8], cur_free_slot: &mut usize) {
-    use elf_rs::{Elf, ProgramType};
     use sysapi::init::{INIT_STACK_TOP, INIT_STACK_PAGES};
-    use crate::utils::align_down;
 
     let cspace = tcb.cspace().expect("Init CSpace not installed");
     let pgd_cap = VTableCap::try_from(&cspace[InitL1PageTable as usize])
                     .expect("Init PGD cap not installed");
     tcb.install_vspace(pgd_cap);
 
-    let elf = Elf::from_bytes(elf_file).expect("Unable to parse init thread's elf file!");
+    let entry = elfloader::load_elf(elf_file, INIT_STACK_TOP as u64, INIT_STACK_PAGES * 4096, &mut |vrange, flags| {
+        use core::slice::from_raw_parts_mut;
+        let perm = Permission::new (
+            flags & 0b100 != 0,
+            flags & 0b010 != 0,
+            flags & 0b001 != 0,
+        );
 
-    if let Elf::Elf64(e) = elf {
-        for ph in e.program_header_iter()
-        {
-            let p_flags = ph.ph.flags();
-            let perm = Permission::new (
-                p_flags & 0b100 == 0b100,
-                p_flags & 0b010 == 0b010,
-                p_flags & 0b001 == 0b001,
-            );
-            let p_type = ph.ph.ph_type();
-
-            match p_type {
-                ProgramType::LOAD => {
-                    let align = ph.ph.align() as usize;
-                    let sec_off = ph.ph.offset() as usize;
-                    let sec_base = align_down(sec_off, align);
-                    let sec_len= ph.ph.filesz() as usize;
-                    let section = &elf_file[sec_base.. sec_off + sec_len];
-
-                    let vaddr = ph.ph.vaddr() as usize;
-                    let vaddr_base = align_down(vaddr, align);
-                    let mem_len = ph.ph.memsz() as usize;
-                    let memrange = vaddr_base .. vaddr+mem_len;
-
-                    memrange.step_by(PAGE_SIZE)
-                        .map(|vaddr| {
-                            map_frame(tcb, vaddr, perm, cur_free_slot);
-                            RamCap::try_from(&cspace[*cur_free_slot - 1]).expect("frame not mapped")
-                        })
-                        .zip(section.chunks(PAGE_SIZE).chain(core::iter::repeat(&[0u8; 4096][..])))
-                        .for_each(|(mut frame_cap, page)| {
-                            frame_cap[..page.len()].copy_from_slice(page);
-                        })
-                }
-                ProgramType::GNU_STACK => {
-                    for i in 0..INIT_STACK_PAGES {
-                        let vaddr = INIT_STACK_TOP - PAGE_SIZE * (i + 1);
-
-                        map_frame(tcb, vaddr, perm, cur_free_slot);
-                    }
-                }
-                ProgramType::NOTE => {}
-                p_type => {
-                    kprintln!("Unable to handle section type {:?}", p_type);
-                }
-            }
+        let vaddr= vrange.start;
+        let size = vrange.end - vrange.start;
+        let frame_kvaddr = map_frame(tcb, vaddr as usize, perm, cur_free_slot);
+        unsafe {
+            from_raw_parts_mut(frame_kvaddr as *mut u8, size as usize)
         }
+    }).expect("load init elf failed");
 
-        let start_addr = e.header().entry_point() as usize;
-        tcb.tf.set_elr(start_addr);
-        tcb.tf.set_sp(INIT_STACK_TOP);
-        tcb.tf.init_user_thread();
-    } else {
-        unimplemented!("Elf32 binary is not supported!");
-    }
+    tcb.tf.set_elr(entry as usize);
+    tcb.tf.set_sp(INIT_STACK_TOP);
+    tcb.tf.init_user_thread();
 }
 
 fn run_secondary_cpus(entry: usize) {
