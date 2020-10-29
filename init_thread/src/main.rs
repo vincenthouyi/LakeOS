@@ -38,7 +38,7 @@ static SHELL_ELF: &'static [u8] = include_bytes!("../build/shell");
 // //    system_timer::tick_in(1000);
 // }
 
-async fn get_stream(listener: &UrpcListenerHandle) -> Vec<UrpcStreamHandle> {
+async fn get_stream(listener: &UrpcListenerHandle<UrpcStreamHandle>) -> Vec<UrpcStreamHandle> {
     let mut ret = Vec::new();
 
     ret.push(listener.accept().await.unwrap());

@@ -17,6 +17,8 @@ use crate::io::{self, AsyncRead, AsyncWrite};
 use crate::stream::Stream;
 use crate::ep_server::{EpServer, EpMsgHandler};
 
+use super::UrpcHandler;
+
 const CACHELINE_SIZE: usize = 64;
 
 #[repr(C)]
@@ -442,5 +444,12 @@ impl Stream for UrpcStreamHandle {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<u8>> {
         Pin::new(&mut *(&*self).0.lock()).poll_next(cx)
+    }
+}
+
+// impl UrpcHandler for UrpcStream { }
+impl UrpcHandler for UrpcStreamHandle {
+    fn new(channel: UrpcStreamChannel) -> Self {
+        Self(Arc::new(Mutex::new(UrpcStream::from_stream(channel))))
     }
 }
