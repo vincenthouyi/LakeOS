@@ -7,26 +7,31 @@
 
 extern crate alloc;
 extern crate naive;
-#[macro_use] extern crate futures_util;
+extern crate futures_util;
 #[macro_use] extern crate rustyl4api;
 
-mod console;
-mod gpio;
+// mod console;
+// mod gpio;
 // mod timer;
 // mod rt;
 
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
+use async_trait::async_trait;
+
 use rustyl4api::object::{InterruptCap};
 
-use naive::urpc::{UrpcListener, UrpcListenerHandle};
-use naive::urpc::stream::{UrpcStreamHandle};
-use naive::io::AsyncWriteExt;
-
-use futures_util::StreamExt;
+use naive::lmp::{LmpListener, LmpListenerHandle};
+use naive::rpc;
+use naive::rpc::*;
+use hashbrown::HashMap;
+use alloc::string::String;
+use conquer_once::spin::OnceCell;
+use spin::Mutex;
 
 static SHELL_ELF: &'static [u8] = include_bytes!("../build/shell");
+static CONSOLE_ELF: &'static [u8] = include_bytes!("../build/console");
 
 // fn timer_test() {
 //     for i in 0..5 {
@@ -38,69 +43,79 @@ static SHELL_ELF: &'static [u8] = include_bytes!("../build/shell");
 // //    system_timer::tick_in(1000);
 // }
 
-async fn get_stream(listener: &UrpcListenerHandle<UrpcStreamHandle>) -> Vec<UrpcStreamHandle> {
-    let mut ret = Vec::new();
-
-    ret.push(listener.accept().await.unwrap());
-
-    ret
+pub struct NameServer {
+    pub services: Mutex<HashMap<String, usize>>,
 }
 
-async fn read_stream(streams: Vec<UrpcStreamHandle>) {
-    use futures_util::stream::select_all;
+pub fn name_server() -> &'static NameServer {
+    static NAME_SERVER: OnceCell<NameServer> = OnceCell::uninit();
 
-    let mut merged = select_all(streams.into_iter());
+    NAME_SERVER.try_get_or_init(|| {
+        NameServer { services : Mutex::new(HashMap::new()) }
+    }).unwrap()
+}
 
-    while let Some(b) = merged.next().await {
-        console::console().poll_write(&[b]).await;
+
+struct InitThreadApi;
+
+#[async_trait]
+impl naive::rpc::RpcRequestHandlers for InitThreadApi {
+    async fn handle_request_memory(&self, request: &RequestMemoryRequest) -> rpc::Result<(RequestMemoryResponse, Vec<usize>)> {
+        use rustyl4api::object::RamObj;
+
+        let cap = naive::space_manager::alloc_object_at::<RamObj>(request.paddr, request.size.trailing_zeros() as usize, request.maybe_device).unwrap().slot;
+        let resp = RequestMemoryResponse{ result: 0};
+        Ok((resp, [cap].to_vec()))
     }
-}
 
-async fn write_stream(mut streams: Vec<UrpcStreamHandle>) {
-    let con = console::console();
-    let mut con_stream = con.stream();
+    async fn handle_request_irq(&self, _request: &RequestIrqRequest) -> rpc::Result<(RequestIrqResponse, Vec<usize>)> {
+        let cap = InterruptCap::new(rustyl4api::init::InitCSpaceSlot::IrqController as usize);
+        let resp = RequestIrqResponse{ result: 0 };
+        Ok((resp, [cap.slot].to_vec()))
+    }
 
-    while let Some(b) = con_stream.next().await {
-        streams[0].write(&[b]).await.unwrap();
+    async fn handle_register_service(&self, request: &RegisterServiceRequest, cap: Vec<usize>) -> Result<(RegisterServiceResponse, Vec<usize>)> {
+        name_server().services.lock().insert(request.name.clone(), cap[0]);
+        let resp = RegisterServiceResponse{ result: 0 };
+        Ok((resp, [].to_vec()))
+    }
+
+    async fn handle_lookup_service(&self, request: &LookupServiceRequest) -> Result<(LookupServiceResponse, Vec<usize>)> {
+        let cap = *(name_server().services.lock().get(&request.name).unwrap());
+        let resp = LookupServiceResponse{ result: 0 };
+        Ok((resp, [cap].to_vec()))
     }
 }
 
 #[naive::main]
 async fn main() {
-    use crate::futures_util::FutureExt;
-
-    gpio::init_gpio_server();
+    kprintln!("Init thread started");
 
     let ep_server = EP_SERVER.try_get().unwrap();
     let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
 
-    let listener = UrpcListener::bind(listen_ep.clone(), listen_badge).unwrap();
-    let listener = UrpcListenerHandle::from_listener(listener);
+    let listener = LmpListener::new(listen_ep.clone(), listen_badge);
+    let listener = LmpListenerHandle::new(listener);
     ep_server.insert_event(listen_badge, Box::new(listener.clone()));
 
-    let con = console::console_server();
-    let (irq_badge, irq_ep) = ep_server.derive_badged_cap().unwrap();
-    let irq_cntl_cap = InterruptCap::new(rustyl4api::init::InitCSpaceSlot::IrqController as usize);
-    irq_cntl_cap.attach_ep_to_irq(irq_ep.slot, pi::interrupt::Interrupt::Aux as usize).unwrap();
-    ep_server.insert_notification(pi::interrupt::Interrupt::Aux as usize, Box::new(con));
-
-    naive::process::ProcessBuilder::new(&SHELL_ELF)
-        .stdio(listen_ep.clone())
+    naive::process::ProcessBuilder::new(&CONSOLE_ELF)
+        .stdin(listen_ep.clone())
+        .stdout(listen_ep.clone())
+        .stderr(listen_ep.clone())
+        .name_server(listen_ep.clone())
         .spawn()
         .expect("spawn process failed");
 
-    let streams = get_stream(&listener).await;
+    naive::process::ProcessBuilder::new(&SHELL_ELF)
+        .stdin(listen_ep.clone())
+        .stdout(listen_ep.clone())
+        .stderr(listen_ep.clone())
+        .name_server(listen_ep.clone())
+        .spawn()
+        .expect("spawn process failed");
 
-    let read_stream = read_stream(streams.clone()).fuse();
-    let write_stream = write_stream(streams.clone()).fuse(); 
+    let rpc_api = InitThreadApi{};
+    let mut rpc_server = RpcServer::new(listener, rpc_api);
 
-    pin_mut!(read_stream, write_stream);
-
-    loop {
-        select! {
-            () = read_stream => { },
-            () = write_stream => { },
-            complete => { break }
-        }
-    }
+    rpc_server.run().await;
 }

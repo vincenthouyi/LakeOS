@@ -3,7 +3,6 @@ use core::ptr::NonNull;
 use rustyl4api::object::KernelObject;
 use rustyl4api::object::{Capability, CNodeObj, RamObj, VTableObj};
 use spaceman::SpaceManager;
-use spin::Mutex;
 
 pub static mut GLOBAL_SPACEMAN: Option<SpaceManager> = None;
 

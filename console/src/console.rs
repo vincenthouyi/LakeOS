@@ -1,4 +1,3 @@
-use core::future::Future;
 use core::{pin::Pin, task::{Poll, Context}};
 use core::task::Waker;
 
@@ -6,18 +5,17 @@ use alloc::collections::LinkedList;
 use alloc::sync::Arc;
 
 use futures_util::stream::Stream;
+use futures_util::io::{AsyncWrite, AsyncRead};
 use spin::Mutex;
-use crossbeam_queue::ArrayQueue;
 
 use pi::uart::{MiniUart, IrqStatus};
 use naive::ep_server::{EpServer, EpNtfHandler};
+use naive::io;
 
 pub struct Console {
     inner: MiniUart,
     rx_waker: LinkedList<Waker>,
     tx_waker: LinkedList<Waker>,
-    rx_buf: ArrayQueue<u8>,
-    tx_buf: ArrayQueue<u8>,
 }
 impl Console {
     pub fn new(mini_uart: MiniUart) -> Console {
@@ -25,8 +23,6 @@ impl Console {
             inner: mini_uart,
             tx_waker: LinkedList::new(),
             rx_waker: LinkedList::new(),
-            rx_buf: ArrayQueue::new(128),
-            tx_buf: ArrayQueue::new(128),
         }
     }
 
@@ -76,18 +72,6 @@ impl ConsoleExt {
     pub fn new(console: Console) -> Self {
         Self { inner: Arc::new(Mutex::new(console)) }
     }
-
-    pub fn stream(&self) -> ConsoleReader {
-        ConsoleReader::from_inner(self.clone())
-    }
-
-    pub fn poll_write<'a>(&self, buf: &'a [u8]) -> WriteFuture<'a> {
-        WriteFuture {
-            inner : self.clone(),
-            buf: buf,
-            write_len: 0,
-        }
-    }
 }
 
 impl EpNtfHandler for ConsoleExt {
@@ -95,33 +79,17 @@ impl EpNtfHandler for ConsoleExt {
         let mut inner = self.inner.lock();
         match inner.irq_status() {
             IrqStatus::Rx => {
-                while inner.can_read() && !inner.rx_buf.is_full() {
-                    let b = inner.read_byte();
-                    inner.rx_buf.push(b).unwrap();
-                }
                 while let Some(waker) = inner.rx_waker.pop_front() {
                     waker.wake();
                 }
-                if inner.rx_buf.is_full() {
-                    inner.disable_rx_irq();
-                }
+                inner.disable_rx_irq();
             }
             IrqStatus::Tx => {
-                while inner.can_write() {
-                    if let Ok(b) = inner.tx_buf.pop() {
-                        inner.write_byte(b);
-                    } else {
-                        break;
-                    }
-                }
-
                 while let Some(waker) = inner.tx_waker.pop_front() {
                     waker.wake();
                 }
 
-                if inner.tx_buf.is_empty() {
-                    inner.disable_tx_irq();
-                }
+                inner.disable_tx_irq();
             }
             IrqStatus::Clear => {
                 kprintln!("in clear");
@@ -132,15 +100,21 @@ impl EpNtfHandler for ConsoleExt {
 
 static CONSOLE: Mutex<Option<ConsoleExt>> = Mutex::new(None);
 
-pub fn console_server() -> ConsoleExt {
+pub async fn console_server_init() {
     use crate::gpio;
     use pi::gpio::Function;
+    use rustyl4api::vspace::Permission;
+    use rustyl4api::object::RamCap;
+    use naive::space_manager::gsm;
 
     gpio::GPIO_SERVER.lock().as_mut().unwrap().get_pin(14).unwrap().into_alt(Function::Alt5);
     gpio::GPIO_SERVER.lock().as_mut().unwrap().get_pin(15).unwrap().into_alt(Function::Alt5);
 
-    let uart_base = naive::space_manager::allocate_frame_at(0x3f215000, 4096).unwrap();
-    let mut uart = MiniUart::new(uart_base.as_ptr() as usize);
+    let uart_ram_cap = crate::request_memory(0x3f215000, 4096, true).await;
+    let uart_ram_cap = RamCap::new(uart_ram_cap);
+    let uart_base = gsm!().insert_ram_at(uart_ram_cap, 0, Permission::writable());
+
+    let mut uart = MiniUart::new(uart_base as usize);
     uart.initialize(115200);
 
     let mut con = Console::new(uart);
@@ -149,8 +123,6 @@ pub fn console_server() -> ConsoleExt {
     let con = ConsoleExt::new(con);
 
     *CONSOLE.lock() = Some(con.clone());
-
-    con
 }
 
 pub fn console() -> ConsoleExt {
@@ -161,57 +133,72 @@ pub fn console() -> ConsoleExt {
     }
 }
 
-pub struct ConsoleReader {
-    inner: ConsoleExt
-}
-
-impl ConsoleReader {
-    pub fn from_inner(inner: ConsoleExt) -> Self {
-        Self {
-            inner: inner,
-        }
-    }
-}
-
-impl Stream for ConsoleReader {
-    type Item = u8;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<u8>> {
-        let mut inner = self.inner.inner.lock();
-
-        let ret = if let Ok(b) = inner.rx_buf.pop() {
-            Poll::Ready(Some(b))
-        } else {
-            inner.rx_waker.push_back(cx.waker().clone());
-            Poll::Pending
-        };
-
-        inner.enable_rx_irq();
-        ret
-    }
-}
-
-pub struct WriteFuture<'a> {
-    inner: ConsoleExt,
-    buf: &'a [u8],
-    write_len: usize,
-}
-
-impl<'a> Future for WriteFuture<'a> {
-    type Output = usize;
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let Self { inner, buf, write_len } = Pin::into_inner(self);
-        let mut inner = inner.inner.lock();
-        while *write_len < buf.len() {
-            if let Ok(()) = inner.tx_buf.push(buf[*write_len]) {
-                inner.enable_tx_irq();
-                *write_len += 1;
+impl AsyncWrite for ConsoleExt {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8])
+        -> Poll<io::Result<usize>>
+    {
+        let mut write_len = 0;
+        let mut inner = self.inner.lock();
+        for b in buf {
+            if inner.can_write() {
+                inner.write_byte(*b);
+                write_len += 1;
             } else {
-                inner.tx_waker.push_back(cx.waker().clone());
-                return Poll::Pending;
+                break;
             }
         }
 
-        Poll::Ready(*write_len)
+        if write_len == 0 {
+            inner.tx_waker.push_back(cx.waker().clone());
+            inner.enable_tx_irq();
+            Poll::Pending
+        } else {
+            Poll::Ready(Ok(write_len))
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
+impl AsyncRead for ConsoleExt {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8])
+        -> Poll<io::Result<usize>>
+    {
+        let mut read_len = 0;
+        let mut inner = self.inner.lock();
+        while read_len < buf.len() {
+            if inner.can_read() {
+                buf[read_len] = inner.read_byte();
+                read_len += 1;
+            } else {
+                break;
+            }
+        }
+
+        if read_len == 0 {
+            inner.rx_waker.push_back(cx.waker().clone());
+            inner.enable_rx_irq();
+            Poll::Pending
+        } else {
+            Poll::Ready(Ok(read_len))
+        }
+    }
+}
+
+impl Stream for ConsoleExt {
+    type Item = u8;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<u8>> {
+        let mut buf = [0u8; 1];
+        self.poll_read(cx, &mut buf)
+            .map(|r| {
+                r.ok().map(|_| buf[0])
+            })
     }
 }

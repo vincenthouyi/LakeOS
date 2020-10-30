@@ -20,3 +20,6 @@ naive-attributes = { path = "../naive-attributes" }
 volatile = "0.4.1"
 r0 = "1.0.0"
 elfloader = { path = "../elfloader" }
+serde = { version = "1.0.118", default-features = false, features = ["alloc", "derive"] }
+serde_json = { version = "1.0.60", default-features = false, features = ["alloc"] } 
+async-trait = "0.1.42"

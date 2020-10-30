@@ -29,10 +29,13 @@ impl Ep {
 }
 
 pub struct EpServer {
-    event_handlers: OnceCell<Mutex<HashMap<usize, Arc<Box<dyn EpMsgHandler + Sync + Send>>>>>,
+    event_handlers: OnceCell<Mutex<HashMap<usize, Arc<Box<dyn EpMsgHandler>>>>>,
     ntf_handler: Mutex<[Option<Arc<Box<dyn EpNtfHandler + Sync + Send>>>; 64]>,
     ep: Ep
 }
+
+unsafe impl core::marker::Send for EpServer { }
+unsafe impl core::marker::Sync for EpServer { }
 
 impl EpServer {
     pub const fn new(ep: EpCap) -> Self {
@@ -43,7 +46,7 @@ impl EpServer {
         }
     }
 
-    fn get_event_handlers(&self) -> MutexGuard<HashMap<usize, Arc<Box<dyn EpMsgHandler + Sync + Send>>>> {
+    fn get_event_handlers(&self) -> MutexGuard<HashMap<usize, Arc<Box<dyn EpMsgHandler>>>> {
         self.event_handlers
             .try_get_or_init(|| Mutex::new(HashMap::new())).unwrap()
             .lock()
@@ -53,7 +56,7 @@ impl EpServer {
         self.ep.derive_badged_cap()
     }
 
-    pub fn insert_event(&self, badge: usize, cb: Box<dyn EpMsgHandler + Sync + Send>) {
+    pub fn insert_event(&self, badge: usize, cb: Box<dyn EpMsgHandler>) {
         self.get_event_handlers()
             .insert(badge, Arc::new(cb));
     }
@@ -72,7 +75,7 @@ impl EpServer {
         loop {
             let ret = self.ep.ep.receive(Some(recv_slot));
             match ret {
-                Ok(IpcMessage::Message{payload, need_reply, cap_transfer, badge}) => {
+                Ok(IpcMessage::Message{payload, payload_len, need_reply, cap_transfer, badge}) => {
                     if let Some(b) = badge {
                         let cb = self.get_event_handlers()
                                     .get(&b)
@@ -84,6 +87,8 @@ impl EpServer {
                                 None
                             };
                             cb.handle_ipc(self, ret.unwrap(), cap_trans);
+                        } else {
+                            kprintln!("warning: receive message from unhandled badge {}", b);
                         }
                     } else {
                         kprintln!("warning: receive unbadged message");

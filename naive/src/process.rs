@@ -5,29 +5,52 @@ use spaceman::vspace_man::VSpaceMan;
 #[derive(Debug)]
 pub struct ProcessBuilder<'a> {
     elf: &'a [u8],
-    stdio: Option<EpCap>,
+    stdin: Option<EpCap>,
+    stdout: Option<EpCap>,
+    stderr: Option<EpCap>,
+    name_server: Option<EpCap>,
 }
 
 pub struct Child {
     vspace: VSpaceMan,
     tcb: TcbCap,
-    stdio: Option<EpCap>,
+    stdin: EpCap,
+    stdout: EpCap,
+    stderr: EpCap,
 }
 
 impl<'a> ProcessBuilder<'a> {
     pub fn new(elf: &'a [u8]) -> Self {
         Self {
             elf: elf,
-            stdio: None,
+            stdin: None,
+            stdout: None,
+            stderr: None,
+            name_server: None,
         }
     }
 
-    pub fn stdio(mut self, ep: EpCap) -> Self {
-        self.stdio = Some(ep);
+    pub fn stdin(&mut self, ep: EpCap) -> &mut Self {
+        self.stdin = Some(ep);
         self
     }
 
-    pub fn spawn(self) -> Result<Child, ()> {
+    pub fn stdout(&mut self, ep: EpCap) -> &mut Self {
+        self.stdout = Some(ep);
+        self
+    }
+
+    pub fn stderr(&mut self, ep: EpCap) -> &mut Self {
+        self.stderr = Some(ep);
+        self
+    }
+
+    pub fn name_server(&mut self, ep: EpCap) -> &mut Self {
+        self.name_server = Some(ep);
+        self
+    }
+
+    pub fn spawn(&mut self) -> Result<Child, ()> {
         use rustyl4api::object::cnode::{CNODE_ENTRY_SZ};
         use rustyl4api::object::tcb::TCB_OBJ_BIT_SZ;
         use rustyl4api::vspace::{FRAME_BIT_SIZE, FRAME_SIZE};
@@ -95,9 +118,10 @@ impl<'a> ProcessBuilder<'a> {
         child_root_cn.cap_copy(ProcessCSpace::TcbCap as usize, child_tcb.slot).map_err(|_| ())?;
         child_root_cn.cap_copy(ProcessCSpace::RootCNodeCap as usize, child_root_cn.slot).map_err(|_| ())?;
         child_root_cn.cap_copy(ProcessCSpace::RootVNodeCap as usize, child_root_vn.slot).map_err(|_| ())?;
-        if let Some(ep) = &self.stdio {
-            child_root_cn.cap_copy(ProcessCSpace::Stdio as usize, ep.slot).map_err(|_| ())?;
-        }
+        child_root_cn.cap_copy(ProcessCSpace::Stdin as usize, self.stdin.as_ref().unwrap().slot).map_err(|_| ())?;
+        child_root_cn.cap_copy(ProcessCSpace::Stdout as usize, self.stdout.as_ref().unwrap().slot).map_err(|_| ())?;
+        child_root_cn.cap_copy(ProcessCSpace::Stderr as usize, self.stderr.as_ref().unwrap().slot).map_err(|_| ())?;
+        child_root_cn.cap_copy(ProcessCSpace::NameServer as usize, self.name_server.as_ref().unwrap().slot).map_err(|_| ())?;
         let init_untyped = gsm!().alloc_object::<UntypedObj>(16).ok_or(())?;
         child_root_cn.cap_copy(ProcessCSpace::InitUntyped as usize, init_untyped.slot).map_err(|_| ())?;
 
@@ -107,7 +131,9 @@ impl<'a> ProcessBuilder<'a> {
         Ok(Child {
             vspace: vspace,
             tcb: child_tcb,
-            stdio: self.stdio,
+            stdin: self.stdin.as_ref().unwrap().clone(),
+            stdout: self.stdout.as_ref().unwrap().clone(),
+            stderr: self.stderr.as_ref().unwrap().clone(),
         })
     }
 }

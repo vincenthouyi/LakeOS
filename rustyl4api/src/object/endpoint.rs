@@ -58,10 +58,12 @@ impl Capability<EndpointObj> {
 
         let (resp_info, retbuf, _) = syscall(info, &mut args)?;
         let mut real_retbuf = [0; 4];
-        real_retbuf[..retbuf.len()].copy_from_slice(retbuf);
+        let payload_len = retbuf.len();
+        real_retbuf[..payload_len].copy_from_slice(retbuf);
 
         Ok(IpcMessage::Message {
             payload: real_retbuf,
+            payload_len: payload_len,
             need_reply: resp_info.need_reply,
             cap_transfer: resp_info.cap_transfer,
             badge: None,
@@ -80,9 +82,11 @@ fn handle_receive_return(respinfo: RespInfo, msgbuf: &[usize], badge: usize)
             } else {
                 None
             };
-            real_msgbuf[..msgbuf.len()].copy_from_slice(msgbuf);
+            let payload_len = msgbuf.len();
+            real_msgbuf[..payload_len].copy_from_slice(msgbuf);
             IpcMessage::Message {
                 payload: real_msgbuf,
+                payload_len: payload_len,
                 need_reply: respinfo.need_reply,
                 cap_transfer: respinfo.cap_transfer,
                 badge: badge

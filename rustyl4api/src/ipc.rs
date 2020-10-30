@@ -15,6 +15,7 @@ pub enum IpcMessage {
     Invalid,
     Message {
         payload: [usize; IPC_MAX_ARGS],
+        payload_len: usize,
         need_reply: bool,
         cap_transfer: bool,
         badge: Option<usize>,

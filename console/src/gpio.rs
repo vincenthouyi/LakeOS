@@ -1,6 +1,10 @@
-use mutex::Mutex;
+use spin::Mutex;
 
 use pi::gpio::{Gpio, Uninitialized};
+
+use naive::space_manager::gsm;
+use rustyl4api::object::RamCap;
+use rustyl4api::vspace::Permission;
 
 #[derive(Debug)]
 pub struct GpioServer {
@@ -19,8 +23,10 @@ impl GpioServer {
 
 pub static GPIO_SERVER: Mutex<Option<GpioServer>> = Mutex::new(None);
 
-pub fn init_gpio_server() {
-    let gpio_base = naive::space_manager::allocate_frame_at(0x3f200000, 4096).unwrap();
+pub async fn init_gpio_server() {
+    let gpio_ram_cap = crate::request_memory(0x3f200000, 4096, true).await;
+    let gpio_ram_cap = RamCap::new(gpio_ram_cap);
+    let gpio_base = gsm!().insert_ram_at(gpio_ram_cap, 0, Permission::writable());
 
-    *GPIO_SERVER.lock() = Some(GpioServer::new(gpio_base.as_ptr() as usize));
+    *GPIO_SERVER.lock() = Some(GpioServer::new(gpio_base as usize));
 }

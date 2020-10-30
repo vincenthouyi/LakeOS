@@ -6,7 +6,7 @@ RUST_LIB := target/$(TARGET)/release/libinit_thread.a
 BUILD := $(shell pwd)/build
 LD_FLAGS := --gc-sections -static -nostdlib -nostartfiles --no-dynamic-linker
 
-BINARIES = shell
+BINARIES = shell console
 
 .PHONY: all $(BINARIES)
 

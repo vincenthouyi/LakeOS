@@ -15,6 +15,9 @@
 #[macro_use] extern crate static_assertions;
 extern crate alloc;
 #[macro_use] extern crate rustyl4api;
+#[macro_use] extern crate futures_util;
+#[macro_use] extern crate serde;
+#[macro_use] extern crate async_trait;
 
 #[macro_use] mod utils;
 mod macros;
@@ -23,12 +26,13 @@ pub mod space_manager;
 mod vm_allocator;
 pub mod thread;
 pub mod process;
-pub mod urpc;
 pub mod io;
 pub mod ep_server;
 pub mod task;
 mod panic;
 pub mod stream;
+pub mod lmp;
+pub mod rpc;
 
 pub use naive_attributes::main;
 
