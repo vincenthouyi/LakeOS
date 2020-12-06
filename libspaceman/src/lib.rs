@@ -112,17 +112,23 @@ impl SpaceManager {
             return Err(());
         }
 
-        let size = utils::align_up(size, 4096);
-        if size > 4096 {
-            return Err(());
+        let mut rem_size = utils::align_up(size, 4096);
+        let base_vaddr = if vaddr == 0 {
+            let layout = Layout::from_size_align(rem_size, 4096).unwrap();
+            self.vspace_alloc(layout).unwrap()
+        } else {
+            vaddr
+        };
+        let mut vaddr = base_vaddr;
+
+        while rem_size > 0 {
+            let frame = self.alloc_object::<RamObj>(12).ok_or(())?;
+            self.insert_ram_at(frame, vaddr, perm);
+            vaddr += 4096;
+            rem_size -= 4096;
         }
 
-        let bit_sz = size.trailing_zeros() as usize;
-
-        let frame = self.alloc_object::<RamObj>(bit_sz).ok_or(())?;
-        let vaddr = self.insert_ram_at(frame, vaddr, perm);
-
-        Ok(vaddr)
+        Ok(base_vaddr as *mut u8)
     }
 
     /// Insert an RamCap to vspace to manage and handle backed page table

@@ -81,6 +81,11 @@ impl SlabPool {
         let mut bit_sz = chunk_size(layout).trailing_zeros() as usize;
         let mut cur_ptr = ptr.as_ptr() as usize;
 
+        if layout.size() > 4096 {
+            // TODO: dealloc mem > 4096
+            return;
+        }
+
         self.size.fetch_add(chunk_size(layout), Ordering::Relaxed);
 
         while bit_sz < MEMPOOL_MAX_BITSZ {

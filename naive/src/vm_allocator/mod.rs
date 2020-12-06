@@ -7,6 +7,9 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use slab_allocator::SlabAllocator;
 
+use crate::space_manager::gsm;
+use rustyl4api::vspace::{FRAME_SIZE, Permission};
+
 pub const SLAB_ALLOC_BITSZ: usize = rustyl4api::vspace::FRAME_BIT_SIZE;
 
 #[derive(Debug)]
@@ -32,9 +35,6 @@ impl VmAllocator {
     }
 
     pub fn slab_refill(&self, layout: Layout) {
-        use rustyl4api::vspace::{FRAME_SIZE, Permission};
-        use crate::space_manager::gsm;
-
         let addr = gsm!().map_frame_at(0, 0, FRAME_SIZE, Permission::writable()).unwrap();
         self.add_backup_mempool(addr, FRAME_SIZE);
     }
@@ -44,7 +44,10 @@ impl VmAllocator {
         // TODO: support object larger than a page
         let obj_bitsz = layout.size().trailing_zeros();
         if obj_bitsz > SLAB_ALLOC_BITSZ as u32 {
-            return Err(AllocError{});
+            let ret = gsm!().map_frame_at(0, 0, layout.size(), Permission::writable())
+                .map(|vaddr| NonNull::new(vaddr).unwrap())
+                .map_err(|_| AllocError{});
+            return ret;
         }
 
         self.slab_alloc
