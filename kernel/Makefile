@@ -16,7 +16,7 @@ RUST_BUILD_DIR := target/$(TARGET)
 RUST_DEBUG_LIB := $(RUST_BUILD_DIR)/debug/lib$(RUST_BINARY).a
 RUST_RELEASE_LIB := $(RUST_BUILD_DIR)/release/lib$(RUST_BINARY).a
 
-RUST_LIB_DEPS = ../pi/src/* ../pi/src/*/**
+RUST_LIB_DEPS = ../lib/pi/src/* ../lib/pi/src/*/**
 
 RUST_DEPS = Cargo.toml $(LD_LAYOUT) $(RUST_LIB_DEPS) $(shell find src -type f)
 EXT_DEPS = $(BUILD_DIR)/init.o

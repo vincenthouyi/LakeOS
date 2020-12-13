@@ -23,13 +23,13 @@ lto = true
 build-std = ["core", "compiler_builtins"]
 
 [dependencies]
-rustyl4api = { path = "../rustyl4api" }
+rustyl4api = { path = "../lib/rustyl4api" }
 num-traits = { version = "0.2", default-features = false }
 num-derive = { git = "https://github.com/vincenthouyi/num-derive" }
 spin = "0.5.2"
 atags = { git = "https://github.com/vincenthouyi/LakeOS-atags" }
-pi = { path = "../pi" }
+pi = { path = "../lib/pi" }
 static_assertions = "1.1.0"
 align-data = "0.1.0"
 aarch64 = { git = "https://github.com/rcore-os/aarch64" }
-elfloader = { path = "../elfloader" }
+elfloader = { path = "../lib/elfloader" }
