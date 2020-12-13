@@ -6,7 +6,7 @@ BUILD := $(shell pwd)/build
 
 .PHONY: all userland
 
-all: $(RUST_LIB) $(BINARIES)
+all: $(RUST_LIB)
 
 $(RUST_LIB): userland $(BUILD)
 	$(CARGO) build -Z unstable-options --target=$(TARGET_FILE) --release --out-dir $(BUILD)
@@ -19,4 +19,4 @@ userland:
 
 clean:
 	rm -rf build target
-	$(foreach bin, $(BINARIES), cd ../$(bin); $(CARGO) clean;)
+	cd ../userland; $(CARGO) clean
