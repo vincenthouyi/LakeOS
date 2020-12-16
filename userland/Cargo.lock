@@ -197,7 +197,7 @@ dependencies = [
  "spaceman",
  "spin",
  "static_assertions",
- "volatile 0.4.2",
+ "volatile",
 ]
 
 [[package]]
@@ -231,7 +231,7 @@ dependencies = [
 name = "pi"
 version = "0.1.0"
 dependencies = [
- "volatile 0.1.0",
+ "volatile",
 ]
 
 [[package]]
@@ -388,11 +388,6 @@ name = "unicode-xid"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7fe0bb3479651439c9112f72b6c505038574c9fbb575ed1bf3b797fa39dd564"
-
-[[package]]
-name = "volatile"
-version = "0.1.0"
-source = "git+https://github.com/vincenthouyi/LakeOS-Volatile#681bbc8b79d5f21fd94831d5bc77b07a1ec25495"
 
 [[package]]
 name = "volatile"

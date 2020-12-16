@@ -17,7 +17,7 @@ conquer-once = { version = "0.2.0", default-features = false }
 crossbeam-queue = { version = "0.2.1", default-features = false, features = ["alloc"] }
 futures-util = { path = "../futures-rs/futures-util", default-features = false, features = ["alloc", "async-await", "async-await-macro", "io"] }
 naive-attributes = { path = "../naive-attributes" }
-volatile = "0.4.1"
+volatile = "0.4"
 r0 = "1.0.0"
 elfloader = { path = "../elfloader" }
 serde = { version = "1.0.118", default-features = false, features = ["alloc", "derive"] }

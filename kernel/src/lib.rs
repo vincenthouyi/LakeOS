@@ -1,12 +1,10 @@
 #![allow(incomplete_features)]
 
 #![feature(decl_macro)]
-#![feature(optin_builtin_traits)]
 #![feature(asm)]
 #![feature(maybe_uninit_ref)]
 #![feature(const_in_array_repeat_expressions)]
 #![feature(const_generics)]
-#![feature(const_int_pow)]
 #![feature(llvm_asm)]
 
 #![allow(non_snake_case)]

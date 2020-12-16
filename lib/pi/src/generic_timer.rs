@@ -1,4 +1,3 @@
-use volatile::prelude::*;
 use volatile::Volatile;
 
 /// The base address for the ARM generic timer registers.
@@ -27,16 +26,16 @@ enum CoreInterrupt {
 #[repr(C)]
 #[allow(non_snake_case)]
 struct Registers {
-    CONTROL: Volatile<u32>,
-    _unused1: [Volatile<u32>; 8],
-    LOCAL_IRQ: Volatile<u32>,
-    _unused2: [Volatile<u32>; 3],
-    LOCAL_TIMER_CTL: Volatile<u32>,
-    LOCAL_TIMER_FLAGS: Volatile<u32>,
-    _unused3: [Volatile<u32>; 1],
-    CORE_TIMER_IRQCNTL: [Volatile<u32>; 4],
-    CORE_MAILBOX_IRQCNTL: [Volatile<u32>; 4],
-    CORE_IRQ_SRC: [Volatile<u32>; 4],
+    CONTROL: u32,
+    _unused1: [u32; 8],
+    LOCAL_IRQ: u32,
+    _unused2: [u32; 3],
+    LOCAL_TIMER_CTL: u32,
+    LOCAL_TIMER_FLAGS: u32,
+    _unused3: [u32; 1],
+    CORE_TIMER_IRQCNTL: [u32; 4],
+    CORE_MAILBOX_IRQCNTL: [u32; 4],
+    CORE_IRQ_SRC: [u32; 4],
 }
 
 /// The ARM generic timer.
@@ -109,13 +108,15 @@ impl Timer {
 //        let timer = Timer {
 //            registers: unsafe { &mut *(GEN_TIMER_REG_BASE as *mut Registers) },
 //        };
-        self.registers.CORE_TIMER_IRQCNTL[cpu].write(1 << (CoreInterrupt::CNTPNSIRQ as u8));
+        Volatile::new_write_only(&mut self.registers.CORE_TIMER_IRQCNTL[cpu])
+            .write(1 << (CoreInterrupt::CNTPNSIRQ as u8));
         set_cntp_ctl_el0(0x1); // enable timer interrupt and do not mask it
         set_cntk_ctl_el1(0x3); // allow EL0 to read timer counter
     }
 
     pub fn is_pending(&self, cpu: usize) -> bool {
-        self.registers.CORE_IRQ_SRC[cpu].read() & (1 << (CoreInterrupt::CNTPNSIRQ as u8)) != 0
+        Volatile::new_read_only(&self.registers.CORE_IRQ_SRC[cpu])
+            .read() & (1 << (CoreInterrupt::CNTPNSIRQ as u8)) != 0
     }
 }
 

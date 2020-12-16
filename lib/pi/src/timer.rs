@@ -1,6 +1,5 @@
 //use common::IO_BASE;
-use volatile::prelude::*;
-use volatile::{Volatile, ReadVolatile};
+use volatile::Volatile;
 
 /// The base address for the ARM system timer registers.
 //const TIMER_REG_BASE: usize = IO_BASE + 0x3000;
@@ -8,10 +7,10 @@ use volatile::{Volatile, ReadVolatile};
 #[repr(C)]
 #[allow(non_snake_case)]
 struct Registers {
-    CS: Volatile<u32>,
-    CLO: ReadVolatile<u32>,
-    CHI: ReadVolatile<u32>,
-    COMPARE: [Volatile<u32>; 4]
+    CS: u32,
+    CLO: u32,
+    CHI: u32,
+    COMPARE: [u32; 4]
 }
 
 /// The Raspberry Pi ARM system timer.
@@ -30,8 +29,8 @@ impl Timer {
     /// Reads the system timer's counter and returns the 64-bit counter value.
     /// The returned value is the number of elapsed microseconds.
     pub fn read(&self) -> u64 {
-        let low = self.registers.CLO.read();
-        let high = self.registers.CHI.read();
+        let low = Volatile::new_read_only(&self.registers.CLO).read();
+        let high = Volatile::new_read_only(&self.registers.CHI).read();
         ((high as u64) << 32) | (low as u64)
     }
 
@@ -39,10 +38,11 @@ impl Timer {
     /// interrupts for timer 1 are enabled and IRQs are unmasked, then a timer
     /// interrupt will be issued in `us` microseconds.
     pub fn tick_in(&mut self, us: u32) {
-        let current_low = self.registers.CLO.read();
+        let current_low = Volatile::new_read_only(&mut self.registers.CLO).read();
         let compare = current_low.wrapping_add(us);
-        self.registers.COMPARE[1].write(compare); // timer 1
-        self.registers.CS.or_mask(0b0010); // clear timer 1 interrupt
+        Volatile::new_write_only(&mut self.registers.COMPARE[1]).write(compare); // timer 1
+        Volatile::new(&mut self.registers.CS)
+            .update(|x| *x |= 0b0010); // clear timer 1 interrupt
     }
 }
 

@@ -8,7 +8,6 @@ edition = "2018"
 rustyl4api = { path = "../lib/rustyl4api" }
 naive = { path = "../lib/naive" }
 pi = { path = "../lib/pi" }
-mutex = { git = "https://github.com/vincenthouyi/LakeOS-Mutex" }
 hashbrown = "0.8"
 futures-util = { path = "../lib/futures-rs/futures-util", default-features = false, features = ["alloc", "async-await", "async-await-macro", "io"] }
 conquer-once = { version = "0.2.0", default-features = false }

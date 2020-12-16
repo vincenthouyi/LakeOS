@@ -1,6 +1,5 @@
 //use common::IO_BASE;
-use volatile::prelude::*;
-use volatile::{Volatile, ReadVolatile};
+use volatile::Volatile;
 
 //const INT_BASE: usize = IO_BASE + 0xB000 + 0x200;
 
@@ -21,13 +20,13 @@ pub enum Interrupt {
 #[allow(non_snake_case)]
 struct Registers {
     // FIXME: Fill me in.
-    IRQBasicPending: ReadVolatile<u32>,
-    IRQPending: [ReadVolatile<u32>; 2],
-    FIQControl: Volatile<u32>,
-    EnableIRQ: [Volatile<u32>; 2],
-    EnableBasicIRQ: Volatile<u32>,
-    DisableIRQ: [Volatile<u32>; 2],
-    DisableBasicIRQ: Volatile<u32>,
+    IRQBasicPending: u32,
+    IRQPending: [u32; 2],
+    FIQControl: u32,
+    EnableIRQ: [u32; 2],
+    EnableBasicIRQ: u32,
+    DisableIRQ: [u32; 2],
+    DisableBasicIRQ: u32,
 }
 
 /// An interrupt controller. Used to enable and disable interrupts as well as to
@@ -45,34 +44,43 @@ impl Controller {
     }
 
     pub fn enable(&mut self, int: usize) {
-        self.registers.EnableIRQ[int / 32].write(1 << (int % 32));
+        Volatile::new_write_only(&mut self.registers.EnableIRQ[int / 32])
+            .write(1 << (int % 32));
     }
 
     pub fn disable(&mut self, int: usize) {
-        self.registers.DisableIRQ[int / 32].write(1 << (int % 32));
+        Volatile::new_write_only(&mut self.registers.DisableIRQ[int / 32])
+            .write(1 << (int % 32));
     }
 
     pub fn enable_mask(&mut self, mask: u64) {
         let lower = (mask as u32) & (!0u32);
         let higher = (mask >> 32) as u32;
         if lower != 0 {
-            self.registers.EnableIRQ[0].write(lower)
+            Volatile::new_write_only(&mut self.registers.EnableIRQ[0])
+                .write(lower)
         }
 
         if higher != 0 {
-            self.registers.EnableIRQ[1].write(higher)
+            Volatile::new_write_only(&mut self.registers.EnableIRQ[1])
+                .write(higher)
         }
     }
 
     pub fn is_pending(&self, int: usize) -> bool {
-        self.registers.IRQPending[int / 32].has_mask(1 << int % 32)
+        let val = Volatile::new_read_only(&self.registers.IRQPending[int / 32]).read();
+        val & 1 << int % 32 == 1 << int % 32
     }
 
     pub fn pending_irq(&self) -> usize {
-        if self.registers.IRQBasicPending.has_mask(1 << 8) {
-            self.registers.IRQPending[0].read().trailing_zeros() as usize
-        } else if self.registers.IRQBasicPending.has_mask(1 << 9) {
-            self.registers.IRQPending[1].read().trailing_zeros() as usize
+        if Volatile::new_read_only(&self.registers.IRQBasicPending).read() & (1 << 8) != 0 {
+            Volatile::new_read_only(&self.registers.IRQPending[0])
+                .read()
+                .trailing_zeros() as usize
+        } else if Volatile::new_read_only(&self.registers.IRQBasicPending).read() & (1 << 9) != 0 {
+            Volatile::new_read_only(&self.registers.IRQPending[1])
+                .read()
+                .trailing_zeros() as usize
         } else {
             panic!("spurious interrupt!");
         }

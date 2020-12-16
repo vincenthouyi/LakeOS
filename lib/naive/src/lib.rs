@@ -2,7 +2,6 @@
 #![feature(decl_macro)]
 #![feature(alloc_error_handler)]
 #![feature(const_in_array_repeat_expressions)]
-#![feature(optin_builtin_traits)]
 #![feature(const_fn)]
 #![feature(allocator_api)]
 // #![feature(const_saturating_int_methods)]

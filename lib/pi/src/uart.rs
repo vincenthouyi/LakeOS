@@ -1,7 +1,6 @@
 use core::fmt;
 
-use volatile::prelude::*;
-use volatile::{Volatile, ReadVolatile, Reserved};
+use volatile::Volatile;
 
 /// The base address for the `MU` registers.
 //const MU_REG_PAGE_BASE: usize = IO_BASE + 0x215000;
@@ -34,44 +33,44 @@ pub enum IrqStatus {
 #[repr(C)]
 #[allow(non_snake_case)]
 struct Registers {
-    AUX_MU_IO_REG: Volatile<u8>, /* 0x7E21 5040 */
-    __r0: [Reserved<u8>; 3],
-    AUX_MU_IER_REG: Volatile<u8>,
-    __r1: [Reserved<u8>; 3],
-    AUX_MU_IIR_REG: Volatile<u8>,
-    __r2: [Reserved<u8>; 3],
-    AUX_MU_LCR_REG: Volatile<u8>,
-    __r3: [Reserved<u8>; 3],
-    AUX_MU_MCR_REG: Volatile<u8>,
-    __r4: [Reserved<u8>; 3],
-    AUX_MU_LSR_REG: ReadVolatile<u8>,
-    __r5: [Reserved<u8>; 3],
-    AUX_MU_MSR_REG: ReadVolatile<u8>,
-    __r6: [Reserved<u8>; 3],
-    AUX_MU_SCRATCH: Volatile<u8>,
-    __r7: [Reserved<u8>; 3],
-    AUX_MU_CNTL_REG: Volatile<u8>,
-    __r8: [Reserved<u8>; 3],
-    AUX_MU_STAT_REG: ReadVolatile<u32>,
-    AUX_MU_BAUD_REG: Volatile<u16>,
-    __r9: [Reserved<u8>; 22], /* 0x7E21 506A */
+    AUX_MU_IO_REG: u8, /* 0x7E21 5040 */
+    __r0: [u8; 3],
+    AUX_MU_IER_REG: u8,
+    __r1: [u8; 3],
+    AUX_MU_IIR_REG: u8,
+    __r2: [u8; 3],
+    AUX_MU_LCR_REG: u8,
+    __r3: [u8; 3],
+    AUX_MU_MCR_REG: u8,
+    __r4: [u8; 3],
+    AUX_MU_LSR_REG: u8,
+    __r5: [u8; 3],
+    AUX_MU_MSR_REG: u8,
+    __r6: [u8; 3],
+    AUX_MU_SCRATCH: u8,
+    __r7: [u8; 3],
+    AUX_MU_CNTL_REG: u8,
+    __r8: [u8; 3],
+    AUX_MU_STAT_REG: u32,
+    AUX_MU_BAUD_REG: u16,
+    __r9: [u8; 22], /* 0x7E21 506A */
     /* AUX_SPI0 */
-    AUX_SPI0_CNTL0_REG: Volatile<u32>, /* 0x7E21 5080 */
-    AUX_SPI0_CNTL1_REG: Volatile<u8>,
-    __r10: [Reserved<u8>; 3],
-    AUX_SPI0_STAT_REG: Volatile<u32>,
-    __r11: [Reserved<u8>; 4],
-    AUX_SPI0_IO_REG: Volatile<u32>,
-    AUX_SPI0_PEEK_REG: Volatile<u16>,
-    __r12: [Reserved<u8>; 42], /* 0x7E21 5096 */
+    AUX_SPI0_CNTL0_REG: u32, /* 0x7E21 5080 */
+    AUX_SPI0_CNTL1_REG: u8,
+    __r10: [u8; 3],
+    AUX_SPI0_STAT_REG: u32,
+    __r11: [u8; 4],
+    AUX_SPI0_IO_REG: u32,
+    AUX_SPI0_PEEK_REG: u16,
+    __r12: [u8; 42], /* 0x7E21 5096 */
     /* AUX_SPI1 */
-    AUX_SPI1_CNTL0_REG: Volatile<u32>, /* 0x7E21 50C0 */
-    AUX_SPI1_CNTL1_REG: Volatile<u8>,
-    __r13: [Reserved<u8>; 3],
-    AUX_SPI1_STAT_REG: Volatile<u32>,
-    __r14: [Reserved<u8>; 4],
-    AUX_SPI1_IO_REG: Volatile<u32>,
-    AUX_SPI1_PEEK_REG: Volatile<u16>,
+    AUX_SPI1_CNTL0_REG: u32, /* 0x7E21 50C0 */
+    AUX_SPI1_CNTL1_REG: u8,
+    __r13: [u8; 3],
+    AUX_SPI1_STAT_REG: u32,
+    __r14: [u8; 4],
+    AUX_SPI1_IO_REG: u32,
+    AUX_SPI1_PEEK_REG: u16,
 }
 
 /// The Raspberry Pi's "mini UART".
@@ -100,45 +99,51 @@ impl MiniUart {
     }
 
     pub fn initialize(&mut self, _baud_rate: usize) {
-        let aux_enables = (self.page_base + AUX_ENABLES_OFFSET) as *mut Volatile<u8>;
-        unsafe {
-            (*aux_enables).or_mask(1);
-        }
-        self.registers.AUX_MU_LCR_REG.or_mask(0b1); // Set in 8-bit mode
-        self.registers.AUX_MU_BAUD_REG.write(270); // Set baudrate
-        self.registers.AUX_MU_CNTL_REG.or_mask(0b11); // Enable Rx Tx
+        let mut aux_enables = unsafe { Volatile::new(&mut *((self.page_base + AUX_ENABLES_OFFSET) as *mut u8)) };
+        aux_enables.update(|x| *x |= 0b1);
+        Volatile::new(&mut self.registers.AUX_MU_LCR_REG)
+            .update(|x| *x |= 0b1); // Set in 8-bit mode
+        Volatile::new_write_only(&mut self.registers.AUX_MU_BAUD_REG)
+            .write(270); // Set baudrate
+        Volatile::new(&mut self.registers.AUX_MU_CNTL_REG)
+            .update(|x| *x |= 0b11); // Enable Rx Tx
     }
 
     pub fn can_write(&self) -> bool {
-        self.registers.AUX_MU_LSR_REG.has_mask(LsrStatus::TxAvailable as u8)
+        let val = Volatile::new_read_only(&self.registers.AUX_MU_LSR_REG).read();
+        val & LsrStatus::TxAvailable as u8 == LsrStatus::TxAvailable as u8
     }
 
     /// Write the byte `byte`. This method blocks until there is space available
     /// in the output FIFO.
     pub fn write_byte(&mut self, byte: u8) {
         while !self.can_write() { };
-        self.registers.AUX_MU_IO_REG.write(byte);
+        Volatile::new_write_only(&mut self.registers.AUX_MU_IO_REG).write(byte);
     }
 
     /// Returns `true` if there is at least one byte ready to be read. If this
     /// method returns `true`, a subsequent call to `read_byte` is guaranteed to
     /// return immediately. This method does not block.
     pub fn has_byte(&self) -> bool {
-        self.registers.AUX_MU_LSR_REG.has_mask(LsrStatus::DataReady as u8)
+        let val = Volatile::new_read_only(&self.registers.AUX_MU_LSR_REG).read();
+        val & LsrStatus::DataReady as u8 == LsrStatus::DataReady as u8
     }
 
     /// Reads a byte. Blocks indefinitely until a byte is ready to be read.
     pub fn read_byte(&mut self) -> u8 {
         while !self.has_byte() { };
-        self.registers.AUX_MU_IO_REG.read()
+        Volatile::new_read_only(&self.registers.AUX_MU_IO_REG)
+            .read()
     }
 
     fn enable_irq(&mut self, irq: IrqBits) {
-        self.registers.AUX_MU_IER_REG.or_mask(irq as u8);
+        Volatile::new(&mut self.registers.AUX_MU_IER_REG)
+            .update(|x| *x |= irq as u8);
     }
 
     fn disable_irq(&mut self, irq: IrqBits) {
-        self.registers.AUX_MU_IER_REG.and_mask(!(irq as u8));
+        Volatile::new(&mut self.registers.AUX_MU_IER_REG)
+            .update(|x| *x &= !(irq as u8));
     }
 
     pub fn enable_tx_irq(&mut self) {
@@ -158,7 +163,7 @@ impl MiniUart {
     }
 
     pub fn irq_status(&self) -> IrqStatus {
-        match (self.registers.AUX_MU_IIR_REG.read() >> 1) & 0b11 {
+        match (Volatile::new_read_only(&self.registers.AUX_MU_IIR_REG).read() >> 1) & 0b11 {
             0b00 => { IrqStatus::Clear }
             0b01 => { IrqStatus::Tx }
             0b10 => { IrqStatus::Rx }
