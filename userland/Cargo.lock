@@ -112,18 +112,21 @@ dependencies = [
 
 [[package]]
 name = "futures-core"
-version = "0.3.5"
+version = "0.3.8"
+source = "git+https://github.com/vincenthouyi/futures-rs.git?branch=lakeos#a7e3f55d91e0c5f68a16c9398c0dd5ce934264a7"
 
 [[package]]
 name = "futures-io"
-version = "0.3.5"
+version = "0.3.8"
+source = "git+https://github.com/vincenthouyi/futures-rs.git?branch=lakeos#a7e3f55d91e0c5f68a16c9398c0dd5ce934264a7"
 dependencies = [
  "bare-io",
 ]
 
 [[package]]
 name = "futures-macro"
-version = "0.3.5"
+version = "0.3.8"
+source = "git+https://github.com/vincenthouyi/futures-rs.git?branch=lakeos#a7e3f55d91e0c5f68a16c9398c0dd5ce934264a7"
 dependencies = [
  "proc-macro-hack",
  "proc-macro2",
@@ -133,11 +136,13 @@ dependencies = [
 
 [[package]]
 name = "futures-task"
-version = "0.3.5"
+version = "0.3.8"
+source = "git+https://github.com/vincenthouyi/futures-rs.git?branch=lakeos#a7e3f55d91e0c5f68a16c9398c0dd5ce934264a7"
 
 [[package]]
 name = "futures-util"
-version = "0.3.5"
+version = "0.3.8"
+source = "git+https://github.com/vincenthouyi/futures-rs.git?branch=lakeos#a7e3f55d91e0c5f68a16c9398c0dd5ce934264a7"
 dependencies = [
  "bare-io",
  "futures-core",
@@ -145,7 +150,7 @@ dependencies = [
  "futures-macro",
  "futures-task",
  "memchr",
- "pin-project",
+ "pin-project-lite",
  "pin-utils",
  "proc-macro-hack",
  "proc-macro-nested",
@@ -235,24 +240,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "pin-project"
-version = "0.4.27"
+name = "pin-project-lite"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ffbc8e94b38ea3d2d8ba92aea2983b503cd75d0888d75b86bb37970b5698e15"
-dependencies = [
- "pin-project-internal",
-]
-
-[[package]]
-name = "pin-project-internal"
-version = "0.4.27"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65ad2ae56b6abe3a1ee25f15ee605bacadb9a764edaba9c2bf4103800d4a1895"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
+checksum = "6b063f57ec186e6140e2b8b6921e5f1bd89c7356dda5b33acc5401203ca6131c"
 
 [[package]]
 name = "pin-utils"
