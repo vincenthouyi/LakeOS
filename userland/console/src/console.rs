@@ -110,7 +110,7 @@ pub async fn console_server_init() {
     gpio::GPIO_SERVER.lock().as_mut().unwrap().get_pin(14).unwrap().into_alt(Function::Alt5);
     gpio::GPIO_SERVER.lock().as_mut().unwrap().get_pin(15).unwrap().into_alt(Function::Alt5);
 
-    let uart_ram_cap = crate::request_memory(0x3f215000, 4096, true).await;
+    let uart_ram_cap = crate::request_memory(0x3f215000, 4096, true).await.unwrap();
     let uart_ram_cap = RamCap::new(uart_ram_cap);
     let uart_base = gsm!().insert_ram_at(uart_ram_cap, 0, Permission::writable());
 

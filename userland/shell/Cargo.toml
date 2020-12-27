@@ -10,3 +10,4 @@ edition = "2018"
 rustyl4api = { path = "../../lib/rustyl4api" }
 naive = { path = "../../lib/naive" }
 conquer-once = { version = "0.2.0", default-features = false }
+spin = "0.5.2"

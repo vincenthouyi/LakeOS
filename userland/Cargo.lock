@@ -340,6 +340,7 @@ dependencies = [
  "conquer-once",
  "naive",
  "rustyl4api",
+ "spin",
 ]
 
 [[package]]

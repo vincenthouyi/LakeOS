@@ -10,8 +10,11 @@ mod gpio;
 
 use alloc::vec::Vec;
 use alloc::boxed::Box;
+use alloc::sync::Arc;
 
 use async_trait::async_trait;
+
+use spin::Mutex;
 
 use naive::ep_server::EP_SERVER;
 use naive::rpc;
@@ -29,22 +32,22 @@ use futures_util::StreamExt;
 use conquer_once::spin::OnceCell;
 use naive::{rpc::RpcClient};
 
-pub fn ns_client() -> RpcClient {
+pub fn ns_client() -> Arc<Mutex<RpcClient>> {
     use rustyl4api::{process::ProcessCSpace, object::EpCap};
-    static NS_CLIENT: OnceCell<RpcClient> = OnceCell::uninit();
+    static NS_CLIENT: OnceCell<Arc<Mutex<RpcClient>>> = OnceCell::uninit();
 
     NS_CLIENT.try_get_or_init(|| {
         let ep_server = EP_SERVER.try_get().unwrap();
         let (ntf_badge, ntf_ep) = ep_server.derive_badged_cap().unwrap();
-        RpcClient::connect(EpCap::new(ProcessCSpace::NameServer as usize), ntf_ep, ntf_badge).unwrap()
+        let inner = RpcClient::connect(EpCap::new(ProcessCSpace::NameServer as usize), ntf_ep, ntf_badge).unwrap();
+        Arc::new(Mutex::new(inner))
     }).unwrap().clone()
 }
 
-pub async fn request_memory(paddr: usize, size: usize, maybe_device: bool) -> usize {
-
-    let mut client = ns_client();
-    let ret = client.request_memory(paddr, size, maybe_device).await;
-    *ret.caps.get(0).unwrap()
+pub async fn request_memory(paddr: usize, size: usize, maybe_device: bool) -> Result<usize, ()> {
+    let client = ns_client();
+    let cap = client.lock().request_memory(paddr, size, maybe_device).await;
+    cap
 }
 
 struct ConsoleApi;
@@ -90,8 +93,8 @@ async fn main() {
     let ep_server = EP_SERVER.try_get().unwrap();
     let con = console::console();
     let (irq_badge, irq_ep) = ep_server.derive_badged_cap().unwrap();
-    let irq_rpc = ns_client().request_irq(pi::interrupt::Interrupt::Aux as usize).await;
-    let irq_cap = InterruptCap::new(irq_rpc.caps[0]);
+    let irq_cap_slot = ns_client().lock().request_irq(pi::interrupt::Interrupt::Aux as usize).await.unwrap();
+    let irq_cap = InterruptCap::new(irq_cap_slot);
     irq_cap.attach_ep_to_irq(irq_ep.slot, pi::interrupt::Interrupt::Aux as usize).unwrap();
     ep_server.insert_notification(pi::interrupt::Interrupt::Aux as usize, Box::new(con.clone()));
 
@@ -103,7 +106,7 @@ async fn main() {
     let console_api = ConsoleApi{};
     let mut console_server = RpcServer::new(listener, console_api);
 
-    let res = ns_client().register_service("tty".to_string(), listen_ep.slot).await;
+    ns_client().lock().register_service("tty".to_string(), listen_ep.slot).await.unwrap();
 
     console_server.run().await;
 

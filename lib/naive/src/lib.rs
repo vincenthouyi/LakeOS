@@ -32,6 +32,7 @@ mod panic;
 pub mod stream;
 pub mod lmp;
 pub mod rpc;
+pub mod ns;
 
 pub use naive_attributes::main;
 

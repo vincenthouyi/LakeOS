@@ -29,9 +29,10 @@ use hashbrown::HashMap;
 use alloc::string::String;
 use conquer_once::spin::OnceCell;
 use spin::Mutex;
+use naive::ns;
 
-static SHELL_ELF: &'static [u8] = include_bytes!("../build/shell");
-static CONSOLE_ELF: &'static [u8] = include_bytes!("../build/console");
+const SHELL_ELF: &'static [u8] = include_bytes!("../build/shell");
+const CONSOLE_ELF: &'static [u8] = include_bytes!("../build/console");
 
 // fn timer_test() {
 //     for i in 0..5 {
@@ -76,14 +77,24 @@ impl naive::rpc::RpcRequestHandlers for InitThreadApi {
 
     async fn handle_register_service(&self, request: &RegisterServiceRequest, cap: Vec<usize>) -> Result<(RegisterServiceResponse, Vec<usize>)> {
         name_server().services.lock().insert(request.name.clone(), cap[0]);
-        let resp = RegisterServiceResponse{ result: 0 };
+        let resp = RegisterServiceResponse{ result: ns::Error::Success };
         Ok((resp, [].to_vec()))
     }
 
     async fn handle_lookup_service(&self, request: &LookupServiceRequest) -> Result<(LookupServiceResponse, Vec<usize>)> {
-        let cap = *(name_server().services.lock().get(&request.name).unwrap());
-        let resp = LookupServiceResponse{ result: 0 };
-        Ok((resp, [cap].to_vec()))
+        let services = name_server().services.lock();
+        let cap = services.get(&request.name);
+        if let Some(c) = cap {
+            let resp = LookupServiceResponse {
+                result: ns::Error::Success
+            };
+            Ok((resp, [*c].to_vec()))
+        } else {
+            let resp = LookupServiceResponse{
+                result: ns::Error::ServiceNotFound
+            };
+            Ok((resp, [].to_vec()))
+        }
     }
 }
 

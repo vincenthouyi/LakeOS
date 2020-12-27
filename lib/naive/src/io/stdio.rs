@@ -6,6 +6,7 @@ use core::future::Future;
 use alloc::{
     sync::Arc,
     format,
+    boxed::Box,
 };
 
 use spin::Mutex;
@@ -24,30 +25,25 @@ use crate::rpc::{RpcClient, RpcCallFuture};
 
 pub struct Stdout {
     channel: Arc<Mutex<RpcClient>>,
-    rpc_state: Option<RpcCallFuture>,
 }
 
 impl Stdout {
     pub fn new(channel: Arc<Mutex<RpcClient>>) -> Self {
         Self {
-            channel: channel,
-            rpc_state: None,
+            channel,
         }
     }
 }
 
 impl AsyncWrite for Stdout
 {
-    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8])
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8])
         -> Poll<io::Result<usize>>
     {
-        let Self { channel, rpc_state} = &mut *self;
-        let s = rpc_state.get_or_insert(channel.lock().rpc_write(buf));
-        Pin::new(s).poll(cx)
-            .map(|_| {
-                self.rpc_state.take();
-                Ok(buf.len())
-            })
+        let mut chan = self.channel.lock();
+        let mut fut = Box::pin(chan.rpc_write(buf));
+        Pin::new(&mut fut).poll(cx)
+            .map(|r| Ok(r))
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
@@ -75,30 +71,25 @@ pub fn stdout() -> Stdout {
 
 pub struct Stdin {
     channel: Arc<Mutex<RpcClient>>,
-    rpc_state: Option<RpcCallFuture>,
 }
 
 impl Stdin {
     pub fn new(channel: Arc<Mutex<RpcClient>>) -> Self {
         Self {
-            channel: channel,
-            rpc_state: None,
+            channel,
         }
     }
 }
 
 impl AsyncRead for Stdin {
-    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8])
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8])
         -> Poll<io::Result<usize>>
     {
-        let Self { channel, rpc_state } = &mut *self;
-        let s = rpc_state.get_or_insert(channel.lock().rpc_read(buf));
-        Pin::new(s).poll(cx)
-            .map(|resp| {
-                self.rpc_state.take();
-                let resp : crate::rpc::ReadResponse = serde_json::from_slice(&resp.msg).unwrap();
-                buf[..resp.buf.len()].copy_from_slice(&resp.buf);
-                Ok(resp.buf.len())
+        let mut chan = self.channel.lock();
+        let mut fut = Box::pin(chan.rpc_read(buf));
+        Pin::new(&mut fut).poll(cx)
+            .map(|r| {
+                Ok(r) 
             })
     }
 }

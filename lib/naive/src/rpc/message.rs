@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use alloc::string::String;
+use crate::ns;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WriteRequest {
@@ -50,7 +51,7 @@ pub struct RegisterServiceRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterServiceResponse {
-    pub result: usize,
+    pub result: ns::Error,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -60,5 +61,5 @@ pub struct LookupServiceRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LookupServiceResponse {
-    pub result: usize,
+    pub result: ns::Error,
 }

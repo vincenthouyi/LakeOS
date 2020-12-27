@@ -24,7 +24,7 @@ impl GpioServer {
 pub static GPIO_SERVER: Mutex<Option<GpioServer>> = Mutex::new(None);
 
 pub async fn init_gpio_server() {
-    let gpio_ram_cap = crate::request_memory(0x3f200000, 4096, true).await;
+    let gpio_ram_cap = crate::request_memory(0x3f200000, 4096, true).await.unwrap();
     let gpio_ram_cap = RamCap::new(gpio_ram_cap);
     let gpio_base = gsm!().insert_ram_at(gpio_ram_cap, 0, Permission::writable());
 
