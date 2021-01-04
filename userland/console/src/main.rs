@@ -10,7 +10,6 @@ mod gpio;
 
 use alloc::vec::Vec;
 use alloc::boxed::Box;
-use alloc::sync::Arc;
 
 use async_trait::async_trait;
 
@@ -27,22 +26,9 @@ use naive::rpc::{
 use naive::lmp::LmpListener;
 use naive::io::AsyncWriteExt;
 use naive::lmp::LmpListenerHandle;
+use naive::ns::ns_client;
 
 use futures_util::StreamExt;
-use conquer_once::spin::OnceCell;
-use naive::{rpc::RpcClient};
-
-pub fn ns_client() -> Arc<Mutex<RpcClient>> {
-    use rustyl4api::{process::ProcessCSpace, object::EpCap};
-    static NS_CLIENT: OnceCell<Arc<Mutex<RpcClient>>> = OnceCell::uninit();
-
-    NS_CLIENT.try_get_or_init(|| {
-        let ep_server = EP_SERVER.try_get().unwrap();
-        let (ntf_badge, ntf_ep) = ep_server.derive_badged_cap().unwrap();
-        let inner = RpcClient::connect(EpCap::new(ProcessCSpace::NameServer as usize), ntf_ep, ntf_badge).unwrap();
-        Arc::new(Mutex::new(inner))
-    }).unwrap().clone()
-}
 
 pub async fn request_memory(paddr: usize, size: usize, maybe_device: bool) -> Result<usize, ()> {
     let client = ns_client();

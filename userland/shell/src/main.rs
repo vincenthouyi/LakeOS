@@ -7,28 +7,11 @@ extern crate alloc;
 
 #[macro_use] extern crate naive;
 
-use alloc::sync::Arc;
-
 use rustyl4api::{kprintln};
-use naive::io::{stdin, stdout};
-use naive::rpc::RpcClient;
 use naive::ep_server::EP_SERVER;
-use conquer_once::spin::OnceCell;
-use spin::Mutex;
+use naive::ns::ns_client;
 
 mod shell;
-
-pub fn ns_client() -> Arc<Mutex<RpcClient>> {
-    use rustyl4api::{process::ProcessCSpace, object::EpCap};
-    static NS_CLIENT: OnceCell<Arc<Mutex<RpcClient>>> = OnceCell::uninit();
-
-    NS_CLIENT.try_get_or_init(|| {
-        let ep_server = EP_SERVER.try_get().unwrap();
-        let (ntf_badge, ntf_ep) = ep_server.derive_badged_cap().unwrap();
-        let inner = RpcClient::connect(EpCap::new(ProcessCSpace::NameServer as usize), ntf_ep, ntf_badge).unwrap();
-        Arc::new(Mutex::new(inner))
-    }).unwrap().clone()
-}
 
 #[naive::main]
 async fn main() -> () {
