@@ -68,6 +68,10 @@ pub trait RpcRequestHandlers {
         Err(Error::CallNotSupported)
     }
 
+    async fn handle_current_time(&self, _request: &CurrentTimeRequest) -> Result<(CurrentTimeResponse, Vec<usize>)> {
+        Err(Error::CallNotSupported)
+    }
+
     async fn handle_request(&self, channel: LmpChannelHandle, request: LmpMessage) {
         let opcode = request.opcode;
         let (resp_payload, cap) = match opcode {
@@ -99,6 +103,11 @@ pub trait RpcRequestHandlers {
             5 => {
                 let request_msg = serde_json::from_slice(&request.msg).unwrap();
                 let (resp, cap)= self.handle_lookup_service(&request_msg).await.unwrap();
+                (serde_json::to_vec(&resp).unwrap(), cap)
+            }
+            6 => {
+                let request_msg = serde_json::from_slice(&request.msg).unwrap();
+                let (resp, cap)= self.handle_current_time(&request_msg).await.unwrap();
                 (serde_json::to_vec(&resp).unwrap(), cap)
             }
             _ => { todo!() }

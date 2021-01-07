@@ -20,7 +20,7 @@ use alloc::vec::Vec;
 
 use async_trait::async_trait;
 
-use rustyl4api::object::{InterruptCap};
+use rustyl4api::object::{InterruptCap, CNodeCap};
 
 use naive::lmp::{LmpListener, LmpListenerHandle};
 use naive::rpc;
@@ -33,6 +33,7 @@ use naive::ns;
 
 const SHELL_ELF: &'static [u8] = include_bytes!("../build/shell");
 const CONSOLE_ELF: &'static [u8] = include_bytes!("../build/console");
+const TIMER_ELF: &'static [u8] = include_bytes!("../build/timer");
 
 // fn timer_test() {
 //     for i in 0..5 {
@@ -70,9 +71,11 @@ impl naive::rpc::RpcRequestHandlers for InitThreadApi {
     }
 
     async fn handle_request_irq(&self, _request: &RequestIrqRequest) -> rpc::Result<(RequestIrqResponse, Vec<usize>)> {
-        let cap = InterruptCap::new(rustyl4api::init::InitCSpaceSlot::IrqController as usize);
+        let copy_slot = naive::space_manager::gsm!().cspace_alloc().unwrap();
+        let cspace = CNodeCap::new(rustyl4api::init::InitCSpaceSlot::InitCSpace as usize);
+        cspace.cap_copy(copy_slot, rustyl4api::init::InitCSpaceSlot::IrqController as usize);
         let resp = RequestIrqResponse{ result: 0 };
-        Ok((resp, [cap.slot].to_vec()))
+        Ok((resp, [copy_slot].to_vec()))
     }
 
     async fn handle_register_service(&self, request: &RegisterServiceRequest, cap: Vec<usize>) -> Result<(RegisterServiceResponse, Vec<usize>)> {
@@ -118,6 +121,14 @@ async fn main() {
         .expect("spawn process failed");
 
     naive::process::ProcessBuilder::new(&SHELL_ELF)
+        .stdin(listen_ep.clone())
+        .stdout(listen_ep.clone())
+        .stderr(listen_ep.clone())
+        .name_server(listen_ep.clone())
+        .spawn()
+        .expect("spawn process failed");
+
+    naive::process::ProcessBuilder::new(&TIMER_ELF)
         .stdin(listen_ep.clone())
         .stdout(listen_ep.clone())
         .stderr(listen_ep.clone())

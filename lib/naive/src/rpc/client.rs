@@ -154,6 +154,24 @@ impl RpcClient {
             .into_result()
             .map(|_| *resp_msg.caps.get(0).unwrap())
     }
+
+    pub async fn current_time(&mut self) -> ns::Result<u64> {
+        let Self { channel, rpc_state } = self;
+
+        let rpc = rpc_state.get_or_insert_with(|| {
+            let payload = super::CurrentTimeRequest{};
+            let request = LmpMessage {
+                opcode: 6,
+                msg: serde_json::to_vec(&payload).unwrap(),
+                caps: [].to_vec(),
+            };
+            RpcCallFuture::new(channel.clone(), request)
+        });
+        let resp_msg = rpc.await;
+        let resp: super::CurrentTimeResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
+        self.rpc_state.take();
+        Ok(resp.time)
+    }
 }
 
 pub struct RpcCallFuture {

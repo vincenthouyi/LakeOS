@@ -63,3 +63,12 @@ pub struct LookupServiceRequest {
 pub struct LookupServiceResponse {
     pub result: ns::Error,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CurrentTimeRequest {
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CurrentTimeResponse {
+    pub time: u64,
+}

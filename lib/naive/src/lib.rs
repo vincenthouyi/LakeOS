@@ -33,6 +33,7 @@ pub mod stream;
 pub mod lmp;
 pub mod rpc;
 pub mod ns;
+pub mod time;
 
 pub use naive_attributes::main;
 
