@@ -13,7 +13,9 @@ pub struct GpioServer {
 
 impl GpioServer {
     pub fn new(gpio_vaddr: usize) -> Self {
-        Self { base_addr: gpio_vaddr as usize}
+        Self {
+            base_addr: gpio_vaddr as usize,
+        }
     }
 
     pub fn get_pin(&mut self, pin: usize) -> Option<Gpio<Uninitialized>> {

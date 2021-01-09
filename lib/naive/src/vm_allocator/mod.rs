@@ -1,14 +1,14 @@
 mod linked_list;
 mod slab_allocator;
 
-use core::alloc::{GlobalAlloc, Layout, AllocError};
+use core::alloc::{AllocError, GlobalAlloc, Layout};
 use core::ptr::NonNull;
 use core::sync::atomic::{AtomicBool, Ordering};
 
 use slab_allocator::SlabAllocator;
 
 use crate::space_manager::gsm;
-use rustyl4api::vspace::{FRAME_SIZE, Permission};
+use rustyl4api::vspace::{Permission, FRAME_SIZE};
 
 pub const SLAB_ALLOC_BITSZ: usize = rustyl4api::vspace::FRAME_BIT_SIZE;
 
@@ -34,34 +34,33 @@ impl VmAllocator {
         self.slab_alloc.add_backup_mempool(base, size)
     }
 
-    pub fn slab_refill(&self, layout: Layout) {
-        let addr = gsm!().map_frame_at(0, 0, FRAME_SIZE, Permission::writable()).unwrap();
+    pub fn slab_refill(&self) {
+        let addr = gsm!()
+            .map_frame_at(0, 0, FRAME_SIZE, Permission::writable())
+            .unwrap();
         self.add_backup_mempool(addr, FRAME_SIZE);
     }
 
     pub fn vm_alloc(&self, layout: Layout) -> Result<NonNull<u8>, AllocError> {
-
         // TODO: support object larger than a page
         let obj_bitsz = layout.size().trailing_zeros();
         if obj_bitsz > SLAB_ALLOC_BITSZ as u32 {
-            let ret = gsm!().map_frame_at(0, 0, layout.size(), Permission::writable())
+            let ret = gsm!()
+                .map_frame_at(0, 0, layout.size(), Permission::writable())
                 .map(|vaddr| NonNull::new(vaddr).unwrap())
-                .map_err(|_| AllocError{});
+                .map_err(|_| AllocError {});
             return ret;
         }
 
-        self.slab_alloc
-            .slab_alloc(layout)
-            .or_else(|_| {
-                self.slab_alloc.swap_pool();
-                self.slab_refill(layout);
-                self.slab_alloc.slab_alloc(layout)
-            })
+        self.slab_alloc.slab_alloc(layout).or_else(|_| {
+            self.slab_alloc.swap_pool();
+            self.slab_refill();
+            self.slab_alloc.slab_alloc(layout)
+        })
     }
 
     pub fn vm_dealloc(&self, ptr: NonNull<u8>, layout: Layout) {
-        self.slab_alloc
-            .slab_dealloc(ptr, layout)
+        self.slab_alloc.slab_dealloc(ptr, layout)
     }
 
     pub fn backup_empty(&self) -> bool {
@@ -80,7 +79,9 @@ impl VmAllocator {
 unsafe impl GlobalAlloc for VmAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         use core::ptr::null_mut;
-        self.vm_alloc(layout).map(|p| p.as_ptr()).unwrap_or(null_mut())
+        self.vm_alloc(layout)
+            .map(|p| p.as_ptr())
+            .unwrap_or(null_mut())
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {

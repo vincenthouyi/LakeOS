@@ -37,7 +37,14 @@ impl UntypedSpaceMan {
         }
     }
 
-    pub fn insert_untyped(&self, slot: usize, paddr: usize, bit_sz: u8, is_device: bool, free_offset: usize) {
+    pub fn insert_untyped(
+        &self,
+        slot: usize,
+        paddr: usize,
+        bit_sz: u8,
+        is_device: bool,
+        free_offset: usize,
+    ) {
         // TODO: support device untypeds
         if is_device {
             return;
@@ -63,7 +70,11 @@ impl UntypedSpaceMan {
         // self.empty_ut[sz_offset as usize].push(UntypedNode::new_empty(cap, paddr));
     }
 
-    pub fn alloc_object<T: KernelObject>(&self, dest_slot: usize, size: usize) -> Option<Capability<T>> {
+    pub fn alloc_object<T: KernelObject>(
+        &self,
+        dest_slot: usize,
+        size: usize,
+    ) -> Option<Capability<T>> {
         for node in self.ut_list.lock().iter() {
             if let Ok(_) = node.cap.retype(T::obj_type(), size, dest_slot, 1) {
                 return Some(Capability::<T>::new(dest_slot));

@@ -10,15 +10,16 @@ impl<'a> CapRef<'a, NullObj> {
         CapRaw::new(0, 0, 0, None, None, ObjType::NullObj)
     }
 
-    pub fn insert<T>(self, raw: CapRaw) -> CapRef<'a, T> 
-        where T: KernelObject + ?Sized
+    pub fn insert<T>(self, raw: CapRaw) -> CapRef<'a, T>
+    where
+        T: KernelObject + ?Sized,
     {
         debug_assert_eq!(T::obj_type(), raw.cap_type());
         self.raw.set(raw);
 
         CapRef {
             raw: self.raw,
-            cap_type: PhantomData
+            cap_type: PhantomData,
         }
     }
 

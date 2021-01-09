@@ -1,4 +1,4 @@
-use rustyl4api::object::{VTableObj, RamObj, CNodeObj, TcbObj, EpCap, TcbCap, UntypedObj};
+use rustyl4api::object::{CNodeObj, EpCap, RamObj, TcbCap, TcbObj, UntypedObj, VTableObj};
 use rustyl4api::vspace::Permission;
 use spaceman::vspace_man::VSpaceMan;
 
@@ -11,6 +11,7 @@ pub struct ProcessBuilder<'a> {
     name_server: Option<EpCap>,
 }
 
+#[allow(dead_code)]
 pub struct Child {
     vspace: VSpaceMan,
     tcb: TcbCap,
@@ -51,12 +52,11 @@ impl<'a> ProcessBuilder<'a> {
     }
 
     pub fn spawn(&mut self) -> Result<Child, ()> {
-        use rustyl4api::object::cnode::{CNODE_ENTRY_SZ};
-        use rustyl4api::object::tcb::TCB_OBJ_BIT_SZ;
-        use rustyl4api::vspace::{FRAME_BIT_SIZE, FRAME_SIZE};
-        use rustyl4api::process::{ProcessCSpace, PROCESS_ROOT_CNODE_SIZE};
         use crate::space_manager::gsm;
-
+        use rustyl4api::object::cnode::CNODE_ENTRY_SZ;
+        use rustyl4api::object::tcb::TCB_OBJ_BIT_SZ;
+        use rustyl4api::process::{ProcessCSpace, PROCESS_ROOT_CNODE_SIZE};
+        use rustyl4api::vspace::{FRAME_BIT_SIZE, FRAME_SIZE};
 
         let rootcn_bitsz = (PROCESS_ROOT_CNODE_SIZE * CNODE_ENTRY_SZ).trailing_zeros() as usize;
         let child_tcb = gsm!().alloc_object::<TcbObj>(TCB_OBJ_BIT_SZ).unwrap();
@@ -70,11 +70,7 @@ impl<'a> ProcessBuilder<'a> {
             use rustyl4api::object::RamCap;
 
             let vaddr = vrange.start as usize;
-            let perm = Permission::new (
-                flags & 0b100 != 0,
-                flags & 0b010 != 0,
-                flags & 0b001 != 0,
-            );
+            let perm = Permission::new(flags & 0b100 != 0, flags & 0b010 != 0, flags & 0b001 != 0);
             let frame_cap = gsm!().alloc_object::<RamObj>(FRAME_BIT_SIZE).unwrap();
             let frame_parent_slot = gsm!().cspace_alloc().unwrap();
             frame_cap.derive(frame_parent_slot).unwrap();
@@ -89,44 +85,81 @@ impl<'a> ProcessBuilder<'a> {
                     //     panic!("wrong slot type at level {} vaddr {:x}", level, vaddr);
                     // }
                     // VSpaceManError::PageTableMiss{level} => {
-                    rustyl4api::error::SysError::VSpaceTableMiss{level} => {
+                    rustyl4api::error::SysError::VSpaceTableMiss { level } => {
                         let vtable_cap = gsm!().alloc_object::<VTableObj>(12).unwrap();
                         // kprintln!("miss table level {} addr {:x}", level, vaddr);
-                        vspace.map_table(vtable_cap.clone(), vaddr, level as usize).unwrap();
-                        child_root_cn.cap_copy(cur_free, vtable_cap.slot).map_err(|_| ()).unwrap();
+                        vspace
+                            .map_table(vtable_cap.clone(), vaddr, level as usize)
+                            .unwrap();
+                        child_root_cn
+                            .cap_copy(cur_free, vtable_cap.slot)
+                            .map_err(|_| ())
+                            .unwrap();
                         cur_free += 1;
                     }
                     e => {
                         panic!("vaddr {:x} perm {:?} error: {:?}", vaddr, perm, e);
                     }
                 }
-            };
+            }
 
-            child_root_cn.cap_copy(cur_free, frame_cap.slot).map_err(|_| ()).unwrap();
+            child_root_cn
+                .cap_copy(cur_free, frame_cap.slot)
+                .map_err(|_| ())
+                .unwrap();
             cur_free += 1;
-            let frame_addr = gsm!().insert_ram_at(frame_parent_cap.clone(), 0, Permission::writable());
-            let frame = unsafe {
-                core::slice::from_raw_parts_mut(frame_addr, FRAME_SIZE)
-            };
+            let frame_addr =
+                gsm!().insert_ram_at(frame_parent_cap.clone(), 0, Permission::writable());
+            let frame = unsafe { core::slice::from_raw_parts_mut(frame_addr, FRAME_SIZE) };
             frame
-        }).map_err(|_| ())?;
+        })
+        .map_err(|_| ())?;
 
-        child_tcb.configure(Some(child_root_vn.slot), Some(child_root_cn.slot))
+        child_tcb
+            .configure(Some(child_root_vn.slot), Some(child_root_cn.slot))
             .expect("Error Configuring TCB");
-        child_tcb.set_registers(0b1100, entry as usize, 0x8000000)
+        child_tcb
+            .set_registers(0b1100, entry as usize, 0x8000000)
             .expect("Error Setting Registers");
-        child_root_cn.cap_copy(ProcessCSpace::TcbCap as usize, child_tcb.slot).map_err(|_| ())?;
-        child_root_cn.cap_copy(ProcessCSpace::RootCNodeCap as usize, child_root_cn.slot).map_err(|_| ())?;
-        child_root_cn.cap_copy(ProcessCSpace::RootVNodeCap as usize, child_root_vn.slot).map_err(|_| ())?;
-        child_root_cn.cap_copy(ProcessCSpace::Stdin as usize, self.stdin.as_ref().unwrap().slot).map_err(|_| ())?;
-        child_root_cn.cap_copy(ProcessCSpace::Stdout as usize, self.stdout.as_ref().unwrap().slot).map_err(|_| ())?;
-        child_root_cn.cap_copy(ProcessCSpace::Stderr as usize, self.stderr.as_ref().unwrap().slot).map_err(|_| ())?;
-        child_root_cn.cap_copy(ProcessCSpace::NameServer as usize, self.name_server.as_ref().unwrap().slot).map_err(|_| ())?;
+        child_root_cn
+            .cap_copy(ProcessCSpace::TcbCap as usize, child_tcb.slot)
+            .map_err(|_| ())?;
+        child_root_cn
+            .cap_copy(ProcessCSpace::RootCNodeCap as usize, child_root_cn.slot)
+            .map_err(|_| ())?;
+        child_root_cn
+            .cap_copy(ProcessCSpace::RootVNodeCap as usize, child_root_vn.slot)
+            .map_err(|_| ())?;
+        child_root_cn
+            .cap_copy(
+                ProcessCSpace::Stdin as usize,
+                self.stdin.as_ref().unwrap().slot,
+            )
+            .map_err(|_| ())?;
+        child_root_cn
+            .cap_copy(
+                ProcessCSpace::Stdout as usize,
+                self.stdout.as_ref().unwrap().slot,
+            )
+            .map_err(|_| ())?;
+        child_root_cn
+            .cap_copy(
+                ProcessCSpace::Stderr as usize,
+                self.stderr.as_ref().unwrap().slot,
+            )
+            .map_err(|_| ())?;
+        child_root_cn
+            .cap_copy(
+                ProcessCSpace::NameServer as usize,
+                self.name_server.as_ref().unwrap().slot,
+            )
+            .map_err(|_| ())?;
         let init_untyped = gsm!().alloc_object::<UntypedObj>(16).ok_or(())?;
-        child_root_cn.cap_copy(ProcessCSpace::InitUntyped as usize, init_untyped.slot).map_err(|_| ())?;
+        child_root_cn
+            .cap_copy(ProcessCSpace::InitUntyped as usize, init_untyped.slot)
+            .map_err(|_| ())?;
 
-        child_tcb.resume()
-            .expect("Error Resuming TCB");
+        child_tcb.resume().expect("Error Resuming TCB");
 
         Ok(Child {
             vspace: vspace,

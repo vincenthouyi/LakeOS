@@ -1,14 +1,14 @@
 #![feature(decl_macro)]
 #![feature(asm)]
 #![feature(const_fn)]
-
 #![no_std]
 #![no_main]
 
 extern crate alloc;
-extern crate naive;
 extern crate futures_util;
-#[macro_use] extern crate rustyl4api;
+extern crate naive;
+#[macro_use]
+extern crate rustyl4api;
 
 // mod console;
 // mod gpio;
@@ -20,16 +20,16 @@ use alloc::vec::Vec;
 
 use async_trait::async_trait;
 
-use rustyl4api::object::{InterruptCap, CNodeCap};
+use rustyl4api::object::CNodeCap;
 
-use naive::lmp::{LmpListener, LmpListenerHandle};
-use naive::rpc;
-use naive::rpc::*;
-use hashbrown::HashMap;
 use alloc::string::String;
 use conquer_once::spin::OnceCell;
-use spin::Mutex;
+use hashbrown::HashMap;
+use naive::lmp::{LmpListener, LmpListenerHandle};
 use naive::ns;
+use naive::rpc;
+use naive::rpc::*;
+use spin::Mutex;
 
 const SHELL_ELF: &'static [u8] = include_bytes!("../build/shell");
 const CONSOLE_ELF: &'static [u8] = include_bytes!("../build/console");
@@ -52,49 +52,79 @@ pub struct NameServer {
 pub fn name_server() -> &'static NameServer {
     static NAME_SERVER: OnceCell<NameServer> = OnceCell::uninit();
 
-    NAME_SERVER.try_get_or_init(|| {
-        NameServer { services : Mutex::new(HashMap::new()) }
-    }).unwrap()
+    NAME_SERVER
+        .try_get_or_init(|| NameServer {
+            services: Mutex::new(HashMap::new()),
+        })
+        .unwrap()
 }
-
 
 struct InitThreadApi;
 
 #[async_trait]
 impl naive::rpc::RpcRequestHandlers for InitThreadApi {
-    async fn handle_request_memory(&self, request: &RequestMemoryRequest) -> rpc::Result<(RequestMemoryResponse, Vec<usize>)> {
+    async fn handle_request_memory(
+        &self,
+        request: &RequestMemoryRequest,
+    ) -> rpc::Result<(RequestMemoryResponse, Vec<usize>)> {
         use rustyl4api::object::RamObj;
 
-        let cap = naive::space_manager::alloc_object_at::<RamObj>(request.paddr, request.size.trailing_zeros() as usize, request.maybe_device).unwrap().slot;
-        let resp = RequestMemoryResponse{ result: 0};
+        let cap = naive::space_manager::alloc_object_at::<RamObj>(
+            request.paddr,
+            request.size.trailing_zeros() as usize,
+            request.maybe_device,
+        )
+        .unwrap()
+        .slot;
+        let resp = RequestMemoryResponse { result: 0 };
         Ok((resp, [cap].to_vec()))
     }
 
-    async fn handle_request_irq(&self, _request: &RequestIrqRequest) -> rpc::Result<(RequestIrqResponse, Vec<usize>)> {
+    async fn handle_request_irq(
+        &self,
+        _request: &RequestIrqRequest,
+    ) -> rpc::Result<(RequestIrqResponse, Vec<usize>)> {
         let copy_slot = naive::space_manager::gsm!().cspace_alloc().unwrap();
         let cspace = CNodeCap::new(rustyl4api::init::InitCSpaceSlot::InitCSpace as usize);
-        cspace.cap_copy(copy_slot, rustyl4api::init::InitCSpaceSlot::IrqController as usize);
-        let resp = RequestIrqResponse{ result: 0 };
+        cspace
+            .cap_copy(
+                copy_slot,
+                rustyl4api::init::InitCSpaceSlot::IrqController as usize,
+            )
+            .unwrap();
+        let resp = RequestIrqResponse { result: 0 };
         Ok((resp, [copy_slot].to_vec()))
     }
 
-    async fn handle_register_service(&self, request: &RegisterServiceRequest, cap: Vec<usize>) -> Result<(RegisterServiceResponse, Vec<usize>)> {
-        name_server().services.lock().insert(request.name.clone(), cap[0]);
-        let resp = RegisterServiceResponse{ result: ns::Error::Success };
+    async fn handle_register_service(
+        &self,
+        request: &RegisterServiceRequest,
+        cap: Vec<usize>,
+    ) -> Result<(RegisterServiceResponse, Vec<usize>)> {
+        name_server()
+            .services
+            .lock()
+            .insert(request.name.clone(), cap[0]);
+        let resp = RegisterServiceResponse {
+            result: ns::Error::Success,
+        };
         Ok((resp, [].to_vec()))
     }
 
-    async fn handle_lookup_service(&self, request: &LookupServiceRequest) -> Result<(LookupServiceResponse, Vec<usize>)> {
+    async fn handle_lookup_service(
+        &self,
+        request: &LookupServiceRequest,
+    ) -> Result<(LookupServiceResponse, Vec<usize>)> {
         let services = name_server().services.lock();
         let cap = services.get(&request.name);
         if let Some(c) = cap {
             let resp = LookupServiceResponse {
-                result: ns::Error::Success
+                result: ns::Error::Success,
             };
             Ok((resp, [*c].to_vec()))
         } else {
-            let resp = LookupServiceResponse{
-                result: ns::Error::ServiceNotFound
+            let resp = LookupServiceResponse {
+                result: ns::Error::ServiceNotFound,
             };
             Ok((resp, [].to_vec()))
         }
@@ -136,7 +166,7 @@ async fn main() {
         .spawn()
         .expect("spawn process failed");
 
-    let rpc_api = InitThreadApi{};
+    let rpc_api = InitThreadApi {};
     let mut rpc_server = RpcServer::new(listener, rpc_api);
 
     rpc_server.run().await;

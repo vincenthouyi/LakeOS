@@ -12,7 +12,6 @@ rustyl4api = { path="../rustyl4api" }
 spaceman = { path = "../libspaceman" }
 hashbrown = "0.8"
 spin = "0.5.2"
-static_assertions = "1.1.0"
 conquer-once = { version = "0.2.0", default-features = false }
 crossbeam-queue = { version = "0.2.1", default-features = false, features = ["alloc"] }
 futures-util = { git = "https://github.com/vincenthouyi/futures-rs.git", branch = "lakeos", default-features = false, features = ["alloc", "async-await", "async-await-macro", "io"] }

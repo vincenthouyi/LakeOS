@@ -1,7 +1,7 @@
-use crate::object::ObjType;
 use crate::error::SysResult;
-use crate::syscall::{MsgInfo, RespInfo, SyscallOp, syscall};
 use crate::ipc::{IpcMessage, IpcMessageType, IPC_MAX_ARGS};
+use crate::object::ObjType;
+use crate::syscall::{syscall, MsgInfo, RespInfo, SyscallOp};
 
 use super::{Capability, KernelObject};
 
@@ -10,7 +10,9 @@ pub struct EndpointObj {}
 pub type EpCap = Capability<EndpointObj>;
 
 impl KernelObject for EndpointObj {
-    fn obj_type() -> ObjType { ObjType::Endpoint }
+    fn obj_type() -> ObjType {
+        ObjType::Endpoint
+    }
 }
 
 impl Capability<EndpointObj> {
@@ -19,7 +21,7 @@ impl Capability<EndpointObj> {
         let info = MsgInfo::new(SyscallOp::EndpointMint, 2);
 
         let ret = syscall(info, &mut args);
-        return ret.map(|_|());
+        return ret.map(|_| ());
     }
 
     pub fn send(&self, message: &[usize], cap: Option<usize>) -> SysResult<()> {
@@ -28,7 +30,7 @@ impl Capability<EndpointObj> {
         let info = MsgInfo::new_ipc(SyscallOp::EndpointSend, len, cap.is_some());
 
         let ret = syscall(info, &mut args);
-        return ret.map(|_|());
+        return ret.map(|_| ());
     }
 
     pub fn receive(&self, cap: Option<usize>) -> SysResult<IpcMessage> {
@@ -39,9 +41,11 @@ impl Capability<EndpointObj> {
         handle_receive_return(retinfo, retbuf, badge)
     }
 
-    pub fn reply_receive<'a, 'b>(&'a self, buf: &'b [usize], cap: Option<usize>)
-        -> SysResult<IpcMessage>
-    {
+    pub fn reply_receive<'a, 'b>(
+        &'a self,
+        buf: &'b [usize],
+        cap: Option<usize>,
+    ) -> SysResult<IpcMessage> {
         let mut args = [self.slot, 0, 0, 0, 0, 0];
         let len = copy_massge_payload(&mut args, buf, cap);
         let info = MsgInfo::new_ipc(SyscallOp::EndpointReplyRecv, len, cap.is_some());
@@ -71,17 +75,15 @@ impl Capability<EndpointObj> {
     }
 }
 
-fn handle_receive_return(respinfo: RespInfo, msgbuf: &[usize], badge: usize)
-    -> SysResult<IpcMessage>
-{
+fn handle_receive_return(
+    respinfo: RespInfo,
+    msgbuf: &[usize],
+    badge: usize,
+) -> SysResult<IpcMessage> {
     Ok(match respinfo.msgtype {
         IpcMessageType::Message => {
             let mut real_msgbuf = [0; 4];
-            let badge = if respinfo.badged {
-                Some(badge)
-            } else {
-                None
-            };
+            let badge = if respinfo.badged { Some(badge) } else { None };
             let payload_len = msgbuf.len();
             real_msgbuf[..payload_len].copy_from_slice(msgbuf);
             IpcMessage::Message {
@@ -89,24 +91,31 @@ fn handle_receive_return(respinfo: RespInfo, msgbuf: &[usize], badge: usize)
                 payload_len: payload_len,
                 need_reply: respinfo.need_reply,
                 cap_transfer: respinfo.cap_transfer,
-                badge: badge
+                badge: badge,
             }
         }
         IpcMessageType::Fault => {
             unimplemented!()
         }
-        IpcMessageType::Notification => {
-            IpcMessage::Notification(msgbuf[0])
-        }
+        IpcMessageType::Notification => IpcMessage::Notification(msgbuf[0]),
         IpcMessageType::Invalid => {
             // FIXME: find why panic without underlying kprintln
-            kprintln!("respinfo {:?} msgbuf {:?} badge {}", respinfo, msgbuf, badge);
+            kprintln!(
+                "respinfo {:?} msgbuf {:?} badge {}",
+                respinfo,
+                msgbuf,
+                badge
+            );
             panic!()
         }
     })
 }
 
-pub(crate) fn copy_massge_payload(buf: &mut [usize;6], src: &[usize], cap_slot: Option<usize>) -> usize {
+pub(crate) fn copy_massge_payload(
+    buf: &mut [usize; 6],
+    src: &[usize],
+    cap_slot: Option<usize>,
+) -> usize {
     let len = src.len().min(IPC_MAX_ARGS);
 
     buf[1..len + 1].copy_from_slice(&src[..len]);

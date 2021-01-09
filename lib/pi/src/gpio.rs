@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use common::{states};
+use common::states;
 use volatile::Volatile;
 
 /// An alternative GPIO function.
@@ -13,7 +13,7 @@ pub enum Function {
     Alt2 = 0b110,
     Alt3 = 0b111,
     Alt4 = 0b011,
-    Alt5 = 0b010
+    Alt5 = 0b010,
 }
 
 #[repr(C)]
@@ -60,7 +60,7 @@ states! {
 pub struct Gpio<State> {
     pin: u8,
     registers: &'static mut Registers,
-    _state: PhantomData<State>
+    _state: PhantomData<State>,
 }
 
 /// The base address of the `GPIO` registers.
@@ -75,7 +75,7 @@ impl<T> Gpio<T> {
         Gpio {
             pin: self.pin,
             registers: self.registers,
-            _state: PhantomData
+            _state: PhantomData,
         }
     }
 }
@@ -94,7 +94,7 @@ impl Gpio<Uninitialized> {
         Gpio {
             registers: unsafe { &mut *(gpio_base as *mut Registers) },
             pin: pin,
-            _state: PhantomData
+            _state: PhantomData,
         }
     }
 
@@ -102,12 +102,11 @@ impl Gpio<Uninitialized> {
     /// and returns a `Gpio` structure in the `Alt` state.
     pub fn into_alt(self, function: Function) -> Gpio<Alt> {
         let reg = self.pin as usize / 10;
-        let bit= (self.pin as usize % 10) * 3;
-        
+        let bit = (self.pin as usize % 10) * 3;
+
         let val = Volatile::new_read_only(&self.registers.FSEL[reg]).read() & !(0b111 << bit);
         let val = val | (function as u32) << bit;
-        Volatile::new_write_only(&mut self.registers.FSEL[reg])
-            .write(val);
+        Volatile::new_write_only(&mut self.registers.FSEL[reg]).write(val);
 
         self.transition()
     }
@@ -130,16 +129,14 @@ impl Gpio<Output> {
     pub fn set(&mut self) {
         let reg = self.pin as usize / 32;
         let bit = self.pin as usize % 32;
-        Volatile::new_write_only(&mut self.registers.SET[reg])
-            .write(1 << bit)
+        Volatile::new_write_only(&mut self.registers.SET[reg]).write(1 << bit)
     }
 
     /// Clears (turns off) the pin.
     pub fn clear(&mut self) {
         let reg = self.pin as usize / 32;
         let bit = self.pin as usize % 32;
-        Volatile::new_write_only(&mut self.registers.CLR[reg])
-            .write(1 << bit)
+        Volatile::new_write_only(&mut self.registers.CLR[reg]).write(1 << bit)
     }
 }
 
@@ -152,7 +149,7 @@ impl Gpio<Input> {
         let val = Volatile::new_read_only(&self.registers.LEV[reg]).read() & (1 << bit);
         match val {
             0 => false,
-            _ => true
+            _ => true,
         }
     }
 }

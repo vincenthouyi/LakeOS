@@ -1,3 +1,4 @@
-#[macro_use] mod arm;
+#[macro_use]
+mod arm;
 
 pub use arm::*;

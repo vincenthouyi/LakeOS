@@ -1,7 +1,7 @@
-use core::fmt::{Debug, Formatter, Error};
+use crate::objects::TcbObj;
 use crate::prelude::*;
 use crate::syscall::{MsgInfo, RespInfo};
-use crate::objects::TcbObj;
+use core::fmt::{Debug, Error, Formatter};
 
 const EL1h: usize = 0b0101;
 const EL0t: usize = 0b0000;
@@ -19,40 +19,40 @@ pub struct TrapFrame {
 impl Debug for TrapFrame {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         f.debug_struct("Trapframe")
-         .field("x0", &self.x_regs[0])
-         .field("x1", &self.x_regs[1])
-         .field("x2", &self.x_regs[2])
-         .field("x3", &self.x_regs[3])
-         .field("x4", &self.x_regs[4])
-         .field("x5", &self.x_regs[5])
-         .field("x6", &self.x_regs[6])
-         .field("x7", &self.x_regs[7])
-         .field("x8", &self.x_regs[8])
-         .field("x9", &self.x_regs[9])
-         .field("x10", &self.x_regs[10])
-         .field("x11", &self.x_regs[11])
-         .field("x12", &self.x_regs[12])
-         .field("x13", &self.x_regs[13])
-         .field("x14", &self.x_regs[14])
-         .field("x15", &self.x_regs[15])
-         .field("x16", &self.x_regs[16])
-         .field("x17", &self.x_regs[17])
-         .field("x18", &self.x_regs[18])
-         .field("x19", &self.x_regs[19])
-         .field("x20", &self.x_regs[20])
-         .field("x21", &self.x_regs[21])
-         .field("x22", &self.x_regs[22])
-         .field("x23", &self.x_regs[23])
-         .field("x24", &self.x_regs[24])
-         .field("x25", &self.x_regs[25])
-         .field("x26", &self.x_regs[26])
-         .field("x27", &self.x_regs[27])
-         .field("x28", &self.x_regs[28])
-         .field("x29", &self.x_regs[29])
-         .field("sp", &self.sp)
-         .field("elr", &self.elr)
-         .field("spsr", &self.spsr)
-         .finish()
+            .field("x0", &self.x_regs[0])
+            .field("x1", &self.x_regs[1])
+            .field("x2", &self.x_regs[2])
+            .field("x3", &self.x_regs[3])
+            .field("x4", &self.x_regs[4])
+            .field("x5", &self.x_regs[5])
+            .field("x6", &self.x_regs[6])
+            .field("x7", &self.x_regs[7])
+            .field("x8", &self.x_regs[8])
+            .field("x9", &self.x_regs[9])
+            .field("x10", &self.x_regs[10])
+            .field("x11", &self.x_regs[11])
+            .field("x12", &self.x_regs[12])
+            .field("x13", &self.x_regs[13])
+            .field("x14", &self.x_regs[14])
+            .field("x15", &self.x_regs[15])
+            .field("x16", &self.x_regs[16])
+            .field("x17", &self.x_regs[17])
+            .field("x18", &self.x_regs[18])
+            .field("x19", &self.x_regs[19])
+            .field("x20", &self.x_regs[20])
+            .field("x21", &self.x_regs[21])
+            .field("x22", &self.x_regs[22])
+            .field("x23", &self.x_regs[23])
+            .field("x24", &self.x_regs[24])
+            .field("x25", &self.x_regs[25])
+            .field("x26", &self.x_regs[26])
+            .field("x27", &self.x_regs[27])
+            .field("x28", &self.x_regs[28])
+            .field("x29", &self.x_regs[29])
+            .field("sp", &self.sp)
+            .field("elr", &self.elr)
+            .field("spsr", &self.spsr)
+            .finish()
     }
 }
 
@@ -67,7 +67,7 @@ impl TrapFrame {
     }
 
     pub unsafe fn restore(&mut self) -> ! {
-        llvm_asm!{
+        llvm_asm! {
             "
             mov     sp, $0
             ldp     x22, x23, [sp, #16 * 16]
@@ -141,6 +141,6 @@ impl TrapFrame {
 
     pub fn get_tcb(&mut self) -> &mut TcbObj {
         let ptr = self as *mut _ as usize;
-        unsafe{ &mut *((ptr & !MASK!(crate::objects::TCB_OBJ_BIT_SZ)) as *mut TcbObj) }
+        unsafe { &mut *((ptr & !MASK!(crate::objects::TCB_OBJ_BIT_SZ)) as *mut TcbObj) }
     }
 }

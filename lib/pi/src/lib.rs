@@ -1,5 +1,4 @@
 #![no_std]
-
 #![feature(core_intrinsics)]
 #![feature(const_fn)]
 #![feature(asm)]
@@ -13,10 +12,10 @@
 //extern crate core;
 extern crate volatile;
 
+pub mod common;
+pub mod gpio;
 pub mod timer;
 pub mod uart;
-pub mod gpio;
-pub mod common;
 //pub mod atags;
-pub mod interrupt;
 pub mod generic_timer;
+pub mod interrupt;

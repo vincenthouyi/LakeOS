@@ -1,6 +1,6 @@
-use core::{future::Future, pin::Pin};
+use core::sync::atomic::{AtomicU64, Ordering};
 use core::task::{Context, Poll, Waker};
-use core::sync::atomic::{Ordering, AtomicU64};
+use core::{future::Future, pin::Pin};
 
 use alloc::boxed::Box;
 use alloc::sync::Arc;

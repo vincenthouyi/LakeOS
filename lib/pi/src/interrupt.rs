@@ -32,7 +32,7 @@ struct Registers {
 /// An interrupt controller. Used to enable and disable interrupts as well as to
 /// check if an interrupt is pending.
 pub struct Controller {
-    registers: &'static mut Registers
+    registers: &'static mut Registers,
 }
 
 impl Controller {
@@ -44,26 +44,22 @@ impl Controller {
     }
 
     pub fn enable(&mut self, int: usize) {
-        Volatile::new_write_only(&mut self.registers.EnableIRQ[int / 32])
-            .write(1 << (int % 32));
+        Volatile::new_write_only(&mut self.registers.EnableIRQ[int / 32]).write(1 << (int % 32));
     }
 
     pub fn disable(&mut self, int: usize) {
-        Volatile::new_write_only(&mut self.registers.DisableIRQ[int / 32])
-            .write(1 << (int % 32));
+        Volatile::new_write_only(&mut self.registers.DisableIRQ[int / 32]).write(1 << (int % 32));
     }
 
     pub fn enable_mask(&mut self, mask: u64) {
         let lower = (mask as u32) & (!0u32);
         let higher = (mask >> 32) as u32;
         if lower != 0 {
-            Volatile::new_write_only(&mut self.registers.EnableIRQ[0])
-                .write(lower)
+            Volatile::new_write_only(&mut self.registers.EnableIRQ[0]).write(lower)
         }
 
         if higher != 0 {
-            Volatile::new_write_only(&mut self.registers.EnableIRQ[1])
-                .write(higher)
+            Volatile::new_write_only(&mut self.registers.EnableIRQ[1]).write(higher)
         }
     }
 

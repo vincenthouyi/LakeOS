@@ -1,8 +1,8 @@
 use core::convert::{From, TryFrom};
 
-use num_traits::FromPrimitive;
-use crate::error::{SysError, SysErrno, SysResult};
+use crate::error::{SysErrno, SysError, SysResult};
 use crate::ipc::IpcMessageType;
+use num_traits::FromPrimitive;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, FromPrimitive, ToPrimitive)]
@@ -38,11 +38,19 @@ pub struct MsgInfo {
 
 impl MsgInfo {
     pub const fn new(label: SyscallOp, msglen: usize) -> Self {
-        Self { label, msglen, cap_transfer: false }
+        Self {
+            label,
+            msglen,
+            cap_transfer: false,
+        }
     }
 
     pub const fn new_ipc(label: SyscallOp, msglen: usize, cap_transfer: bool) -> Self {
-        Self { label, msglen, cap_transfer }
+        Self {
+            label,
+            msglen,
+            cap_transfer,
+        }
     }
 
     pub fn get_label(&self) -> SyscallOp {
@@ -60,12 +68,12 @@ impl MsgInfo {
 /// |    8    |  4   |1|                          |
 /// -----------------------------------------------
 /// C: Cap transfer
-/// 
+///
 impl From<MsgInfo> for usize {
     fn from(info: MsgInfo) -> Self {
         (info.label as usize) << 56
-        | (info.msglen as usize) << 52
-        | (info.cap_transfer as usize) << 51
+            | (info.msglen as usize) << 52
+            | (info.cap_transfer as usize) << 51
     }
 }
 
@@ -77,12 +85,16 @@ impl TryFrom<usize> for MsgInfo {
         let msglen = (value >> 52) & 0b1111;
         let cap_transfer = ((value >> 51) & 0b1) == 1;
 
-        Ok(Self { label, msglen, cap_transfer })
+        Ok(Self {
+            label,
+            msglen,
+            cap_transfer,
+        })
     }
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct RespInfo{
+pub struct RespInfo {
     pub msgtype: IpcMessageType,
     pub msglen: usize,
     pub cap_transfer: bool,
@@ -92,10 +104,21 @@ pub struct RespInfo{
 }
 
 impl RespInfo {
-    pub const fn ipc_resp(err: SysError, msglen: usize, cap_transfer: bool,
-                          need_reply: bool, badged: bool) -> Self {
-        Self { msgtype: IpcMessageType::Message, msglen,
-               cap_transfer, need_reply, badged, errno: err.errno() }
+    pub const fn ipc_resp(
+        err: SysError,
+        msglen: usize,
+        cap_transfer: bool,
+        need_reply: bool,
+        badged: bool,
+    ) -> Self {
+        Self {
+            msgtype: IpcMessageType::Message,
+            msglen,
+            cap_transfer,
+            need_reply,
+            badged,
+            errno: err.errno(),
+        }
     }
 
     pub const fn new_syscall_resp(err: SysError, length: usize) -> Self {
@@ -105,7 +128,7 @@ impl RespInfo {
             cap_transfer: false,
             need_reply: false,
             badged: false,
-            errno: err.errno()
+            errno: err.errno(),
         }
     }
 
@@ -116,7 +139,7 @@ impl RespInfo {
             cap_transfer: false,
             need_reply: false,
             badged: false,
-            errno: SysErrno::OK
+            errno: SysErrno::OK,
         }
     }
 
@@ -133,15 +156,15 @@ impl RespInfo {
 /// C: Cap transfer
 /// R: Need Reply
 /// B: Badged
-/// 
+///
 impl From<RespInfo> for usize {
     fn from(info: RespInfo) -> Self {
         (info.msgtype as usize) << 62
-        | (info.msglen as usize) << 58
-        | (info.cap_transfer as usize) << 57
-        | (info.need_reply as usize) << 56
-        | (info.badged as usize) << 55
-        | (info.errno as usize) << 49
+            | (info.msglen as usize) << 58
+            | (info.cap_transfer as usize) << 57
+            | (info.need_reply as usize) << 56
+            | (info.badged as usize) << 55
+            | (info.errno as usize) << 49
     }
 }
 
@@ -156,16 +179,27 @@ impl TryFrom<usize> for RespInfo {
         let badged = (value >> 55) & 0b1 == 1;
         let errno = SysErrno::from_usize((value >> 49) & 0b111111).ok_or(SysError::InvalidValue)?;
 
-        Ok(Self {msgtype, msglen, cap_transfer, need_reply, badged, errno})
+        Ok(Self {
+            msgtype,
+            msglen,
+            cap_transfer,
+            need_reply,
+            badged,
+            errno,
+        })
     }
 }
 
-pub fn syscall(msg_info: MsgInfo, args: &mut [usize;6]) -> SysResult<(RespInfo, &mut [usize], usize)> {
+pub fn syscall(
+    msg_info: MsgInfo,
+    args: &mut [usize; 6],
+) -> SysResult<(RespInfo, &mut [usize], usize)> {
     let ret: usize;
     let badge: usize;
-    let info : usize = msg_info.into();
+    let info: usize = msg_info.into();
 
-    unsafe { llvm_asm! {"svc 1"
+    unsafe {
+        llvm_asm! {"svc 1"
         : "={x0}"(badge), "={x1}"(args[0]), "={x2}"(args[1]), "={x3}"(args[2]),
           "={x4}"(args[3]), "={x5}"(args[4]), "={x6}"(ret)
         : "{x0}"(args[0]), "{x1}"(args[1]), "{x2}"(args[2]),
@@ -180,22 +214,28 @@ pub fn syscall(msg_info: MsgInfo, args: &mut [usize;6]) -> SysResult<(RespInfo, 
         SysErrno::OK => {
             let retlen = retinfo.get_length();
             Ok((retinfo, &mut args[..retlen], badge))
-        },
-        SysErrno::CSpaceNotFound => { Err(SysError::CSpaceNotFound) },
-        SysErrno::CapabilityTypeError => { Err(SysError::CapabilityTypeError) },
-        SysErrno::LookupError => { Err(SysError::LookupError) },
-        SysErrno::UnableToDerive => { Err(SysError::UnableToDerive) },
-        SysErrno::SlotNotEmpty => { Err(SysError::SlotNotEmpty) },
-        SysErrno::VSpaceCapMapped => { Err(SysError::VSpaceCapMapped) },
-        SysErrno::UnsupportedSyscallOp => { Err(SysError::UnsupportedSyscallOp) },
-        SysErrno::VSpaceTableMiss => { Err(SysError::VSpaceTableMiss { level: args[0] as u8 }) },
-        SysErrno::VSpaceSlotOccupied => { Err(SysError::VSpaceSlotOccupied { level: args[0] as u8 }) },
-        SysErrno::VSpacePermissionError => { Err(SysError::VSpacePermissionError) },
-        SysErrno::InvalidValue => { Err(SysError::InvalidValue) },
-        SysErrno::SizeTooSmall => { Err(SysError::SizeTooSmall) },
+        }
+        SysErrno::CSpaceNotFound => Err(SysError::CSpaceNotFound),
+        SysErrno::CapabilityTypeError => Err(SysError::CapabilityTypeError),
+        SysErrno::LookupError => Err(SysError::LookupError),
+        SysErrno::UnableToDerive => Err(SysError::UnableToDerive),
+        SysErrno::SlotNotEmpty => Err(SysError::SlotNotEmpty),
+        SysErrno::VSpaceCapMapped => Err(SysError::VSpaceCapMapped),
+        SysErrno::UnsupportedSyscallOp => Err(SysError::UnsupportedSyscallOp),
+        SysErrno::VSpaceTableMiss => Err(SysError::VSpaceTableMiss {
+            level: args[0] as u8,
+        }),
+        SysErrno::VSpaceSlotOccupied => Err(SysError::VSpaceSlotOccupied {
+            level: args[0] as u8,
+        }),
+        SysErrno::VSpacePermissionError => Err(SysError::VSpacePermissionError),
+        SysErrno::InvalidValue => Err(SysError::InvalidValue),
+        SysErrno::SizeTooSmall => Err(SysError::SizeTooSmall),
     }
 }
 
 pub fn nop() {
-    unsafe { llvm_asm!{"nop"} }
+    unsafe {
+        llvm_asm! {"nop"}
+    }
 }

@@ -3,10 +3,10 @@ use crate::utils::MASK;
 fn tpidrro_el0() -> usize {
     let tpidrro: usize;
 
-    unsafe{
+    unsafe {
         llvm_asm!("mrs $0, tpidrro_el0" : "=r"(tpidrro));
     }
-    
+
     tpidrro
 }
 

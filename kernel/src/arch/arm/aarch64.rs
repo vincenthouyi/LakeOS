@@ -1,12 +1,10 @@
 use aarch64::{
-    cache::{Cache, Clean, PoU, ICache, DCache},
-    regs::{RegisterReadWrite, FAR_EL1, ESR_EL1},
-    barrier::{dsb as dsb_impl, SY, isb as isb_impl}
+    barrier::{dsb as dsb_impl, isb as isb_impl, SY},
+    cache::{Cache, Clean, DCache, ICache, PoU},
+    regs::{RegisterReadWrite, ESR_EL1, FAR_EL1},
 };
 
-pub use aarch64::{
-    asm::{wfi, wfe, sp, nop, cpuid},
-};
+pub use aarch64::asm::{cpuid, nop, sp, wfe, wfi};
 
 #[inline(always)]
 pub fn isb() {
@@ -19,8 +17,7 @@ pub fn dsb() {
 }
 
 #[inline(always)]
-pub fn get_elr() -> usize
-{
+pub fn get_elr() -> usize {
     let elr;
     unsafe {
         llvm_asm!("mrs $0, elr_el1":"=r"(elr));
@@ -29,13 +26,16 @@ pub fn get_elr() -> usize
 }
 
 #[inline(always)]
-pub fn get_esr() -> u32 { ESR_EL1.get() as u32 }
+pub fn get_esr() -> u32 {
+    ESR_EL1.get() as u32
+}
 
 #[inline(always)]
-pub fn get_far() -> u64 { FAR_EL1.get() }
+pub fn get_far() -> u64 {
+    FAR_EL1.get()
+}
 
-pub fn dc_clean_by_va_PoU(vaddr: usize)
-{
+pub fn dc_clean_by_va_PoU(vaddr: usize) {
     DCache::<Clean, PoU>::flush_line_op(vaddr);
     dsb();
 }
@@ -76,7 +76,8 @@ pub fn clean_dcache_poc() {
     let loc = (clid >> 24) & MASK!(3); // level of coherence
 
     for l in 0..loc {
-        if cache_type(clid, l) > 0b001 { // ICache
+        if cache_type(clid, l) > 0b001 {
+            // ICache
             let s = read_cache_size(l, false);
             let line_bits = (s & MASK!(3)) + 4;
             let assoc = ((s >> 3) & MASK!(10)) + 1;
@@ -86,9 +87,7 @@ pub fn clean_dcache_poc() {
             for w in 0..assoc {
                 for s in 0..nsets {
                     let wsl = w << (32 - assoc_bits) | (s << line_bits) | (l << 1);
-                    unsafe {
-                        llvm_asm!("dc cisw, $0"::"r"(wsl))
-                    }
+                    unsafe { llvm_asm!("dc cisw, $0"::"r"(wsl)) }
                 }
             }
         }

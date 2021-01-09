@@ -1,7 +1,7 @@
 use super::*;
+use crate::vspace::{AccessPermission, Entry, MemoryAttr, Shareability, VSpace};
 use core::convert::TryFrom;
 use sysapi::vspace::Permission;
-use crate::vspace::{Entry, Shareability, MemoryAttr, AccessPermission, VSpace};
 
 /* Capability Entry Field Definition
  * -------------------------------------------------
@@ -16,7 +16,7 @@ pub struct RamObj([()]); // Make a RamObj not Sized
 
 pub type RamCap<'a> = CapRef<'a, RamObj>;
 
-const ADDR_BITS : usize = 36;
+const ADDR_BITS: usize = 36;
 const ADDR_OFFSET: usize = 12;
 const WRITE_OFFSET: usize = 11;
 //const WRITE_BITS: usize = 1;
@@ -27,17 +27,25 @@ const READ_MASK: usize = 0b10000000000;
 const BIT_SZ_BITS: usize = 6;
 const BIT_SZ_OFFSET: usize = 4;
 
-impl<'a> CapRef<'a, RamObj>{
+impl<'a> CapRef<'a, RamObj> {
     pub const ADDR_MASK: usize = MASK!(ADDR_BITS + ADDR_OFFSET) & !MASK!(ADDR_OFFSET);
-    pub const fn mint(paddr: usize, writable: bool, readable: bool, bit_sz: usize, is_device: bool) -> CapRaw {
-        CapRaw::new(paddr, 
-                    ((writable as usize) << WRITE_OFFSET) 
-                    | ((readable as usize) << READ_OFFSET) 
-                    | ((bit_sz & MASK!(BIT_SZ_BITS)) << BIT_SZ_OFFSET),
-                    is_device as usize,
-                    None,
-                    None,
-                    ObjType::Ram)
+    pub const fn mint(
+        paddr: usize,
+        writable: bool,
+        readable: bool,
+        bit_sz: usize,
+        is_device: bool,
+    ) -> CapRaw {
+        CapRaw::new(
+            paddr,
+            ((writable as usize) << WRITE_OFFSET)
+                | ((readable as usize) << READ_OFFSET)
+                | ((bit_sz & MASK!(BIT_SZ_BITS)) << BIT_SZ_OFFSET),
+            is_device as usize,
+            None,
+            None,
+            ObjType::Ram,
+        )
     }
 
     pub fn is_writable(&self) -> bool {
@@ -73,27 +81,20 @@ impl<'a> CapRef<'a, RamObj>{
     pub fn debug_formatter(f: &mut core::fmt::DebugStruct, cap: &CapRaw) {
         let c = Cell::new(*cap);
         let c = RamCap::try_from(&c).unwrap();
-        f.field("vaddr", &c.vaddr())
-         .field("bit size", &c.size());
+        f.field("vaddr", &c.vaddr()).field("bit size", &c.size());
         return;
     }
 
     pub fn as_object(&self) -> &[u8] {
         use core::slice::from_raw_parts;
 
-        unsafe { from_raw_parts(
-                    self.vaddr() as *const u8,
-                    1 << self.size()
-        )}
+        unsafe { from_raw_parts(self.vaddr() as *const u8, 1 << self.size()) }
     }
 
     pub fn as_object_mut(&mut self) -> &mut [u8] {
         use core::slice::from_raw_parts_mut;
 
-        unsafe { from_raw_parts_mut(
-                    self.vaddr() as *mut u8,
-                    1 << self.size()
-        )}
+        unsafe { from_raw_parts_mut(self.vaddr() as *mut u8, 1 << self.size()) }
     }
 
     pub fn init(&mut self) {
@@ -105,15 +106,16 @@ impl<'a> CapRef<'a, RamObj>{
     }
 
     pub fn map_page(&self, vspace: &VSpace, vaddr: usize, rights: Permission) -> SysResult<()> {
-
         let executable = rights.executable;
         let access = match (rights.readable, rights.writable) {
-            (false, false) => {AccessPermission::KernelOnly}
-            (false, true) => {return Err(SysError::VSpacePermissionError);}
-            (true, false) => {AccessPermission::ReadOnly}
-            (true, true) => {AccessPermission::ReadWrite}
+            (false, false) => AccessPermission::KernelOnly,
+            (false, true) => {
+                return Err(SysError::VSpacePermissionError);
+            }
+            (true, false) => AccessPermission::ReadOnly,
+            (true, true) => AccessPermission::ReadWrite,
         };
-        let mem_attr= match self.is_device() {
+        let mem_attr = match self.is_device() {
             true => MemoryAttr::DevicenGnRnE,
             false => MemoryAttr::Normal,
         };
@@ -121,8 +123,15 @@ impl<'a> CapRef<'a, RamObj>{
             true => Shareability::NonSharable,
             false => Shareability::InnerSharable,
         };
-        let entry = Entry::page_entry(self.paddr(), !executable, false, true, share,
-                                    access, mem_attr);
+        let entry = Entry::page_entry(
+            self.paddr(),
+            !executable,
+            false,
+            true,
+            share,
+            access,
+            mem_attr,
+        );
         vspace.map_frame(vaddr, entry)?;
 
         self.set_mapped_vaddr_asid(vaddr, vspace.asid());
@@ -138,17 +147,16 @@ impl<'a> CapRef<'a, RamObj>{
         tcb.set_mr(5, self.is_device() as usize);
         5
     }
-
 }
 
 impl<'a> core::fmt::Debug for CapRef<'a, RamObj> {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         f.debug_struct("Ram Capability")
-         .field("paddr", &self.paddr())
-         .field("writable", &self.is_writable())
-         .field("readdable", &self.is_readable())
-         .field("size bits", &self.size())
-         .finish()
+            .field("paddr", &self.paddr())
+            .field("writable", &self.is_writable())
+            .field("readdable", &self.is_readable())
+            .field("size bits", &self.size())
+            .finish()
     }
 }
 

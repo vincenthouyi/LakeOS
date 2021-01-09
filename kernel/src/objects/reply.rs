@@ -1,19 +1,22 @@
-use super::*;
-use crate::syscall::{MsgInfo, RespInfo};
-use crate::objects::{CapRef, TcbObj};
 use super::endpoint::do_ipc;
+use super::*;
+use crate::objects::{CapRef, TcbObj};
+use crate::syscall::{MsgInfo, RespInfo};
 
 // #[derive(Default)]
 pub struct ReplyObj(pub *mut TcbObj);
 
 impl ReplyObj {
     pub fn waiting_tcb(&self) -> &mut TcbObj {
-        unsafe{
-            &mut *self.0
-        }
+        unsafe { &mut *self.0 }
     }
 
-    pub fn handle_reply(&self, info: MsgInfo, sender: &mut TcbObj, will_recv: bool) -> SysResult<()> {
+    pub fn handle_reply(
+        &self,
+        info: MsgInfo,
+        sender: &mut TcbObj,
+        will_recv: bool,
+    ) -> SysResult<()> {
         let receiver = self.waiting_tcb();
 
         let recv_info = receiver.get_msginfo().unwrap();
@@ -39,14 +42,7 @@ pub type ReplyCap<'a> = CapRef<'a, ReplyObj>;
 
 impl<'a> ReplyCap<'a> {
     pub fn mint(paddr: usize) -> CapRaw {
-        CapRaw::new(
-            paddr,
-            0,
-            0,
-            None,
-            None,
-            ObjType::Reply
-        )
+        CapRaw::new(paddr, 0, 0, None, None, ObjType::Reply)
     }
 
     pub fn waiting_tcb(&self) -> &mut TcbObj {

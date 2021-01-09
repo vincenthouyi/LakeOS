@@ -27,7 +27,7 @@ impl ArgumentBuffer {
     pub unsafe fn new(ptr: *mut usize, len: usize) -> Self {
         Self {
             base_ptr: ptr as usize,
-            buf_len: len
+            buf_len: len,
         }
     }
 }
@@ -38,9 +38,7 @@ impl core::ops::Deref for ArgumentBuffer {
     fn deref(&self) -> &Self::Target {
         use core::slice::from_raw_parts;
 
-        unsafe {
-            from_raw_parts(self.base_ptr as *const u8, self.buf_len)
-        }
+        unsafe { from_raw_parts(self.base_ptr as *const u8, self.buf_len) }
     }
 }
 
@@ -48,8 +46,6 @@ impl core::ops::DerefMut for ArgumentBuffer {
     fn deref_mut(&mut self) -> &mut Self::Target {
         use core::slice::from_raw_parts_mut;
 
-        unsafe {
-            from_raw_parts_mut(self.base_ptr as *mut u8, self.buf_len)
-        }
+        unsafe { from_raw_parts_mut(self.base_ptr as *mut u8, self.buf_len) }
     }
 }

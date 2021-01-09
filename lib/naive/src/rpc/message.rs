@@ -1,25 +1,25 @@
-use alloc::vec::Vec;
-use alloc::string::String;
 use crate::ns;
+use alloc::string::String;
+use alloc::vec::Vec;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WriteRequest {
-    pub buf: Vec<u8>
+    pub buf: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WriteResponse {
-    pub result: usize
+    pub result: usize,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReadRequest {
-    pub len: usize
+    pub len: usize,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReadResponse {
-    pub buf: Vec<u8>
+    pub buf: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -65,8 +65,7 @@ pub struct LookupServiceResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct CurrentTimeRequest {
-}
+pub struct CurrentTimeRequest {}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CurrentTimeResponse {

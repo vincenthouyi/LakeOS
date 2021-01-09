@@ -1,9 +1,9 @@
-use crate::console::kprintln;
-use crate::arch;
-use crate::objects::TcbObj;
-use super::trapframe::TrapFrame;
-use crate::interrupt::INTERRUPT_CONTROLLER;
 use super::cpuid;
+use super::trapframe::TrapFrame;
+use crate::arch;
+use crate::console::kprintln;
+use crate::interrupt::INTERRUPT_CONTROLLER;
+use crate::objects::TcbObj;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Fault {
@@ -13,7 +13,7 @@ pub enum Fault {
     Permission,
     Alignment,
     TlbConflict,
-    Other(u8)
+    Other(u8),
 }
 
 impl From<u32> for Fault {
@@ -47,15 +47,9 @@ pub enum Syndrome {
     Hvc(u16),
     Smc(u16),
     MsrMrsSystem,
-    InstructionAbort {
-        kind: Fault,
-        level: u8,
-    },
+    InstructionAbort { kind: Fault, level: u8 },
     PCAlignmentFault,
-    DataAbort {
-        kind: Fault,
-        level: u8
-    },
+    DataAbort { kind: Fault, level: u8 },
     SpAlignmentFault,
     TrappedFpu,
     SError,
@@ -63,7 +57,7 @@ pub enum Syndrome {
     Step,
     Watchpoint,
     Brk(u16),
-    Other(u32)
+    Other(u32),
 }
 
 /// Converts a raw syndrome value (ESR) into a `Syndrome` (ref: D1.10.4).
@@ -90,11 +84,23 @@ impl From<u32> for Syndrome {
             0b010110 => Hvc((iss & 0xFFFF) as u16), // aarch64
             0b010111 => Smc((iss & 0xFFFF) as u16), // aarch64
             0b011000 => MsrMrsSystem,
-            0b100000 => InstructionAbort{kind: iss.into(), level: (iss & 0b11) as u8}, // Instruction Abort from lower EL
-            0b100001 => InstructionAbort{kind: iss.into(), level: (iss & 0b11) as u8}, // Instruction Abort from same EL
+            0b100000 => InstructionAbort {
+                kind: iss.into(),
+                level: (iss & 0b11) as u8,
+            }, // Instruction Abort from lower EL
+            0b100001 => InstructionAbort {
+                kind: iss.into(),
+                level: (iss & 0b11) as u8,
+            }, // Instruction Abort from same EL
             0b100010 => PCAlignmentFault,
-            0b100100 => DataAbort{kind: iss.into(), level: (iss & 0b11) as u8}, // from lower EL
-            0b100101 => DataAbort{kind: iss.into(), level: (iss & 0b11) as u8}, // from same EL
+            0b100100 => DataAbort {
+                kind: iss.into(),
+                level: (iss & 0b11) as u8,
+            }, // from lower EL
+            0b100101 => DataAbort {
+                kind: iss.into(),
+                level: (iss & 0b11) as u8,
+            }, // from same EL
             0b100110 => SpAlignmentFault,
             0b101000 => TrappedFpu,
             0b101100 => TrappedFpu, //diff with 0b101000?
@@ -108,11 +114,9 @@ impl From<u32> for Syndrome {
             0b111000 => Breakpoint,
             0b111100 => Brk((iss & 0xFFFF) as u16),
             _ => Other(esr),
-        
         }
     }
 }
-
 
 //#[repr(u16)]
 //#[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -161,7 +165,12 @@ impl From<u32> for Syndrome {
 pub fn handle_vfault(tcb: &mut TcbObj) -> ! {
     let fault_addr = arch::get_far();
 
-    kprintln!("thread {:x} faulting addr 0x{:x} elr {:x}", tcb.thread_id() ,fault_addr, tcb.tf.get_elr());
+    kprintln!(
+        "thread {:x} faulting addr 0x{:x} elr {:x}",
+        tcb.thread_id(),
+        fault_addr,
+        tcb.tf.get_elr()
+    );
 
     let vspace = tcb.vspace().unwrap();
     let slot = vspace.lookup_pt_slot(fault_addr as usize);
@@ -177,12 +186,25 @@ pub unsafe extern "C" fn sync_handler() -> ! {
     kprintln!("Panic! kernel hitting exception!");
 
     match Syndrome::from(arch::get_esr()) {
-        InstructionAbort {kind,level} => {
-            kprintln!("Instruction Abort: kind {:?} level {} syndrome {:?} elr {:x}", kind, level, Syndrome::from(arch::get_esr()), arch::get_elr());
-        },
-        DataAbort {kind,level} => {
-            kprintln!("Data Abort: kind {:?} level {} syndrome {:?} elr 0x{:x} fault address 0x{:x}", kind, level, Syndrome::from(arch::get_esr()), arch::get_elr(), arch::get_far());
-        },
+        InstructionAbort { kind, level } => {
+            kprintln!(
+                "Instruction Abort: kind {:?} level {} syndrome {:?} elr {:x}",
+                kind,
+                level,
+                Syndrome::from(arch::get_esr()),
+                arch::get_elr()
+            );
+        }
+        DataAbort { kind, level } => {
+            kprintln!(
+                "Data Abort: kind {:?} level {} syndrome {:?} elr 0x{:x} fault address 0x{:x}",
+                kind,
+                level,
+                Syndrome::from(arch::get_esr()),
+                arch::get_elr(),
+                arch::get_far()
+            );
+        }
         syn => {
             kprintln!("Unhandled synchronous trap: {:?}", syn);
         }
@@ -197,25 +219,45 @@ pub unsafe extern "C" fn lower64_sync_handler(tf: &mut TrapFrame) -> ! {
 
     let tcb = tf.get_tcb();
     let _ret = match Syndrome::from(arch::get_esr()) {
-        Svc(1) => {
-            crate::syscall::handle_syscall(tcb)
-        },
-        InstructionAbort {kind,level} => {
-            kprintln!("Lower64 Instruction Abort tcb {:X?} kind {:?} level {} syndrome {:?}", tcb, kind, level, Syndrome::from(arch::get_esr()));
+        Svc(1) => crate::syscall::handle_syscall(tcb),
+        InstructionAbort { kind, level } => {
+            kprintln!(
+                "Lower64 Instruction Abort tcb {:X?} kind {:?} level {} syndrome {:?}",
+                tcb,
+                kind,
+                level,
+                Syndrome::from(arch::get_esr())
+            );
             handle_vfault(tcb)
-        },
-        DataAbort {kind,level} => {
-            kprintln!("Lower64 Data Abort tcb {:X?} kind {:?} level {} syndrome {:?}", tcb, kind, level, Syndrome::from(arch::get_esr()));
+        }
+        DataAbort { kind, level } => {
+            kprintln!(
+                "Lower64 Data Abort tcb {:X?} kind {:?} level {} syndrome {:?}",
+                tcb,
+                kind,
+                level,
+                Syndrome::from(arch::get_esr())
+            );
             handle_vfault(tcb)
-        },
+        }
         Brk(_) => {
-            kprintln!("tcb {:X?} syndrome {:?}", tcb, Syndrome::from(arch::get_esr()));
+            kprintln!(
+                "tcb {:X?} syndrome {:?}",
+                tcb,
+                Syndrome::from(arch::get_esr())
+            );
             let elr = tcb.tf.get_elr();
-            tcb.tf.set_elr(elr+4);
+            tcb.tf.set_elr(elr + 4);
             unreachable!()
-        },
+        }
         syn => {
-            panic!("Unhandled synchronous trap: {:?} thread_id {:x} elr {:x} tcb {:x?}", syn, tcb.thread_id(), tf.get_elr(), tf);
+            panic!(
+                "Unhandled synchronous trap: {:?} thread_id {:x} elr {:x} tcb {:x?}",
+                syn,
+                tcb.thread_id(),
+                tf.get_elr(),
+                tf
+            );
         }
     };
 }
@@ -240,7 +282,7 @@ pub unsafe extern "C" fn lower64_irq_handler(tf: &mut TrapFrame) -> ! {
 #[no_mangle]
 pub unsafe extern "C" fn unknown_exception_handler(tcb: &mut TcbObj) -> ! {
     kprintln!("unknown exception! tcb: {:?}", tcb);
-    loop{}
+    loop {}
 }
 
 #[no_mangle]
@@ -248,7 +290,9 @@ pub unsafe extern "C" fn irq_trap() -> ! {
     use super::generic_timer::Timer;
 
     // INTERRUPT_CONTROLLER.lock().receive_irq();
-    super::boot::IDLE_THREADS.get_mut().timeslice_sub(crate::TICK as usize);
+    super::boot::IDLE_THREADS
+        .get_mut()
+        .timeslice_sub(crate::TICK as usize);
     Timer::new().tick_in(crate::TICK);
     crate::SCHEDULER.get_mut().activate();
 }

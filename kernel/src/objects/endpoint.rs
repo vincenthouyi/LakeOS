@@ -1,8 +1,8 @@
 use super::*;
-use num_traits::FromPrimitive;
-use crate::utils::tcb_queue::TcbQueue;
-use crate::syscall::{MsgInfo, RespInfo};
 use crate::objects::tcb::ThreadState;
+use crate::syscall::{MsgInfo, RespInfo};
+use crate::utils::tcb_queue::TcbQueue;
+use num_traits::FromPrimitive;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EpState {
@@ -14,7 +14,7 @@ pub enum EpState {
 
 impl core::default::Default for EpState {
     fn default() -> Self {
-        Self:: Free
+        Self::Free
     }
 }
 
@@ -25,11 +25,11 @@ pub struct EndpointObj {
     irq: Cell<u64>,
 }
 
-pub type EndpointCap<'a> = CapRef::<'a, EndpointObj>;
+pub type EndpointCap<'a> = CapRef<'a, EndpointObj>;
 
 #[derive(Clone, Copy, Debug, FromPrimitive)]
 pub enum AttachType {
-    Unattached    = 0,
+    Unattached = 0,
     IrqController = 1,
 }
 
@@ -59,7 +59,7 @@ impl<'a> EndpointCap<'a> {
             badge,
             None,
             None,
-            ObjType::Endpoint
+            ObjType::Endpoint,
         )
     }
 
@@ -105,8 +105,10 @@ impl<'a> EndpointCap<'a> {
 
         match head.state() {
             ThreadState::Sending => EpState::Sending,
-            ThreadState::Receiving  => EpState::Receiving,
-            s => { panic!("thread is not in state {:?}", s) }
+            ThreadState::Receiving => EpState::Receiving,
+            s => {
+                panic!("thread is not in state {:?}", s)
+            }
         }
     }
 
@@ -131,7 +133,15 @@ impl<'a> EndpointCap<'a> {
             EpState::Receiving => {
                 let receiver = self.queue.dequeue().unwrap();
                 let badge = self.badge();
-                do_ipc(receiver, receiver.get_msginfo().unwrap(), tcb, info, badge, false, false)?;
+                do_ipc(
+                    receiver,
+                    receiver.get_msginfo().unwrap(),
+                    tcb,
+                    info,
+                    badge,
+                    false,
+                    false,
+                )?;
                 receiver.set_state(ThreadState::Ready);
                 crate::SCHEDULER.get_mut().push(receiver);
 
@@ -153,14 +163,15 @@ impl<'a> EndpointCap<'a> {
     pub fn handle_recv(&self, info: MsgInfo, tcb: &mut TcbObj) -> SysResult<()> {
         match self.state() {
             EpState::Free => {
-
                 tcb.detach();
                 tcb.set_state(ThreadState::Receiving);
                 self.queue.enqueue(tcb);
 
                 if self.irq.get() != 0 {
                     unsafe {
-                        crate::interrupt::INTERRUPT_CONTROLLER.lock().listen_irq_mask(self.irq.get());
+                        crate::interrupt::INTERRUPT_CONTROLLER
+                            .lock()
+                            .listen_irq_mask(self.irq.get());
                     }
                 }
 
@@ -253,10 +264,15 @@ impl<'a> EndpointCap<'a> {
     }
 }
 
-pub fn do_ipc(recv: &mut TcbObj, recv_info: MsgInfo, send: &mut TcbObj,
-            send_info: MsgInfo, badge: Option<usize>, is_call: bool, is_reply: bool)
-    -> SysResult<()>
-{
+pub fn do_ipc(
+    recv: &mut TcbObj,
+    recv_info: MsgInfo,
+    send: &mut TcbObj,
+    send_info: MsgInfo,
+    badge: Option<usize>,
+    is_call: bool,
+    is_reply: bool,
+) -> SysResult<()> {
     let mut has_cap_trans = false;
 
     let msglen = send_info.get_length();
@@ -282,7 +298,13 @@ pub fn do_ipc(recv: &mut TcbObj, recv_info: MsgInfo, send: &mut TcbObj,
         has_cap_trans = true;
     }
 
-    recv.set_respinfo(RespInfo::ipc_resp(SysError::OK, msglen, has_cap_trans, is_call, badge.is_some()));
+    recv.set_respinfo(RespInfo::ipc_resp(
+        SysError::OK,
+        msglen,
+        has_cap_trans,
+        is_call,
+        badge.is_some(),
+    ));
     if !is_call && !is_reply {
         send.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
     }

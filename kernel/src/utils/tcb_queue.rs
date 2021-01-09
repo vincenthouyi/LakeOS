@@ -1,6 +1,6 @@
-use core::ptr::NonNull;
-use core::cell::Cell;
 use crate::objects::{TcbObj, TCB_OBJ_BIT_SZ};
+use core::cell::Cell;
+use core::ptr::NonNull;
 
 #[derive(Debug, Default)]
 pub struct TcbQueueNode {
@@ -26,38 +26,38 @@ impl TcbQueueNode {
     pub unsafe fn tcb_mut(&self) -> &mut TcbObj {
         let addr = self as *const _ as usize;
         let tcb_addr = addr & !MASK!(TCB_OBJ_BIT_SZ);
-        
+
         &mut *(tcb_addr as *mut TcbObj)
     }
 
     pub fn get_prev<'a>(&self) -> Option<&'a TcbQueueNode> {
-        self.prev.get().map(|p| unsafe{ &*p.as_ptr() } )
+        self.prev.get().map(|p| unsafe { &*p.as_ptr() })
     }
 
     pub fn get_next<'a>(&self) -> Option<&'a TcbQueueNode> {
-        self.next.get().map(|p| unsafe{ &*p.as_ptr() } )
+        self.next.get().map(|p| unsafe { &*p.as_ptr() })
     }
 
     pub fn set_prev(&self, prev: Option<&TcbQueueNode>) {
-        self.prev.set(prev.map(|x|x.into()));
+        self.prev.set(prev.map(|x| x.into()));
     }
 
     pub fn set_next(&self, next: Option<&TcbQueueNode>) {
-        self.next.set(next.map(|x|x.into()));
+        self.next.set(next.map(|x| x.into()));
     }
 
-//    pub fn append(&mut self, next: &mut TcbQueueNode) {
-//        next.next = self.next.replace(next.into());
-//        next.next.map(|mut p| unsafe{
-//            p.as_mut()
-//             .prev
-//             .replace(next.into())
-//        });
-//        next.prev.replace(self.into());
-//        if self.prev.is_none() {
-//            self.prev = Some(next.into());
-//        }
-//    }
+    //    pub fn append(&mut self, next: &mut TcbQueueNode) {
+    //        next.next = self.next.replace(next.into());
+    //        next.next.map(|mut p| unsafe{
+    //            p.as_mut()
+    //             .prev
+    //             .replace(next.into())
+    //        });
+    //        next.prev.replace(self.into());
+    //        if self.prev.is_none() {
+    //            self.prev = Some(next.into());
+    //        }
+    //    }
 
     pub fn prepend(&self, node: &TcbQueueNode) {
         let old_prev = self.get_prev().unwrap_or(self);
@@ -67,16 +67,15 @@ impl TcbQueueNode {
         self.set_prev(Some(node.into()));
     }
 
-//    pub fn pop_prev<'a>(&self) -> Option<&'a mut TcbQueueNode> {
-//        unimplemented!()
-//    }
+    //    pub fn pop_prev<'a>(&self) -> Option<&'a mut TcbQueueNode> {
+    //        unimplemented!()
+    //    }
 
     pub unsafe fn pop_next<'a>(&self) -> Option<&'a TcbQueueNode> {
-        self.get_next()
-            .map(|node| {
-                node.detach();
-                node
-            })
+        self.get_next().map(|node| {
+            node.detach();
+            node
+        })
     }
 
     pub fn detach(&self) {
@@ -99,12 +98,14 @@ impl TcbQueueNode {
 
 #[derive(Debug, Default)]
 pub struct TcbQueue {
-    node: TcbQueueNode
+    node: TcbQueueNode,
 }
 
 impl TcbQueue {
     pub const fn new() -> Self {
-        Self{ node: TcbQueueNode::new() }
+        Self {
+            node: TcbQueueNode::new(),
+        }
     }
 
     #[allow(dead_code)]

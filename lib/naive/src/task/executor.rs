@@ -1,6 +1,6 @@
-use core::task::{Context, Poll, Waker};
 use alloc::collections::BTreeMap;
 use alloc::sync::Arc;
+use core::task::{Context, Poll, Waker};
 use crossbeam_queue::SegQueue;
 
 use super::{Task, TaskId, TaskWaker};

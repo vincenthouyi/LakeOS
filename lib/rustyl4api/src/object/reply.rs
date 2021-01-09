@@ -1,6 +1,6 @@
-use crate::object::ObjType;
 use crate::error::SysResult;
-use crate::syscall::{MsgInfo, SyscallOp, syscall};
+use crate::object::ObjType;
+use crate::syscall::{syscall, MsgInfo, SyscallOp};
 
 use super::{Capability, KernelObject};
 
@@ -9,7 +9,9 @@ pub struct ReplyObj {}
 pub type ReplyCap = Capability<ReplyObj>;
 
 impl KernelObject for ReplyObj {
-    fn obj_type() -> ObjType { ObjType::Reply }
+    fn obj_type() -> ObjType {
+        ObjType::Reply
+    }
 }
 
 impl Capability<ReplyObj> {
@@ -18,6 +20,6 @@ impl Capability<ReplyObj> {
         let len = super::endpoint::copy_massge_payload(&mut args, message, cap);
         let info = MsgInfo::new_ipc(SyscallOp::EndpointReply, len, cap.is_some());
         let ret = syscall(info, &mut args);
-        return ret.map(|_|());
+        return ret.map(|_| ());
     }
 }

@@ -1,4 +1,3 @@
-
 pub const FRAME_BIT_SIZE: usize = 12;
 pub const FRAME_SIZE: usize = 1 << FRAME_BIT_SIZE;
 
@@ -43,8 +42,6 @@ impl core::convert::Into<usize> for Permission {
 
 impl core::convert::From<usize> for Permission {
     fn from(p: usize) -> Self {
-        Self::new(p >> 2 == 1,
-                  (p >> 1) & 1 == 1,
-                  p & 1 == 1)
+        Self::new(p >> 2 == 1, (p >> 1) & 1 == 1, p & 1 == 1)
     }
 }

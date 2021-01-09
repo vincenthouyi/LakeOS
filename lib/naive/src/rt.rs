@@ -8,9 +8,9 @@ static mut INIT_ALLOC_MEMPOOL: InitMemPool = InitMemPool([0u8; MEMPOOL_SIZE]);
 static mut INIT_ALLOC_BACKUP_MEMPOOL: InitMemPool = InitMemPool([0u8; MEMPOOL_SIZE]);
 
 pub fn populate_app_cspace() {
-    use rustyl4api::process::{ProcessCSpace, PROCESS_ROOT_CNODE_SIZE};
-    use rustyl4api::object::Capability;
     use rustyl4api::object::identify::{cap_identify, IdentifyResult};
+    use rustyl4api::object::Capability;
+    use rustyl4api::process::{ProcessCSpace, PROCESS_ROOT_CNODE_SIZE};
 
     let root_cnode = Capability::new(ProcessCSpace::RootCNodeCap as usize);
     let root_vnode = Capability::new(ProcessCSpace::RootVNodeCap as usize);
@@ -20,7 +20,7 @@ pub fn populate_app_cspace() {
     gsm!().cspace_alloc_at(0);
 
     let mut cap_max = 1;
-    for i in ProcessCSpace::ProcessFixedMax as usize .. PROCESS_ROOT_CNODE_SIZE {
+    for i in ProcessCSpace::ProcessFixedMax as usize..PROCESS_ROOT_CNODE_SIZE {
         let res = cap_identify(i).unwrap();
         if let IdentifyResult::NullObj = res {
             cap_max = i;
@@ -29,7 +29,7 @@ pub fn populate_app_cspace() {
         gsm!().cspace_alloc_at(i);
     }
 
-    for i in 1 .. cap_max {
+    for i in 1..cap_max {
         let res = cap_identify(i).unwrap();
 
         gsm!().insert_identify(i, res);
@@ -47,12 +47,14 @@ pub fn initialize_vmspace() {
 
 pub fn initialize_mm() {
     unsafe {
-        crate::vm_allocator::GLOBAL_VM_ALLOC
-            .add_mempool(INIT_ALLOC_MEMPOOL.0.as_ptr() as *mut u8,
-                         INIT_ALLOC_MEMPOOL.0.len());
-        crate::vm_allocator::GLOBAL_VM_ALLOC
-            .add_backup_mempool(INIT_ALLOC_BACKUP_MEMPOOL.0.as_ptr() as *mut u8,
-                         INIT_ALLOC_BACKUP_MEMPOOL.0.len());
+        crate::vm_allocator::GLOBAL_VM_ALLOC.add_mempool(
+            INIT_ALLOC_MEMPOOL.0.as_ptr() as *mut u8,
+            INIT_ALLOC_MEMPOOL.0.len(),
+        );
+        crate::vm_allocator::GLOBAL_VM_ALLOC.add_backup_mempool(
+            INIT_ALLOC_BACKUP_MEMPOOL.0.as_ptr() as *mut u8,
+            INIT_ALLOC_BACKUP_MEMPOOL.0.len(),
+        );
     }
 }
 

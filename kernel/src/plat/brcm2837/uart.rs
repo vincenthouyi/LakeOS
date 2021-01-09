@@ -1,7 +1,7 @@
 use core::fmt::{Arguments, Write};
 
-use spin::Mutex;
 use pi::uart::MiniUart;
+use spin::Mutex;
 /// The base address for the `MU` registers.
 const MU_REG_PAGE_BASE: usize = crate::prelude::IO_BASE + 0x215000;
 static DEBUG_CONSOLE: Mutex<Option<MiniUart>> = Mutex::new(None);
@@ -16,7 +16,7 @@ pub fn console_print(args: Arguments) {
 }
 
 pub fn init_uart() {
-    use pi::gpio::{Gpio, Function};
+    use pi::gpio::{Function, Gpio};
 
     /* Switch GPIO 14 and 15 mode to Alt5 */
     Gpio::new(14, crate::prelude::IO_BASE + 0x200000).into_alt(Function::Alt5);

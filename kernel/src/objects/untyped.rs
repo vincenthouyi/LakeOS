@@ -17,7 +17,7 @@ pub type UntypedCap<'a> = CapRef<'a, UntypedObj>;
  * -------------------------------------------------
  */
 impl<'a> CapRef<'a, UntypedObj> {
-    pub const ADDR_MASK   : usize = !MASK!(Self::MIN_BIT_SIZE);
+    pub const ADDR_MASK: usize = !MASK!(Self::MIN_BIT_SIZE);
     pub const MIN_BIT_SIZE: usize = 4;
     pub const fn mint(addr: usize, bit_sz: usize, is_device: bool) -> CapRaw {
         CapRaw::new(
@@ -26,7 +26,7 @@ impl<'a> CapRef<'a, UntypedObj> {
             bit_sz & MASK!(6),
             None,
             None,
-            ObjType::Untyped
+            ObjType::Untyped,
         )
     }
 
@@ -59,14 +59,18 @@ impl<'a> CapRef<'a, UntypedObj> {
      * sized objects.
      * `slots`: a range of slots to put new objects. need to check if empty
      */
-    pub fn retype(&self, obj_type: ObjType, bit_size: usize, slots: &[CNodeEntry]) -> SysResult<()> {
-        if slots.iter()
-                .any(|cap| NullCap::try_from(cap).is_err()) {
-            return Err(SysError::SlotNotEmpty)
+    pub fn retype(
+        &self,
+        obj_type: ObjType,
+        bit_size: usize,
+        slots: &[CNodeEntry],
+    ) -> SysResult<()> {
+        if slots.iter().any(|cap| NullCap::try_from(cap).is_err()) {
+            return Err(SysError::SlotNotEmpty);
         }
 
         if bit_size > 64 {
-            return Err(SysError::InvalidValue)
+            return Err(SysError::InvalidValue);
         }
 
         let count = slots.len();
@@ -81,30 +85,30 @@ impl<'a> CapRef<'a, UntypedObj> {
         for (i, slot) in slots.iter().enumerate() {
             let addr = self.paddr() + free_offset + i * obj_size;
             let cap = match obj_type {
-                ObjType::Untyped => { CapRef::<UntypedObj>::mint(addr, bit_size, self.is_device()) },
-                ObjType::CNode   => {
+                ObjType::Untyped => CapRef::<UntypedObj>::mint(addr, bit_size, self.is_device()),
+                ObjType::CNode => {
                     let radix_sz = bit_size - super::CNODE_ENTRY_BIT_SZ;
 
                     CapRef::<CNodeObj>::mint(addr, radix_sz, 64 - radix_sz, 0)
-                },
-                ObjType::Tcb     => { CapRef::<TcbObj>::mint(addr) },
-                ObjType::Ram     => { CapRef::<RamObj>::mint(addr, true, true, 12, self.is_device()) },
-                ObjType::VTable  => { CapRef::<VTableObj>::mint(addr) },
-                ObjType::Endpoint=> { CapRef::<EndpointObj>::mint(addr, 0) },
-                _ => { return Err(SysError::InvalidValue) }
+                }
+                ObjType::Tcb => CapRef::<TcbObj>::mint(addr),
+                ObjType::Ram => CapRef::<RamObj>::mint(addr, true, true, 12, self.is_device()),
+                ObjType::VTable => CapRef::<VTableObj>::mint(addr),
+                ObjType::Endpoint => CapRef::<EndpointObj>::mint(addr, 0),
+                _ => return Err(SysError::InvalidValue),
             };
 
             slot.set(cap);
             self.append_next(slot);
 
             match obj_type {
-//                ObjType::NullObj => { unreachable!() },
-//                ObjType::Untyped => { CapRef::<UntypedObj>::mint(addr, obj_size) },
-                ObjType::CNode   => { CNodeCap::try_from(slot).unwrap().init() },
-                ObjType::Tcb     => { TcbCap::try_from(slot).unwrap().init() },
-                ObjType::Ram     => { RamCap::try_from(slot).unwrap().init() },
-                ObjType::VTable  => { VTableCap::try_from(slot).unwrap().init() },
-                ObjType::Endpoint=> { EndpointCap::try_from(slot).unwrap().init() }
+                //                ObjType::NullObj => { unreachable!() },
+                //                ObjType::Untyped => { CapRef::<UntypedObj>::mint(addr, obj_size) },
+                ObjType::CNode => CNodeCap::try_from(slot).unwrap().init(),
+                ObjType::Tcb => TcbCap::try_from(slot).unwrap().init(),
+                ObjType::Ram => RamCap::try_from(slot).unwrap().init(),
+                ObjType::VTable => VTableCap::try_from(slot).unwrap().init(),
+                ObjType::Endpoint => EndpointCap::try_from(slot).unwrap().init(),
                 _ => {}
             }
         }
@@ -125,7 +129,7 @@ impl<'a> CapRef<'a, UntypedObj> {
         let c = Cell::new(*cap);
         let c = UntypedCap::try_from(&c).unwrap();
         f.field("vaddr", &c.vaddr())
-         .field("size", &c.size())
-         .field("free offset", &c.free_offset());
+            .field("size", &c.size())
+            .field("free offset", &c.free_offset());
     }
 }

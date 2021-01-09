@@ -1,4 +1,4 @@
-use crate::objects::{CNodeObj, CNodeEntry, CNodeLookupErr};
+use crate::objects::{CNodeEntry, CNodeLookupErr, CNodeObj};
 
 pub struct CSpace<'a>(pub &'a mut CNodeObj);
 

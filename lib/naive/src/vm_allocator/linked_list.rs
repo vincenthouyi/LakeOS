@@ -66,7 +66,9 @@ unsafe impl Send for LinkedList {}
 impl LinkedList {
     /// Returns a new, empty linked list.
     pub const fn new() -> LinkedList {
-        LinkedList { head: ptr::null_mut() }
+        LinkedList {
+            head: ptr::null_mut(),
+        }
     }
 
     /// Returns `true` if the list is empty and `false` otherwise.
@@ -105,7 +107,10 @@ impl LinkedList {
 
     /// Returns an iterator over the items in this list.
     pub fn iter(&self) -> Iter {
-        Iter { current: self.head, _list: self }
+        Iter {
+            current: self.head,
+            _list: self,
+        }
     }
 
     /// Returns an iterator over the items in this list.
@@ -116,7 +121,7 @@ impl LinkedList {
         IterMut {
             prev: &mut self.head as *mut *mut usize as *mut usize,
             current: self.head,
-            _list: self
+            _list: self,
         }
     }
 }
@@ -130,7 +135,7 @@ impl fmt::Debug for LinkedList {
 /// An iterator over the items of the linked list.
 pub struct Iter<'a> {
     _list: &'a LinkedList,
-    current: *mut usize
+    current: *mut usize,
 }
 
 impl<'a> Iterator for Iter<'a> {
@@ -147,14 +152,16 @@ impl<'a> Iterator for Iter<'a> {
 /// An item returned from a mutable iterator of a `LinkedList`.
 pub struct Node {
     prev: *mut usize,
-    value: *mut usize
+    value: *mut usize,
 }
 
 impl Node {
     /// Removes and returns the value of this item from the linked list it
     /// belongs to.
     pub fn pop(self) -> *mut usize {
-        unsafe { *(self.prev) = *(self.value); }
+        unsafe {
+            *(self.prev) = *(self.value);
+        }
         self.value
     }
 
@@ -168,7 +175,7 @@ impl Node {
 pub struct IterMut<'a> {
     _list: &'a mut LinkedList,
     prev: *mut usize,
-    current: *mut usize
+    current: *mut usize,
 }
 
 impl<'a> Iterator for IterMut<'a> {

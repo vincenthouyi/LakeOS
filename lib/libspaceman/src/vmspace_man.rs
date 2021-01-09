@@ -1,6 +1,5 @@
-use core::sync::atomic::{Ordering, AtomicUsize};
-use alloc::collections::LinkedList;
 use alloc::alloc::Layout;
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct VmArea {
@@ -64,6 +63,6 @@ impl VMSpaceMan {
                 return start;
             }
         }
-//        self.vma_list.push_back(VmArea{start, end});
+        //        self.vma_list.push_back(VmArea{start, end});
     }
 }

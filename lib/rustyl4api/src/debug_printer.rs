@@ -1,10 +1,10 @@
+use core::fmt::{Arguments, Result, Write};
 use spin::Mutex;
-use core::fmt::{Write, Arguments, Result};
 
 use crate::syscall::{syscall, MsgInfo, SyscallOp};
 
 pub struct DebugPrinter {}
-pub static DEBUG_PRINTER: Mutex::<DebugPrinter> = Mutex::new(DebugPrinter{});
+pub static DEBUG_PRINTER: Mutex<DebugPrinter> = Mutex::new(DebugPrinter {});
 
 impl Write for DebugPrinter {
     fn write_str(&mut self, s: &str) -> Result {
@@ -12,7 +12,7 @@ impl Write for DebugPrinter {
             let msg_len = 1;
             let msg_info = MsgInfo::new(SyscallOp::DebugPrint, msg_len);
 
-            let mut args = [0, c as usize,0,0,0,0];
+            let mut args = [0, c as usize, 0, 0, 0, 0];
             syscall(msg_info, &mut args).unwrap();
         }
         Ok(())

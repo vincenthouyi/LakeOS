@@ -1,10 +1,10 @@
-mod server;
 mod client;
 mod message;
+mod server;
 
-pub use client::{RpcClient, RpcCallFuture};
-pub use server::{RpcServer, RpcRequestHandlers};
+pub use client::{RpcCallFuture, RpcClient};
 pub use message::*;
+pub use server::{RpcRequestHandlers, RpcServer};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum Error {

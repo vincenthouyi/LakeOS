@@ -1,17 +1,12 @@
 use core::{
-    task::{Context, Poll},
-    pin::Pin,
     future::Future,
+    pin::Pin,
+    task::{Context, Poll},
 };
 
-use alloc::{
-    vec::Vec,
-    string::String,
-};
+use alloc::{string::String, vec::Vec};
 
-use rustyl4api::{
-    object::{EpCap},
-};
+use rustyl4api::object::EpCap;
 
 use crate::{
     lmp::{LmpChannelHandle, LmpMessage},
@@ -41,7 +36,7 @@ impl RpcClient {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::WriteRequest{ buf: buf.to_vec() };
+            let payload = super::WriteRequest { buf: buf.to_vec() };
             let request = LmpMessage {
                 opcode: 0,
                 msg: serde_json::to_vec(&payload).unwrap(),
@@ -50,7 +45,7 @@ impl RpcClient {
             RpcCallFuture::new(channel.clone(), request)
         });
         let resp_msg = rpc.await;
-        let resp : super::WriteResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
+        let resp: super::WriteResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
         self.rpc_state.take();
         resp.result
     }
@@ -59,7 +54,7 @@ impl RpcClient {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::ReadRequest{ len: buf.len() };
+            let payload = super::ReadRequest { len: buf.len() };
             let request = LmpMessage {
                 opcode: 1,
                 msg: serde_json::to_vec(&payload).unwrap(),
@@ -75,11 +70,20 @@ impl RpcClient {
         read_len
     }
 
-    pub async fn request_memory(&mut self, paddr: usize, size: usize, maybe_device: bool) -> Result<usize, ()> {
+    pub async fn request_memory(
+        &mut self,
+        paddr: usize,
+        size: usize,
+        maybe_device: bool,
+    ) -> Result<usize, ()> {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::RequestMemoryRequest{ paddr, size, maybe_device };
+            let payload = super::RequestMemoryRequest {
+                paddr,
+                size,
+                maybe_device,
+            };
             let request = LmpMessage {
                 opcode: 2,
                 msg: serde_json::to_vec(&payload).unwrap(),
@@ -92,7 +96,7 @@ impl RpcClient {
         self.rpc_state.take();
         match resp.result {
             0 => Ok(*resp_msg.caps.get(0).unwrap()),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 
@@ -100,7 +104,7 @@ impl RpcClient {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::RequestIrqRequest{ irq };
+            let payload = super::RequestIrqRequest { irq };
             let request = LmpMessage {
                 opcode: 3,
                 msg: serde_json::to_vec(&payload).unwrap(),
@@ -113,11 +117,11 @@ impl RpcClient {
         self.rpc_state.take();
         match resp.result {
             0 => Ok(*resp_msg.caps.get(0).unwrap()),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 
-    pub async fn register_service(&mut self, name: String, cap: usize) -> ns::Result<()>{
+    pub async fn register_service(&mut self, name: String, cap: usize) -> ns::Result<()> {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
@@ -159,7 +163,7 @@ impl RpcClient {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::CurrentTimeRequest{};
+            let payload = super::CurrentTimeRequest {};
             let request = LmpMessage {
                 opcode: 6,
                 msg: serde_json::to_vec(&payload).unwrap(),
@@ -182,7 +186,11 @@ pub struct RpcCallFuture {
 
 impl RpcCallFuture {
     pub fn new(channel: LmpChannelHandle, request: LmpMessage) -> Self {
-        Self { channel, request, state: 0 }
+        Self {
+            channel,
+            request,
+            state: 0,
+        }
     }
 }
 
@@ -190,7 +198,11 @@ impl Future for RpcCallFuture {
     type Output = LmpMessage;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let Self { channel, request, state } = &mut *self;
+        let Self {
+            channel,
+            request,
+            state,
+        } = &mut *self;
 
         loop {
             match state {
@@ -206,7 +218,9 @@ impl Future for RpcCallFuture {
                     let msg = ready!(fut.poll(cx)).unwrap();
                     return Poll::Ready(msg);
                 }
-                _ => { unreachable!() }
+                _ => {
+                    unreachable!()
+                }
             }
         }
     }

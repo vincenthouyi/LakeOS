@@ -1,9 +1,9 @@
 use pi::timer::Timer;
 use spin::Mutex;
 
+use naive::space_manager::gsm;
 use rustyl4api::object::RamCap;
 use rustyl4api::vspace::Permission;
-use naive::space_manager::gsm;
 
 pub static SYSTEM_TIMER: Mutex<Option<Timer>> = Mutex::new(None);
 
@@ -20,25 +20,25 @@ pub fn current_time() -> u64 {
     SYSTEM_TIMER.lock().as_ref().unwrap().read()
 }
 
-/// Spins until `us` microseconds have passed.
-pub fn spin_sleep_us(us: u64) {
-    let old = current_time();
-    loop {
-        let new = current_time();
-        if old + us <= new {
-            break;
-        }
-    }
-}
+// /// Spins until `us` microseconds have passed.
+// pub fn spin_sleep_us(us: u64) {
+//     let old = current_time();
+//     loop {
+//         let new = current_time();
+//         if old + us <= new {
+//             break;
+//         }
+//     }
+// }
 
-/// Spins until `ms` milliseconds have passed.
-pub fn spin_sleep_ms(ms: u64) {
-    spin_sleep_us(ms * 1000);
-}
+// /// Spins until `ms` milliseconds have passed.
+// pub fn spin_sleep_ms(ms: u64) {
+//     spin_sleep_us(ms * 1000);
+// }
 
-/// Sets up a match in timer 1 to occur `us` microseconds from now. If
-/// interrupts for timer 1 are enabled and IRQs are unmasked, then a timer
-/// interrupt will be issued in `us` microseconds.
-pub fn tick_in(us: u32) {
-    SYSTEM_TIMER.lock().as_mut().unwrap().tick_in(us)
-}
+// /// Sets up a match in timer 1 to occur `us` microseconds from now. If
+// /// interrupts for timer 1 are enabled and IRQs are unmasked, then a timer
+// /// interrupt will be issued in `us` microseconds.
+// pub fn tick_in(us: u32) {
+//     SYSTEM_TIMER.lock().as_mut().unwrap().tick_in(us)
+// }

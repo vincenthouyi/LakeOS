@@ -9,8 +9,8 @@ pub enum SysError {
     SlotNotEmpty,
     UnsupportedSyscallOp,
     VSpaceCapMapped,
-    VSpaceTableMiss {level: u8},
-    VSpaceSlotOccupied{level: u8},
+    VSpaceTableMiss { level: u8 },
+    VSpaceSlotOccupied { level: u8 },
     VSpacePermissionError,
     InvalidValue,
 
@@ -29,8 +29,8 @@ impl SysError {
             SysError::SlotNotEmpty => SysErrno::SlotNotEmpty,
             SysError::UnsupportedSyscallOp => SysErrno::UnsupportedSyscallOp,
             SysError::VSpaceCapMapped => SysErrno::VSpaceCapMapped,
-            SysError::VSpaceTableMiss {level: _} => SysErrno::VSpaceTableMiss,
-            SysError::VSpaceSlotOccupied{level: _} => SysErrno::VSpaceSlotOccupied,
+            SysError::VSpaceTableMiss { level: _ } => SysErrno::VSpaceTableMiss,
+            SysError::VSpaceSlotOccupied { level: _ } => SysErrno::VSpaceSlotOccupied,
             SysError::VSpacePermissionError => SysErrno::VSpacePermissionError,
             SysError::InvalidValue => SysErrno::InvalidValue,
             SysError::SizeTooSmall => SysErrno::SizeTooSmall,
@@ -56,7 +56,6 @@ pub enum SysErrno {
 
     /* Untyped */
     SizeTooSmall,
-
 }
 
 pub type SysResult<T> = core::result::Result<T, SysError>;

@@ -1,15 +1,14 @@
 #![no_std]
 #![no_main]
-
 #![feature(once_cell)]
 
 extern crate alloc;
 
-#[macro_use] extern crate naive;
+#[macro_use]
+extern crate naive;
 
-use rustyl4api::{kprintln};
-use naive::ep_server::EP_SERVER;
 use naive::ns::ns_client;
+use rustyl4api::kprintln;
 
 mod shell;
 
@@ -19,7 +18,7 @@ async fn main() -> () {
     kprintln!("shell process start");
 
     let mut stdio_cap_slot = None;
-    
+
     while let None = stdio_cap_slot {
         stdio_cap_slot = ns_client()
             .lock()

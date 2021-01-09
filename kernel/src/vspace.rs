@@ -1,1 +1,3 @@
-pub use crate::arch::vspace::{VSpace, Table, Entry, Shareability, AccessPermission, MemoryAttr, PAGE_SIZE};
+pub use crate::arch::vspace::{
+    AccessPermission, Entry, MemoryAttr, Shareability, Table, VSpace, PAGE_SIZE,
+};

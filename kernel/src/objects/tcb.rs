@@ -1,13 +1,13 @@
+use core::fmt::{Debug, Error, Formatter};
 use core::mem::size_of;
-use core::fmt::{Debug, Formatter, Error};
 
 use super::*;
-use crate::vspace::VSpace;
 use crate::arch::trapframe::TrapFrame;
+use crate::cspace::CSpace;
+use crate::objects::NullCap;
 use crate::syscall::{MsgInfo, RespInfo};
 use crate::utils::tcb_queue::TcbQueueNode;
-use crate::objects::NullCap;
-use crate::cspace::CSpace;
+use crate::vspace::VSpace;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ThreadState {
@@ -39,13 +39,13 @@ pub struct TcbObj {
 impl Debug for TcbObj {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         f.debug_struct("TcbObj")
-         .field("trapfram", &self.tf)
-         .field("cspace", &self.cspace)
-         .field("vspace", &self.vspace)
-         .field("time_slice", &self.time_slice.get())
-         .field("state", &self.state.get())
-         .field("queue node", &self.node)
-         .finish()
+            .field("trapfram", &self.tf)
+            .field("cspace", &self.cspace)
+            .field("vspace", &self.vspace)
+            .field("time_slice", &self.time_slice.get())
+            .field("state", &self.state.get())
+            .field("queue node", &self.node)
+            .finish()
     }
 }
 
@@ -86,8 +86,7 @@ impl TcbObj {
     }
 
     pub fn cspace(&self) -> SysResult<CSpace<'static>> {
-        let cap = CNodeCap::try_from(&self.cspace)
-            .map_err(|_| SysError::CSpaceNotFound)?;
+        let cap = CNodeCap::try_from(&self.cspace).map_err(|_| SysError::CSpaceNotFound)?;
         Ok(CSpace(cap.as_object_mut()))
     }
 
@@ -182,7 +181,7 @@ impl TcbObj {
 
     pub fn set_timeslice(&self, ts: usize) {
         self.time_slice.set(ts);
-    } 
+    }
 
     pub fn timeslice(&self) -> usize {
         self.time_slice.get()
@@ -219,14 +218,7 @@ impl TcbObj {
  */
 impl<'a> TcbCap<'a> {
     pub fn mint(paddr: usize) -> CapRaw {
-        CapRaw::new(
-            paddr,
-            0,
-            0,
-            None,
-            None,
-            ObjType::Tcb
-        )
+        CapRaw::new(paddr, 0, 0, None, None, ObjType::Tcb)
     }
 
     pub fn identify(&self, tcb: &mut TcbObj) -> usize {

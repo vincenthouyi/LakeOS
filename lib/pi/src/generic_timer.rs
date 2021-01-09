@@ -40,7 +40,7 @@ struct Registers {
 
 /// The ARM generic timer.
 pub struct Timer {
-    registers: &'static mut Registers
+    registers: &'static mut Registers,
 }
 
 pub fn set_cntp_ctl_el0(x: u64) {
@@ -80,7 +80,6 @@ pub fn get_cntpct_el0() -> u64 {
     x
 }
 
-
 impl Timer {
     /// Returns a new instance of `Timer`.
     pub fn new(base: usize) -> Timer {
@@ -105,9 +104,9 @@ impl Timer {
     }
 
     pub fn initialize(&mut self, cpu: usize) {
-//        let timer = Timer {
-//            registers: unsafe { &mut *(GEN_TIMER_REG_BASE as *mut Registers) },
-//        };
+        //        let timer = Timer {
+        //            registers: unsafe { &mut *(GEN_TIMER_REG_BASE as *mut Registers) },
+        //        };
         Volatile::new_write_only(&mut self.registers.CORE_TIMER_IRQCNTL[cpu])
             .write(1 << (CoreInterrupt::CNTPNSIRQ as u8));
         set_cntp_ctl_el0(0x1); // enable timer interrupt and do not mask it
@@ -115,8 +114,9 @@ impl Timer {
     }
 
     pub fn is_pending(&self, cpu: usize) -> bool {
-        Volatile::new_read_only(&self.registers.CORE_IRQ_SRC[cpu])
-            .read() & (1 << (CoreInterrupt::CNTPNSIRQ as u8)) != 0
+        Volatile::new_read_only(&self.registers.CORE_IRQ_SRC[cpu]).read()
+            & (1 << (CoreInterrupt::CNTPNSIRQ as u8))
+            != 0
     }
 }
 

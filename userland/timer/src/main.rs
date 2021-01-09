@@ -1,29 +1,28 @@
 #![no_std]
 #![no_main]
 
-#[macro_use] extern crate rustyl4api;
+#[macro_use]
+extern crate rustyl4api;
 extern crate alloc;
 
-use alloc::vec::Vec;
 use alloc::boxed::Box;
+use alloc::vec::Vec;
 
 use async_trait::async_trait;
 
-use naive::ep_server::EP_SERVER;
-use naive::rpc::{
-    self,
-    RpcServer,
-    CurrentTimeRequest, CurrentTimeResponse
-};
-use naive::ns::ns_client;
 use naive::lmp::LmpListener;
 use naive::lmp::LmpListenerHandle;
+use naive::ns::ns_client;
+use naive::rpc::{self, CurrentTimeRequest, CurrentTimeResponse, RpcServer};
 
 mod timer;
 
 pub async fn request_memory(paddr: usize, size: usize, maybe_device: bool) -> Result<usize, ()> {
     let client = ns_client();
-    let cap = client.lock().request_memory(paddr, size, maybe_device).await;
+    let cap = client
+        .lock()
+        .request_memory(paddr, size, maybe_device)
+        .await;
     cap
 }
 
@@ -31,10 +30,12 @@ struct TimerApi;
 
 #[async_trait]
 impl naive::rpc::RpcRequestHandlers for TimerApi {
-    async fn handle_current_time(&self, _request: &CurrentTimeRequest) -> rpc::Result<(CurrentTimeResponse, Vec<usize>)> {
-        let timer_guard = timer::SYSTEM_TIMER.lock();
+    async fn handle_current_time(
+        &self,
+        _request: &CurrentTimeRequest,
+    ) -> rpc::Result<(CurrentTimeResponse, Vec<usize>)> {
         let resp = CurrentTimeResponse {
-            time: timer_guard.as_ref().unwrap().read()
+            time: timer::current_time(),
         };
         Ok((resp, [].to_vec()))
     }
@@ -61,10 +62,14 @@ async fn main() {
     let listener = LmpListenerHandle::new(listener);
     ep_server.insert_event(listen_badge, Box::new(listener.clone()));
 
-    let timer_api = TimerApi{};
+    let timer_api = TimerApi {};
     let mut timer_server = RpcServer::new(listener, timer_api);
 
-    ns_client().lock().register_service("timer".to_string(), listen_ep.slot).await.unwrap();
+    ns_client()
+        .lock()
+        .register_service("timer".to_string(), listen_ep.slot)
+        .await
+        .unwrap();
 
     timer_server.run().await;
 

@@ -70,7 +70,6 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     result.into()
 }
 
-
 #[cfg(test)]
 mod tests {
     #[test]

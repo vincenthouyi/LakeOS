@@ -1,45 +1,65 @@
 use super::*;
 
-pub trait KernelObject: {
+pub trait KernelObject {
     fn obj_type() -> ObjType;
 }
 
 impl KernelObject for NullObj {
-    fn obj_type() -> ObjType { ObjType::NullObj }
+    fn obj_type() -> ObjType {
+        ObjType::NullObj
+    }
 }
 
 impl<'a> KernelObject for CNodeObj {
-    fn obj_type() -> ObjType { ObjType::CNode }
+    fn obj_type() -> ObjType {
+        ObjType::CNode
+    }
 }
 
 impl KernelObject for UntypedObj {
-    fn obj_type() -> ObjType { ObjType::Untyped }
+    fn obj_type() -> ObjType {
+        ObjType::Untyped
+    }
 }
 
 impl<'a> KernelObject for TcbObj {
-    fn obj_type() -> ObjType { ObjType::Tcb }
+    fn obj_type() -> ObjType {
+        ObjType::Tcb
+    }
 }
 
 impl KernelObject for RamObj {
-    fn obj_type() -> ObjType { ObjType::Ram }
+    fn obj_type() -> ObjType {
+        ObjType::Ram
+    }
 }
 
 impl KernelObject for VTableObj {
-    fn obj_type() -> ObjType { ObjType::VTable }
+    fn obj_type() -> ObjType {
+        ObjType::VTable
+    }
 }
 
 impl KernelObject for EndpointObj {
-    fn obj_type() -> ObjType { ObjType::Endpoint }
+    fn obj_type() -> ObjType {
+        ObjType::Endpoint
+    }
 }
 
 impl KernelObject for ReplyObj {
-    fn obj_type() -> ObjType { ObjType::Reply }
+    fn obj_type() -> ObjType {
+        ObjType::Reply
+    }
 }
 
 impl KernelObject for MonitorObj {
-    fn obj_type() -> ObjType { ObjType::Monitor }
+    fn obj_type() -> ObjType {
+        ObjType::Monitor
+    }
 }
 
 impl KernelObject for InterruptObj {
-    fn obj_type() -> ObjType { ObjType::Interrupt }
+    fn obj_type() -> ObjType {
+        ObjType::Interrupt
+    }
 }

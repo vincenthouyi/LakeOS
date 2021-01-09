@@ -1,16 +1,19 @@
-use core::{pin::Pin, task::{Poll, Context}};
 use core::task::Waker;
+use core::{
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use alloc::collections::LinkedList;
 use alloc::sync::Arc;
 
+use futures_util::io::{AsyncRead, AsyncWrite};
 use futures_util::stream::Stream;
-use futures_util::io::{AsyncWrite, AsyncRead};
 use spin::Mutex;
 
-use pi::uart::{MiniUart, IrqStatus};
-use naive::ep_server::{EpServer, EpNtfHandler};
+use naive::ep_server::{EpNtfHandler, EpServer};
 use naive::io;
+use pi::uart::{IrqStatus, MiniUart};
 
 pub struct Console {
     inner: MiniUart,
@@ -65,17 +68,19 @@ impl Console {
 
 #[derive(Clone)]
 pub struct ConsoleExt {
-    inner: Arc<Mutex<Console>>
+    inner: Arc<Mutex<Console>>,
 }
 
 impl ConsoleExt {
     pub fn new(console: Console) -> Self {
-        Self { inner: Arc::new(Mutex::new(console)) }
+        Self {
+            inner: Arc::new(Mutex::new(console)),
+        }
     }
 }
 
 impl EpNtfHandler for ConsoleExt {
-    fn handle_notification(&self, ep_server: &EpServer, ntf: usize) {
+    fn handle_notification(&self, _ep_server: &EpServer, _ntf: usize) {
         let mut inner = self.inner.lock();
         match inner.irq_status() {
             IrqStatus::Rx => {
@@ -102,13 +107,25 @@ static CONSOLE: Mutex<Option<ConsoleExt>> = Mutex::new(None);
 
 pub async fn console_server_init() {
     use crate::gpio;
-    use pi::gpio::Function;
-    use rustyl4api::vspace::Permission;
-    use rustyl4api::object::RamCap;
     use naive::space_manager::gsm;
+    use pi::gpio::Function;
+    use rustyl4api::object::RamCap;
+    use rustyl4api::vspace::Permission;
 
-    gpio::GPIO_SERVER.lock().as_mut().unwrap().get_pin(14).unwrap().into_alt(Function::Alt5);
-    gpio::GPIO_SERVER.lock().as_mut().unwrap().get_pin(15).unwrap().into_alt(Function::Alt5);
+    gpio::GPIO_SERVER
+        .lock()
+        .as_mut()
+        .unwrap()
+        .get_pin(14)
+        .unwrap()
+        .into_alt(Function::Alt5);
+    gpio::GPIO_SERVER
+        .lock()
+        .as_mut()
+        .unwrap()
+        .get_pin(15)
+        .unwrap()
+        .into_alt(Function::Alt5);
 
     let uart_ram_cap = crate::request_memory(0x3f215000, 4096, true).await.unwrap();
     let uart_ram_cap = RamCap::new(uart_ram_cap);
@@ -134,9 +151,11 @@ pub fn console() -> ConsoleExt {
 }
 
 impl AsyncWrite for ConsoleExt {
-    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8])
-        -> Poll<io::Result<usize>>
-    {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
         let mut write_len = 0;
         let mut inner = self.inner.lock();
         for b in buf {
@@ -167,9 +186,11 @@ impl AsyncWrite for ConsoleExt {
 }
 
 impl AsyncRead for ConsoleExt {
-    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8])
-        -> Poll<io::Result<usize>>
-    {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
         let mut read_len = 0;
         let mut inner = self.inner.lock();
         while read_len < buf.len() {
@@ -196,9 +217,6 @@ impl Stream for ConsoleExt {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<u8>> {
         let mut buf = [0u8; 1];
-        self.poll_read(cx, &mut buf)
-            .map(|r| {
-                r.ok().map(|_| buf[0])
-            })
+        self.poll_read(cx, &mut buf).map(|r| r.ok().map(|_| buf[0]))
     }
 }

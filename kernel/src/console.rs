@@ -1,5 +1,5 @@
-pub use crate::plat::uart::console_print;
 use crate::arch::cpuid;
+pub use crate::plat::uart::console_print;
 
 /// Like `println!`, but for kernel-space.
 pub macro kprintln {

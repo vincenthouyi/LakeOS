@@ -1,14 +1,14 @@
-use core::sync::atomic::{AtomicUsize, Ordering};
 use alloc::boxed::Box;
 use alloc::sync::Arc;
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 use conquer_once::spin::OnceCell;
-use spin::{Mutex, MutexGuard};
 use hashbrown::HashMap;
+use spin::{Mutex, MutexGuard};
 
-use rustyl4api::object::{EpCap};
-use rustyl4api::ipc::{IpcMessage};
 use crate::space_manager::gsm;
+use rustyl4api::ipc::IpcMessage;
+use rustyl4api::object::EpCap;
 
 pub struct Ep {
     ep: EpCap,
@@ -17,7 +17,10 @@ pub struct Ep {
 
 impl Ep {
     pub const fn from_unbadged(ep: EpCap) -> Self {
-        Self { ep, cur_badge: AtomicUsize::new(100) }
+        Self {
+            ep,
+            cur_badge: AtomicUsize::new(100),
+        }
     }
 
     pub fn derive_badged_cap(&self) -> Option<(usize, EpCap)> {
@@ -31,11 +34,11 @@ impl Ep {
 pub struct EpServer {
     event_handlers: OnceCell<Mutex<HashMap<usize, Arc<Box<dyn EpMsgHandler>>>>>,
     ntf_handler: Mutex<[Option<Arc<Box<dyn EpNtfHandler + Sync + Send>>>; 64]>,
-    ep: Ep
+    ep: Ep,
 }
 
-unsafe impl core::marker::Send for EpServer { }
-unsafe impl core::marker::Sync for EpServer { }
+unsafe impl core::marker::Send for EpServer {}
+unsafe impl core::marker::Sync for EpServer {}
 
 impl EpServer {
     pub const fn new(ep: EpCap) -> Self {
@@ -48,7 +51,8 @@ impl EpServer {
 
     fn get_event_handlers(&self) -> MutexGuard<HashMap<usize, Arc<Box<dyn EpMsgHandler>>>> {
         self.event_handlers
-            .try_get_or_init(|| Mutex::new(HashMap::new())).unwrap()
+            .try_get_or_init(|| Mutex::new(HashMap::new()))
+            .unwrap()
             .lock()
     }
 
@@ -57,13 +61,11 @@ impl EpServer {
     }
 
     pub fn insert_event(&self, badge: usize, cb: Box<dyn EpMsgHandler>) {
-        self.get_event_handlers()
-            .insert(badge, Arc::new(cb));
+        self.get_event_handlers().insert(badge, Arc::new(cb));
     }
 
     pub fn remove_event(&self, badge: usize) {
-        self.get_event_handlers()
-            .remove(&badge);
+        self.get_event_handlers().remove(&badge);
     }
 
     pub fn insert_notification(&self, ntf: usize, cb: Box<dyn EpNtfHandler + Sync + Send>) {
@@ -75,17 +77,17 @@ impl EpServer {
         loop {
             let ret = self.ep.ep.receive(Some(recv_slot));
             match ret {
-                Ok(IpcMessage::Message{payload, payload_len, need_reply, cap_transfer, badge}) => {
+                Ok(IpcMessage::Message {
+                    payload: _,
+                    payload_len: _,
+                    need_reply: _,
+                    cap_transfer,
+                    badge,
+                }) => {
                     if let Some(b) = badge {
-                        let cb = self.get_event_handlers()
-                                    .get(&b)
-                                    .map(|cb| cb.clone());
+                        let cb = self.get_event_handlers().get(&b).map(|cb| cb.clone());
                         if let Some(cb) = cb {
-                            let cap_trans = if cap_transfer {
-                                Some(recv_slot)
-                            } else {
-                                None
-                            };
+                            let cap_trans = if cap_transfer { Some(recv_slot) } else { None };
                             cb.handle_ipc(self, ret.unwrap(), cap_trans);
                         } else {
                             kprintln!("warning: receive message from unhandled badge {}", b);
@@ -97,7 +99,7 @@ impl EpServer {
                     if cap_transfer {
                         recv_slot = gsm!().cspace_alloc().unwrap();
                     }
-                },
+                }
                 Ok(IpcMessage::Notification(ntf_mask)) => {
                     let mut ntf_mask = ntf_mask;
                     while ntf_mask.trailing_zeros() != 64 {
@@ -118,13 +120,19 @@ impl EpServer {
 }
 
 pub trait EpMsgHandler {
-    fn handle_ipc(&self, ep_server: &EpServer, msg: IpcMessage, cap_transfer_slot: Option<usize>) { }
+    fn handle_ipc(
+        &self,
+        _ep_server: &EpServer,
+        _msg: IpcMessage,
+        _cap_transfer_slot: Option<usize>,
+    ) {
+    }
 
-    fn handle_fault(&self) { }
+    fn handle_fault(&self) {}
 }
 
 pub trait EpNtfHandler {
-    fn handle_notification(&self, ep_server: &EpServer, ntf: usize) { }
+    fn handle_notification(&self, _ep_server: &EpServer, _ntf: usize) {}
 }
 
 pub static EP_SERVER: OnceCell<EpServer> = OnceCell::uninit();

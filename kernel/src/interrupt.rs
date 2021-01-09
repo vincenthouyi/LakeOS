@@ -4,7 +4,7 @@ use spin::Mutex;
 
 use crate::prelude::*;
 
-use crate::objects::{CapRaw, CNodeEntry, NullCap, EndpointCap};
+use crate::objects::{CNodeEntry, CapRaw, EndpointCap, NullCap};
 use crate::plat::interrupt::Controller;
 
 const NUM_IRQ: usize = 64;
@@ -16,7 +16,7 @@ pub struct InterruptController {
 impl InterruptController {
     pub const fn new() -> Self {
         Self {
-            IrqEp: [NullCap::mint(); NUM_IRQ]
+            IrqEp: [NullCap::mint(); NUM_IRQ],
         }
     }
 
@@ -46,4 +46,5 @@ impl InterruptController {
     }
 }
 
-pub static mut INTERRUPT_CONTROLLER: Mutex<InterruptController> = Mutex::new(InterruptController::new());
+pub static mut INTERRUPT_CONTROLLER: Mutex<InterruptController> =
+    Mutex::new(InterruptController::new());

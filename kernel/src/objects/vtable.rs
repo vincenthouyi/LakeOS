@@ -1,7 +1,7 @@
 use super::*;
-use core::convert::TryFrom; 
-use crate::vspace::Table;
 use crate::arch::vspace::{Entry, VSpace};
+use crate::vspace::Table;
+use core::convert::TryFrom;
 
 /* Capability Entry Field Definition
  * -------------------------------------------------
@@ -46,14 +46,13 @@ impl<'a> VTableCap<'a> {
     }
 
     pub fn map_vtable(&self, vspace: &VSpace, vaddr: usize, level: usize) -> SysResult<()> {
-
         let entry = Entry::table_entry(self.paddr());
 
         match level {
             2 => vspace.map_pud_table(vaddr, entry),
             3 => vspace.map_pd_table(vaddr, entry),
             4 => vspace.map_pt_table(vaddr, entry),
-            _ => Err(SysError::InvalidValue)
+            _ => Err(SysError::InvalidValue),
         }?;
 
         self.set_mapped_vaddr_asid(vaddr, vspace.asid(), level);
@@ -61,7 +60,7 @@ impl<'a> VTableCap<'a> {
         Ok(())
     }
 
-    pub fn derive(&self, dst: &NullCap) -> SysResult<()>{
+    pub fn derive(&self, dst: &NullCap) -> SysResult<()> {
         dst.raw.set(self.raw());
         Ok(())
     }

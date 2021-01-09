@@ -1,5 +1,4 @@
-use core::sync::atomic::{Ordering, AtomicUsize};
-use alloc::collections::linked_list::LinkedList;
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 use rustyl4api::object::CNodeCap;
 
@@ -23,7 +22,10 @@ struct CNodeBlock {
 
 impl CNodeBlock {
     pub const fn new(size: usize) -> Self {
-        Self { size: AtomicUsize::new(size), free_watermark: AtomicUsize::new(0) }
+        Self {
+            size: AtomicUsize::new(size),
+            free_watermark: AtomicUsize::new(0),
+        }
     }
 
     pub fn alloc(&self) -> Option<usize> {
@@ -32,8 +34,12 @@ impl CNodeBlock {
             let node_sz = self.size.load(Ordering::Relaxed);
             if cur_wm < node_sz {
                 let new_wm = cur_wm + 1;
-                if cur_wm == self.free_watermark.compare_and_swap(cur_wm, new_wm, Ordering::Relaxed) {
-                    return Some(new_wm)
+                if cur_wm
+                    == self
+                        .free_watermark
+                        .compare_and_swap(cur_wm, new_wm, Ordering::Relaxed)
+                {
+                    return Some(new_wm);
                 }
             } else {
                 break;
@@ -47,8 +53,12 @@ impl CNodeBlock {
             let cur_wm = self.free_watermark.load(Ordering::Relaxed);
             let node_sz = self.size.load(Ordering::Relaxed);
             if slot < node_sz && slot >= cur_wm {
-                if cur_wm == self.free_watermark.compare_and_swap(cur_wm, slot + 1, Ordering::Relaxed) {
-                    return Some(slot)
+                if cur_wm
+                    == self
+                        .free_watermark
+                        .compare_and_swap(cur_wm, slot + 1, Ordering::Relaxed)
+                {
+                    return Some(slot);
                 }
             } else {
                 break;
@@ -57,8 +67,7 @@ impl CNodeBlock {
         None
     }
 
-    pub fn free(&self, _slot: usize) {
-    }
+    pub fn free(&self, _slot: usize) {}
 }
 
 #[derive(Debug)]

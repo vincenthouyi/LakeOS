@@ -1,19 +1,21 @@
 use crate::error::SysResult;
-use crate::syscall::{MsgInfo, SyscallOp, syscall};
+use crate::syscall::{syscall, MsgInfo, SyscallOp};
 
-use super::{ObjType, KernelObject, Capability};
+use super::{Capability, KernelObject, ObjType};
 
 pub const CNODE_DEPTH: usize = core::mem::size_of::<usize>() * 8;
 pub const CNODE_ENTRY_BIT_SZ: usize = 6;
 pub const CNODE_ENTRY_SZ: usize = 1 << CNODE_ENTRY_BIT_SZ;
 
 #[derive(Debug)]
-pub enum CNodeObj { }
+pub enum CNodeObj {}
 
 pub type CNodeCap = Capability<CNodeObj>;
 
 impl KernelObject for CNodeObj {
-    fn obj_type() -> ObjType { ObjType::CNode }
+    fn obj_type() -> ObjType {
+        ObjType::CNode
+    }
 }
 
 impl CNodeCap {

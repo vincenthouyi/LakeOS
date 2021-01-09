@@ -1,9 +1,9 @@
-use spin::Mutex;
-use core::alloc::{Layout, AllocError};
-use core::ptr::{NonNull};
-use core::cmp::max;
 use crate::utils::prev_power_of_two;
+use core::alloc::{AllocError, Layout};
+use core::cmp::max;
+use core::ptr::NonNull;
 use core::sync::atomic::{AtomicUsize, Ordering};
+use spin::Mutex;
 
 use super::linked_list::LinkedList;
 
@@ -35,13 +35,11 @@ impl SlabPool {
                 .min(prev_power_of_two(rem_sz))
                 .min(1 << MEMPOOL_MAX_BITSZ);
             let cur_bitsz = cur_sz.trailing_zeros() as usize;
-//            crate::println!("adding mempool {:p}-{:p} size {}", cur_ptr as *mut usize, (cur_ptr + cur_sz) as *mut usize, cur_sz);
+            //            crate::println!("adding mempool {:p}-{:p} size {}", cur_ptr as *mut usize, (cur_ptr + cur_sz) as *mut usize, cur_sz);
 
             if cur_bitsz >= MEMPOOL_MIN_BITSZ {
                 unsafe {
-                    self.pool
-                        .lock()[cur_bitsz - MEMPOOL_MIN_BITSZ]
-                        .push(cur_ptr as *mut usize);
+                    self.pool.lock()[cur_bitsz - MEMPOOL_MIN_BITSZ].push(cur_ptr as *mut usize);
                 }
                 self.size.fetch_add(1 << cur_bitsz, Ordering::Relaxed);
             }
@@ -54,21 +52,18 @@ impl SlabPool {
         let bit_sz = chunk_size(layout).trailing_zeros() as usize;
 
         (bit_sz..=MEMPOOL_MAX_BITSZ)
-            .find_map(|sz|
-                self.pool
-                    .lock()[sz - MEMPOOL_MIN_BITSZ]
+            .find_map(|sz| {
+                self.pool.lock()[sz - MEMPOOL_MIN_BITSZ]
                     .pop()
                     .map(|ptr| (sz, ptr as *mut u8))
-            )
+            })
             .map(|(chunk_sz, ptr)| unsafe {
-//                crate::println!("getting ptr {:p} size {}", ptr, 1 << chunk_sz);
+                //                crate::println!("getting ptr {:p} size {}", ptr, 1 << chunk_sz);
                 for sz in bit_sz..chunk_sz {
                     let back_sz = 1 << sz;
                     let back_ptr = ptr.offset(back_sz);
-//                    crate::println!("inserting back {:p} size {}", back_ptr, back_sz);
-                    self.pool
-                        .lock()[sz - MEMPOOL_MIN_BITSZ]
-                        .push(back_ptr as *mut usize)
+                    //                    crate::println!("inserting back {:p} size {}", back_ptr, back_sz);
+                    self.pool.lock()[sz - MEMPOOL_MIN_BITSZ].push(back_ptr as *mut usize)
                 }
                 self.size.fetch_sub(1 << bit_sz, Ordering::Relaxed);
 
@@ -90,11 +85,10 @@ impl SlabPool {
 
         while bit_sz < MEMPOOL_MAX_BITSZ {
             let buddy = (cur_ptr ^ (1 << bit_sz)) as *mut usize;
-            let tmp_ptr = self.pool
-                              .lock()[bit_sz - MEMPOOL_MIN_BITSZ]
-                              .iter_mut()
-                              .find(|node| node.value() == buddy)
-                              .map(|node| node.pop() as usize);
+            let tmp_ptr = self.pool.lock()[bit_sz - MEMPOOL_MIN_BITSZ]
+                .iter_mut()
+                .find(|node| node.value() == buddy)
+                .map(|node| node.pop() as usize);
 
             if tmp_ptr.is_none() {
                 break;
@@ -102,13 +96,10 @@ impl SlabPool {
                 cur_ptr = cur_ptr & !(1 << bit_sz);
                 bit_sz += 1;
             }
-
         }
 
         unsafe {
-            self.pool
-                .lock()[bit_sz - MEMPOOL_MIN_BITSZ]
-                .push(cur_ptr as *mut usize);
+            self.pool.lock()[bit_sz - MEMPOOL_MIN_BITSZ].push(cur_ptr as *mut usize);
         }
     }
 
@@ -169,6 +160,8 @@ fn chunk_size(layout: Layout) -> usize {
 
     const SIZEOF_USIZE: usize = size_of::<usize>();
 
-    max(layout.size().next_power_of_two(),
-        max(layout.align(), SIZEOF_USIZE))
+    max(
+        layout.size().next_power_of_two(),
+        max(layout.align(), SIZEOF_USIZE),
+    )
 }

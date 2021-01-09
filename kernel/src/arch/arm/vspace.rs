@@ -1,65 +1,82 @@
 use crate::prelude::*;
-use sysapi::error::{SysError, SysResult};
 use core::ops::{Index, IndexMut};
+use sysapi::error::{SysError, SysResult};
 
-macro_rules! pgd_index { ($x:expr) => (($x >> 39) & MASK!(9)) }
-macro_rules! pud_index { ($x:expr) => (($x >> 30) & MASK!(9)) }
-macro_rules! pd_index  { ($x:expr) => (($x >> 21) & MASK!(9)) }
-macro_rules! pt_index  { ($x:expr) => (($x >> 12) & MASK!(9)) }
+macro_rules! pgd_index {
+    ($x:expr) => {
+        ($x >> 39) & MASK!(9)
+    };
+}
+macro_rules! pud_index {
+    ($x:expr) => {
+        ($x >> 30) & MASK!(9)
+    };
+}
+macro_rules! pd_index {
+    ($x:expr) => {
+        ($x >> 21) & MASK!(9)
+    };
+}
+macro_rules! pt_index {
+    ($x:expr) => {
+        ($x >> 12) & MASK!(9)
+    };
+}
 
 pub use sysapi::vspace::{FRAME_BIT_SIZE, FRAME_SIZE as PAGE_SIZE};
 
-pub const PADDR_MASK : usize = MASK!(48) | (!MASK!(12));
+pub const PADDR_MASK: usize = MASK!(48) | (!MASK!(12));
 const VALID_OFFSET: usize = 0;
 const TABLE_OFFSET: usize = 1;
-const UXN_OFFSET : usize = 54;
-const N_G_OFFSET: usize  = 11;
-const AF_OFFSET: usize  = 10;
+const UXN_OFFSET: usize = 54;
+const N_G_OFFSET: usize = 11;
+const AF_OFFSET: usize = 10;
 const ATTR_INDEX_OFFSET: usize = 2;
 
 #[allow(non_camel_case_types)]
 pub enum MairFlag {
-    Normal       = 0xff,
-    Normal_NC    = 0x44,
+    Normal = 0xff,
+    Normal_NC = 0x44,
     DevicenGnRnE = 0x00,
-    DevicenGnRE  = 0x04,
-    DeviceGRE    = 0x0c,
+    DevicenGnRE = 0x04,
+    DeviceGRE = 0x0c,
 }
 
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone, Debug)]
 pub enum MemoryAttr {
-    Normal        = 0,
-    Normal_NC     = 1,
-    DevicenGnRnE  = 2,
-    DevicenGnRE   = 3,
-    DeviceGRE     = 4,
+    Normal = 0,
+    Normal_NC = 1,
+    DevicenGnRnE = 2,
+    DevicenGnRE = 3,
+    DeviceGRE = 4,
 }
 
 const AP_OFFSET: usize = 6;
 #[derive(Copy, Clone, Debug)]
 pub enum AccessPermission {
     KernelOnly = 0b00 << AP_OFFSET,
-    ReadWrite  = 0b01 << AP_OFFSET,
+    ReadWrite = 0b01 << AP_OFFSET,
     KernelRead = 0b10 << AP_OFFSET,
-    ReadOnly   = 0b11 << AP_OFFSET
+    ReadOnly = 0b11 << AP_OFFSET,
 }
 
 const SH_OFFSET: usize = 8;
 #[derive(Copy, Clone, Debug)]
 pub enum Shareability {
-    NonSharable   = 0b00 << SH_OFFSET,
+    NonSharable = 0b00 << SH_OFFSET,
     Unpredictable = 0b01 << SH_OFFSET,
     OuterSharable = 0b10 << SH_OFFSET,
     InnerSharable = 0b11 << SH_OFFSET,
 }
 
 #[derive(Default, Debug, Copy, Clone)]
-pub struct Entry (usize);
+pub struct Entry(usize);
 
 impl Entry {
-
-    pub const fn zero() -> Self { Self(0) }
+    pub const fn zero() -> Self {
+        Self(0)
+    }
 
     pub const fn _new(entry: usize) -> Self {
         Self(entry)
@@ -71,20 +88,39 @@ impl Entry {
     }
 
     #[inline(always)]
-    pub const fn block_entry(paddr: usize, uxn: bool, global: bool, af: bool, share: Shareability, ap: AccessPermission, attr: MemoryAttr) -> Self {
-        Self((paddr & PADDR_MASK) 
+    pub const fn block_entry(
+        paddr: usize,
+        uxn: bool,
+        global: bool,
+        af: bool,
+        share: Shareability,
+        ap: AccessPermission,
+        attr: MemoryAttr,
+    ) -> Self {
+        Self(
+            (paddr & PADDR_MASK)
              | (uxn as usize) << UXN_OFFSET         // universal execute never
              | ((!global) as usize) << N_G_OFFSET   // nG bit
              | (af as usize) << AF_OFFSET           // access flag
              | share as usize                       // Shareability
              | ap as usize                          // access permission
              | (attr as usize) << ATTR_INDEX_OFFSET // mair index
-             | 1 << VALID_OFFSET)
+             | 1 << VALID_OFFSET,
+        )
     }
 
     #[inline(always)]
-    pub const fn page_entry(paddr: usize, uxn: bool, global: bool, af: bool, share: Shareability, ap: AccessPermission, attr: MemoryAttr) -> Self {
-        Self((paddr & PADDR_MASK) 
+    pub const fn page_entry(
+        paddr: usize,
+        uxn: bool,
+        global: bool,
+        af: bool,
+        share: Shareability,
+        ap: AccessPermission,
+        attr: MemoryAttr,
+    ) -> Self {
+        Self(
+            (paddr & PADDR_MASK)
              | (uxn as usize) << UXN_OFFSET         // universal execute never
              | ((!global) as usize) << N_G_OFFSET   // nG bit
              | (af as usize) << AF_OFFSET           // access flag
@@ -92,7 +128,8 @@ impl Entry {
              | ap as usize                          // access permission
              | (attr as usize) << ATTR_INDEX_OFFSET // mair index
              | 1 << 1
-             | 1 << VALID_OFFSET)
+             | 1 << VALID_OFFSET,
+        )
     }
 
     pub const fn is_valid(&self) -> bool {
@@ -111,7 +148,7 @@ impl Entry {
 #[derive(Copy, Clone)]
 #[repr(align(4096))]
 pub struct Table {
-    pub entries: [Entry; 512]
+    pub entries: [Entry; 512],
 }
 
 impl core::default::Default for Table {
@@ -141,7 +178,9 @@ impl core::fmt::Debug for Table {
 
 impl Table {
     pub const fn zero() -> Self {
-        Self {entries: [Entry::zero(); 512]}
+        Self {
+            entries: [Entry::zero(); 512],
+        }
     }
 
     pub fn paddr(&self) -> usize {
@@ -151,7 +190,7 @@ impl Table {
 
 #[derive(Copy, Clone, Debug)]
 pub struct VSpace {
-    pub root: *mut Table
+    pub root: *mut Table,
 }
 
 impl VSpace {
@@ -160,23 +199,27 @@ impl VSpace {
     }
 
     pub fn from_pgd(pgd: &Table) -> Self {
-        Self { root: pgd as *const Table as *mut Table }
+        Self {
+            root: pgd as *const Table as *mut Table,
+        }
     }
 
     pub fn from_paddr(paddr: usize) -> Self {
         let ptr = paddr + KERNEL_OFFSET;
-        Self { root: ptr as *mut Table }
+        Self {
+            root: ptr as *mut Table,
+        }
     }
 
     pub fn lookup_pgd_slot(&self, vaddr: usize) -> SysResult<&mut Entry> {
-        let table = unsafe{ &mut *self.root };
+        let table = unsafe { &mut *self.root };
         Ok(&mut table[pgd_index!(vaddr)])
     }
 
     pub fn lookup_pud_slot(&self, vaddr: usize) -> SysResult<&mut Entry> {
         let pgd_slot = self.lookup_pgd_slot(vaddr)?;
         if pgd_slot.is_invalid() {
-            return Err(SysError::VSpaceTableMiss{ level: 2 });
+            return Err(SysError::VSpaceTableMiss { level: 2 });
         }
         Ok(&mut pgd_slot.into_table()[pud_index!(vaddr)])
     }
@@ -184,7 +227,7 @@ impl VSpace {
     pub fn lookup_pd_slot(&self, vaddr: usize) -> SysResult<&mut Entry> {
         let pud_slot = self.lookup_pud_slot(vaddr)?;
         if pud_slot.is_invalid() {
-            return Err(SysError::VSpaceTableMiss{ level: 3 });
+            return Err(SysError::VSpaceTableMiss { level: 3 });
         }
         Ok(&mut pud_slot.into_table()[pd_index!(vaddr)])
     }
@@ -200,7 +243,7 @@ impl VSpace {
     pub fn map_pud_table(&self, vaddr: usize, entry: Entry) -> SysResult<()> {
         let pgd_slot = self.lookup_pgd_slot(vaddr)?;
         if pgd_slot.is_valid() {
-            return Err(SysError::VSpaceSlotOccupied{ level: 2 });
+            return Err(SysError::VSpaceSlotOccupied { level: 2 });
         }
         *pgd_slot = entry;
         crate::arch::dc_clean_by_va_PoU(pgd_slot as *const _ as usize);
@@ -210,7 +253,7 @@ impl VSpace {
     pub fn map_pd_table(&self, vaddr: usize, entry: Entry) -> SysResult<()> {
         let pud_slot = self.lookup_pud_slot(vaddr)?;
         if pud_slot.is_valid() {
-            return Err(SysError::VSpaceSlotOccupied{ level: 3 });
+            return Err(SysError::VSpaceSlotOccupied { level: 3 });
         }
         *pud_slot = entry;
         crate::arch::dc_clean_by_va_PoU(pud_slot as *const _ as usize);
@@ -220,7 +263,7 @@ impl VSpace {
     pub fn map_pt_table(&self, vaddr: usize, entry: Entry) -> SysResult<()> {
         let pd_slot = self.lookup_pd_slot(vaddr)?;
         if pd_slot.is_valid() {
-            return Err(SysError::VSpaceSlotOccupied{ level: 4 });
+            return Err(SysError::VSpaceSlotOccupied { level: 4 });
         }
         *pd_slot = entry;
         crate::arch::dc_clean_by_va_PoU(pd_slot as *const _ as usize);
@@ -230,7 +273,7 @@ impl VSpace {
     pub fn map_frame(&self, vaddr: usize, entry: Entry) -> SysResult<()> {
         let pt_slot = self.lookup_pt_slot(vaddr)?;
         if pt_slot.is_valid() {
-            return Err(SysError::VSpaceSlotOccupied{ level: 5 });
+            return Err(SysError::VSpaceSlotOccupied { level: 5 });
         }
         *pt_slot = entry;
         crate::arch::dc_clean_by_va_PoU(pt_slot as *const _ as usize);
@@ -254,10 +297,8 @@ pub unsafe fn set_mair(mair: usize) {
 }
 
 #[inline(always)]
-pub unsafe fn enable_mmu(pgd_higher: usize)
-{
-    let mair_value = 
-          (MairFlag::Normal as usize) << (MemoryAttr::Normal as usize * 8)
+pub unsafe fn enable_mmu(pgd_higher: usize) {
+    let mair_value = (MairFlag::Normal as usize) << (MemoryAttr::Normal as usize * 8)
         | (MairFlag::Normal_NC as usize) << (MemoryAttr::Normal_NC as usize * 8)
         | (MairFlag::DevicenGnRnE as usize) << (MemoryAttr::DevicenGnRnE as usize * 8)
         | (MairFlag::DevicenGnRE as usize) << (MemoryAttr::DevicenGnRE as usize * 8)
@@ -268,10 +309,8 @@ pub unsafe fn enable_mmu(pgd_higher: usize)
     flush_tlb_allel1_is();
 }
 
-
 #[inline(always)]
-pub unsafe fn install_kernel_vspace(paddr: usize)
-{
+pub unsafe fn install_kernel_vspace(paddr: usize) {
     dsb();
     llvm_asm!("msr     ttbr1_el1, $0"
         :
@@ -282,8 +321,7 @@ pub unsafe fn install_kernel_vspace(paddr: usize)
 }
 
 #[inline(always)]
-pub unsafe fn install_user_vspace(asid: usize, pgd: usize)
-{
+pub unsafe fn install_user_vspace(asid: usize, pgd: usize) {
     let entry = asid << 48 | (pgd & MASK!(48));
     dsb();
     llvm_asm!("msr     ttbr0_el1, $0"
@@ -306,20 +344,21 @@ pub unsafe fn install_user_vspace(asid: usize, pgd: usize)
 //}
 
 #[inline(always)]
-pub unsafe fn flush_tlb_allel1_is()
-{
+pub unsafe fn flush_tlb_allel1_is() {
     dsb();
-    llvm_asm!("
+    llvm_asm!(
+        "
         dsb ishst
         tlbi vmalle1is
         dsb ish
-    ");
+    "
+    );
     isb();
 }
 
 pub fn invalidateLocalTLB_ASID(asid: usize) {
     dsb();
-    unsafe{ llvm_asm!("tlbi aside1, $0"::"r"(asid)) }
+    unsafe { llvm_asm!("tlbi aside1, $0"::"r"(asid)) }
     dsb();
     isb();
 }

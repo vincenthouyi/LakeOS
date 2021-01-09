@@ -1,6 +1,6 @@
-use crate::object::ObjType;
 use crate::error::SysResult;
-use crate::syscall::{MsgInfo, SyscallOp, syscall};
+use crate::object::ObjType;
+use crate::syscall::{syscall, MsgInfo, SyscallOp};
 
 use super::{Capability, KernelObject};
 
@@ -9,7 +9,9 @@ pub struct InterruptObj {}
 pub type InterruptCap = Capability<InterruptObj>;
 
 impl KernelObject for InterruptObj {
-    fn obj_type() -> ObjType { ObjType::Interrupt }
+    fn obj_type() -> ObjType {
+        ObjType::Interrupt
+    }
 }
 
 impl Capability<InterruptObj> {

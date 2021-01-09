@@ -10,12 +10,12 @@ struct Registers {
     CS: u32,
     CLO: u32,
     CHI: u32,
-    COMPARE: [u32; 4]
+    COMPARE: [u32; 4],
 }
 
 /// The Raspberry Pi ARM system timer.
 pub struct Timer {
-    registers: &'static mut Registers
+    registers: &'static mut Registers,
 }
 
 impl Timer {
@@ -41,8 +41,7 @@ impl Timer {
         let current_low = Volatile::new_read_only(&mut self.registers.CLO).read();
         let compare = current_low.wrapping_add(us);
         Volatile::new_write_only(&mut self.registers.COMPARE[1]).write(compare); // timer 1
-        Volatile::new(&mut self.registers.CS)
-            .update(|x| *x |= 0b0010); // clear timer 1 interrupt
+        Volatile::new(&mut self.registers.CS).update(|x| *x |= 0b0010); // clear timer 1 interrupt
     }
 }
 

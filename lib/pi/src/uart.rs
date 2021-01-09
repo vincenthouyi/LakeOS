@@ -88,9 +88,7 @@ impl MiniUart {
     /// By default, reads will never time out. To set a read timeout, use
     /// `set_read_timeout()`.
     pub fn new(page_base: usize) -> MiniUart {
-        let registers = unsafe {
-            &mut *((page_base + MU_REG_OFFSET)as *mut Registers)
-        };
+        let registers = unsafe { &mut *((page_base + MU_REG_OFFSET) as *mut Registers) };
 
         MiniUart {
             page_base: page_base,
@@ -99,14 +97,13 @@ impl MiniUart {
     }
 
     pub fn initialize(&mut self, _baud_rate: usize) {
-        let mut aux_enables = unsafe { Volatile::new(&mut *((self.page_base + AUX_ENABLES_OFFSET) as *mut u8)) };
+        let mut aux_enables =
+            unsafe { Volatile::new(&mut *((self.page_base + AUX_ENABLES_OFFSET) as *mut u8)) };
         aux_enables.update(|x| *x |= 0b1);
-        Volatile::new(&mut self.registers.AUX_MU_LCR_REG)
-            .update(|x| *x |= 0b1); // Set in 8-bit mode
-        Volatile::new_write_only(&mut self.registers.AUX_MU_BAUD_REG)
-            .write(270); // Set baudrate
-        Volatile::new(&mut self.registers.AUX_MU_CNTL_REG)
-            .update(|x| *x |= 0b11); // Enable Rx Tx
+        Volatile::new(&mut self.registers.AUX_MU_LCR_REG).update(|x| *x |= 0b1); // Set in 8-bit mode
+        Volatile::new_write_only(&mut self.registers.AUX_MU_BAUD_REG).write(270); // Set baudrate
+        Volatile::new(&mut self.registers.AUX_MU_CNTL_REG).update(|x| *x |= 0b11);
+        // Enable Rx Tx
     }
 
     pub fn can_write(&self) -> bool {
@@ -117,7 +114,7 @@ impl MiniUart {
     /// Write the byte `byte`. This method blocks until there is space available
     /// in the output FIFO.
     pub fn write_byte(&mut self, byte: u8) {
-        while !self.can_write() { };
+        while !self.can_write() {}
         Volatile::new_write_only(&mut self.registers.AUX_MU_IO_REG).write(byte);
     }
 
@@ -131,19 +128,16 @@ impl MiniUart {
 
     /// Reads a byte. Blocks indefinitely until a byte is ready to be read.
     pub fn read_byte(&mut self) -> u8 {
-        while !self.has_byte() { };
-        Volatile::new_read_only(&self.registers.AUX_MU_IO_REG)
-            .read()
+        while !self.has_byte() {}
+        Volatile::new_read_only(&self.registers.AUX_MU_IO_REG).read()
     }
 
     fn enable_irq(&mut self, irq: IrqBits) {
-        Volatile::new(&mut self.registers.AUX_MU_IER_REG)
-            .update(|x| *x |= irq as u8);
+        Volatile::new(&mut self.registers.AUX_MU_IER_REG).update(|x| *x |= irq as u8);
     }
 
     fn disable_irq(&mut self, irq: IrqBits) {
-        Volatile::new(&mut self.registers.AUX_MU_IER_REG)
-            .update(|x| *x &= !(irq as u8));
+        Volatile::new(&mut self.registers.AUX_MU_IER_REG).update(|x| *x &= !(irq as u8));
     }
 
     pub fn enable_tx_irq(&mut self) {
@@ -164,10 +158,12 @@ impl MiniUart {
 
     pub fn irq_status(&self) -> IrqStatus {
         match (Volatile::new_read_only(&self.registers.AUX_MU_IIR_REG).read() >> 1) & 0b11 {
-            0b00 => { IrqStatus::Clear }
-            0b01 => { IrqStatus::Tx }
-            0b10 => { IrqStatus::Rx }
-            _ => { unreachable!() }
+            0b00 => IrqStatus::Clear,
+            0b01 => IrqStatus::Tx,
+            0b10 => IrqStatus::Rx,
+            _ => {
+                unreachable!()
+            }
         }
     }
 }
