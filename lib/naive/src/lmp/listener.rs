@@ -72,7 +72,12 @@ pub struct LmpListenerHandle {
 }
 
 impl LmpListenerHandle {
-    pub fn new(inner: LmpListener) -> Self {
+    pub fn new(listen_ep: EpCap, badge: usize) -> Self {
+        let inner = LmpListener::new(listen_ep, badge);
+        Self::from_inner(inner)
+    }
+
+    pub fn from_inner(inner: LmpListener) -> Self {
         Self {
             inner: Arc::new(Mutex::new(inner)),
             backlog: Arc::new(Mutex::new(VecDeque::new())),
@@ -103,7 +108,7 @@ impl EpMsgHandler for LmpListenerHandle {
             let (conn_badge, s_ntf_cap) = ep_server.derive_badged_cap().unwrap();
             let inner = self.inner.lock();
             let chan = inner.accept_with(c_ntf_cap, s_ntf_cap, conn_badge).unwrap();
-            let chan = LmpChannelHandle::new(chan);
+            let chan = LmpChannelHandle::from_inner(chan);
             ep_server.insert_event(conn_badge, Box::new(chan.clone()));
             self.backlog.lock().push_back(chan.clone());
             while let Some(waker) = self.waker.lock().pop_front() {

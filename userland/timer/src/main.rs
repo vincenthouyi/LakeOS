@@ -10,7 +10,6 @@ use alloc::vec::Vec;
 
 use async_trait::async_trait;
 
-use naive::lmp::LmpListener;
 use naive::lmp::LmpListenerHandle;
 use naive::ns::ns_client;
 use naive::rpc::{self, CurrentTimeRequest, CurrentTimeResponse, RpcServer};
@@ -58,8 +57,7 @@ async fn main() {
     // ep_server.insert_notification(pi::interrupt::Interrupt::Timer1 as usize, Box::new(TimerApi{}));
 
     let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
-    let listener = LmpListener::new(listen_ep.clone(), listen_badge);
-    let listener = LmpListenerHandle::new(listener);
+    let listener = LmpListenerHandle::new(listen_ep.clone(), listen_badge);
     ep_server.insert_event(listen_badge, Box::new(listener.clone()));
 
     let timer_api = TimerApi {};

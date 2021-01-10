@@ -5,14 +5,9 @@
 #![no_main]
 
 extern crate alloc;
-extern crate futures_util;
-extern crate naive;
 #[macro_use]
 extern crate rustyl4api;
 
-// mod console;
-// mod gpio;
-// mod timer;
 // mod rt;
 
 use alloc::boxed::Box;
@@ -25,25 +20,18 @@ use rustyl4api::object::CNodeCap;
 use alloc::string::String;
 use conquer_once::spin::OnceCell;
 use hashbrown::HashMap;
-use naive::lmp::{LmpListener, LmpListenerHandle};
+use naive::lmp::LmpListenerHandle;
 use naive::ns;
-use naive::rpc;
-use naive::rpc::*;
+use naive::rpc::{
+    self, LookupServiceRequest, LookupServiceResponse, RegisterServiceRequest,
+    RegisterServiceResponse, RequestIrqRequest, RequestIrqResponse, RequestMemoryRequest,
+    RequestMemoryResponse, RpcServer,
+};
 use spin::Mutex;
 
 const SHELL_ELF: &'static [u8] = include_bytes!("../build/shell");
 const CONSOLE_ELF: &'static [u8] = include_bytes!("../build/console");
 const TIMER_ELF: &'static [u8] = include_bytes!("../build/timer");
-
-// fn timer_test() {
-//     for i in 0..5 {
-//         println!("timer {}: {}", i, timer::current_time());
-//         timer::spin_sleep_ms(1000);
-//     }
-
-//     // works now, but we don't have interrupt handling at the moment
-// //    system_timer::tick_in(1000);
-// }
 
 pub struct NameServer {
     pub services: Mutex<HashMap<String, usize>>,
@@ -62,7 +50,7 @@ pub fn name_server() -> &'static NameServer {
 struct InitThreadApi;
 
 #[async_trait]
-impl naive::rpc::RpcRequestHandlers for InitThreadApi {
+impl rpc::RpcRequestHandlers for InitThreadApi {
     async fn handle_request_memory(
         &self,
         request: &RequestMemoryRequest,
@@ -100,7 +88,7 @@ impl naive::rpc::RpcRequestHandlers for InitThreadApi {
         &self,
         request: &RegisterServiceRequest,
         cap: Vec<usize>,
-    ) -> Result<(RegisterServiceResponse, Vec<usize>)> {
+    ) -> rpc::Result<(RegisterServiceResponse, Vec<usize>)> {
         name_server()
             .services
             .lock()
@@ -114,7 +102,7 @@ impl naive::rpc::RpcRequestHandlers for InitThreadApi {
     async fn handle_lookup_service(
         &self,
         request: &LookupServiceRequest,
-    ) -> Result<(LookupServiceResponse, Vec<usize>)> {
+    ) -> rpc::Result<(LookupServiceResponse, Vec<usize>)> {
         let services = name_server().services.lock();
         let cap = services.get(&request.name);
         if let Some(c) = cap {
@@ -138,8 +126,7 @@ async fn main() {
     let ep_server = EP_SERVER.try_get().unwrap();
     let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
 
-    let listener = LmpListener::new(listen_ep.clone(), listen_badge);
-    let listener = LmpListenerHandle::new(listener);
+    let listener = LmpListenerHandle::new(listen_ep.clone(), listen_badge);
     ep_server.insert_event(listen_badge, Box::new(listener.clone()));
 
     naive::process::ProcessBuilder::new(&CONSOLE_ELF)

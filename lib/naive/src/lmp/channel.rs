@@ -144,7 +144,18 @@ pub struct LmpChannelHandle {
 }
 
 impl LmpChannelHandle {
-    pub fn new(inner: LmpChannel) -> Self {
+    pub fn new(
+        remote_ntf_ep: EpCap,
+        local_ntf_ep: EpCap,
+        local_ntf_badge: usize,
+        argbuf: ArgumentBuffer,
+        role: Role,
+    ) -> Self {
+        let inner = LmpChannel::new(remote_ntf_ep, local_ntf_ep, local_ntf_badge, argbuf, role);
+        Self::from_inner(inner)
+    }
+
+    pub fn from_inner(inner: LmpChannel) -> Self {
         Self {
             inner: Arc::new(Mutex::new(inner)),
             waker: Arc::new(Mutex::new(Vec::new())),
@@ -154,7 +165,7 @@ impl LmpChannelHandle {
 
     pub fn connect(server_ep: EpCap, ntf_ep: EpCap, ntf_badge: usize) -> Result<Self, ()> {
         let inner = LmpChannel::connect(server_ep, ntf_ep, ntf_badge)?;
-        let chan = Self::new(inner);
+        let chan = Self::from_inner(inner);
         EP_SERVER
             .try_get()
             .unwrap()

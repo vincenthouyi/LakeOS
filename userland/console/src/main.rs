@@ -15,7 +15,6 @@ use alloc::vec::Vec;
 use async_trait::async_trait;
 
 use naive::io::AsyncWriteExt;
-use naive::lmp::LmpListener;
 use naive::lmp::LmpListenerHandle;
 use naive::ns::ns_client;
 use naive::rpc;
@@ -110,8 +109,7 @@ async fn main() {
     );
 
     let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
-    let listener = LmpListener::new(listen_ep.clone(), listen_badge);
-    let listener = LmpListenerHandle::new(listener);
+    let listener = LmpListenerHandle::new(listen_ep.clone(), listen_badge);
     ep_server.insert_event(listen_badge, Box::new(listener.clone()));
 
     let console_api = ConsoleApi {};
