@@ -4,9 +4,6 @@ version = "0.1.0"
 authors = ["vincenthouyi <vincenthouyi@gmail.com>"]
 edition = "2018"
 
-[lib]
-crate-type = ["staticlib"]
-
 [profile.dev]
 panic = "abort"
 debug = true

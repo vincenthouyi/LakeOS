@@ -10,7 +10,6 @@ SECTIONS
     _begin = PHYS_BASE;
     . = KERNEL_BASE;
     .boot : AT(ADDR(.boot) - KERNEL_OFFSET) {
-        KEEP(build/init.o)
         KEEP(*(.boot*))
     }
     _init_end = ABSOLUTE(.);
