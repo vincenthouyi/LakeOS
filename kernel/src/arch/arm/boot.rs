@@ -255,6 +255,18 @@ fn load_init_thread(tcb: &mut TcbObj, elf_file: &[u8], cur_free_slot: &mut usize
     )
     .expect("load init elf failed");
 
+    let mut initfs_base = 0x40000000;
+    for frame in INIT_FS.chunks(4096) {
+        let perm = Permission::readonly();
+        let frame_kvaddr = map_frame(tcb, initfs_base, perm, cur_free_slot);
+        unsafe {
+            core::slice::from_raw_parts_mut(frame_kvaddr as *mut u8, 4096)
+                [..frame.len()]
+                .copy_from_slice(frame)
+        }
+        initfs_base += 4096;
+    }
+
     tcb.tf.set_elr(entry as usize);
     tcb.tf.set_sp(INIT_STACK_TOP);
     tcb.tf.init_user_thread();

@@ -49,8 +49,11 @@ picocom:
 	picocom -b 115200 $(PI_TTY)
 
 $(BUILD_DIR)/initfs.cpio:
-	make -C $(INIT_THREAD_DIR)
-	cd ../init_thread/build; ls * | cpio -H newc -ov > $(PWD)/build/initfs.cpio
+	cd ../userland; \
+	cargo build -Z unstable-options --release --out-dir build; \
+	cd build; \
+	ls * | xargs aarch64-none-elf-strip; \
+	ls * | cpio -H newc -ov > $(PWD)/build/initfs.cpio
 
 $(RUST_DEBUG_LIB): $(RUST_DEPS) $(BUILD_DIR)/initfs.cpio
 	@echo "+ Building $@ [xargo]"
@@ -101,7 +104,7 @@ $(KERNEL).bin: $(KERNEL).elf | $(BUILD_DIR)
 	@$(CROSS)-objcopy $< -O binary $@
 
 clean:
-	make clean -C ../init_thread
+	cd ../userland; cargo clean; rm -rf build
 	$(CARGO) clean
 	rm -rf $(BUILD_DIR)
 

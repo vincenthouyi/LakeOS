@@ -73,6 +73,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "cpio"
+version = "0.1.0"
+
+[[package]]
 name = "crossbeam-queue"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -164,6 +168,23 @@ checksum = "e91b62f79061a0bc2e046024cb7ba44b08419ed238ecbd9adbd787434b9e8c25"
 dependencies = [
  "ahash",
  "autocfg",
+]
+
+[[package]]
+name = "init_thread"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "conquer-once",
+ "cpio",
+ "crossbeam-queue",
+ "futures-util",
+ "hashbrown",
+ "naive",
+ "pi",
+ "r0",
+ "rustyl4api",
+ "spin",
 ]
 
 [[package]]

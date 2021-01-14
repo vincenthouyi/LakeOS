@@ -29,10 +29,6 @@ use naive::rpc::{
 };
 use spin::Mutex;
 
-const SHELL_ELF: &'static [u8] = include_bytes!("../build/shell");
-const CONSOLE_ELF: &'static [u8] = include_bytes!("../build/console");
-const TIMER_ELF: &'static [u8] = include_bytes!("../build/timer");
-
 pub struct NameServer {
     pub services: Mutex<HashMap<String, usize>>,
 }
@@ -129,29 +125,50 @@ async fn main() {
     let listener = LmpListenerHandle::new(listen_ep.clone(), listen_badge);
     ep_server.insert_event(listen_badge, Box::new(listener.clone()));
 
-    naive::process::ProcessBuilder::new(&CONSOLE_ELF)
-        .stdin(listen_ep.clone())
-        .stdout(listen_ep.clone())
-        .stderr(listen_ep.clone())
-        .name_server(listen_ep.clone())
-        .spawn()
-        .expect("spawn process failed");
+    let cpio_archive = unsafe {
+        cpio::NewcReader::from_bytes(
+            core::slice::from_raw_parts(0x40000000 as *const u8, 0x4000000)
+        )
+    };
 
-    naive::process::ProcessBuilder::new(&SHELL_ELF)
-        .stdin(listen_ep.clone())
-        .stdout(listen_ep.clone())
-        .stderr(listen_ep.clone())
-        .name_server(listen_ep.clone())
-        .spawn()
-        .expect("spawn process failed");
+    cpio_archive.entries()
+        .find(|e| e.name() == "console")
+        .map(|e| {
+            naive::process::ProcessBuilder::new(e.content())
+                .stdin(listen_ep.clone())
+                .stdout(listen_ep.clone())
+                .stderr(listen_ep.clone())
+                .name_server(listen_ep.clone())
+                .spawn()
+                .expect("spawn process failed");
+        })
+        .expect("console binary not found");
 
-    naive::process::ProcessBuilder::new(&TIMER_ELF)
-        .stdin(listen_ep.clone())
-        .stdout(listen_ep.clone())
-        .stderr(listen_ep.clone())
-        .name_server(listen_ep.clone())
-        .spawn()
-        .expect("spawn process failed");
+    cpio_archive.entries()
+        .find(|e| e.name() == "shell")
+        .map(|e| {
+            naive::process::ProcessBuilder::new(e.content())
+                .stdin(listen_ep.clone())
+                .stdout(listen_ep.clone())
+                .stderr(listen_ep.clone())
+                .name_server(listen_ep.clone())
+                .spawn()
+                .expect("spawn process failed");
+        })
+        .expect("shell binary not found");
+
+    cpio_archive.entries()
+        .find(|e| e.name() == "timer")
+        .map(|e| {
+            naive::process::ProcessBuilder::new(e.content())
+                .stdin(listen_ep.clone())
+                .stdout(listen_ep.clone())
+                .stderr(listen_ep.clone())
+                .name_server(listen_ep.clone())
+                .spawn()
+                .expect("spawn process failed");
+        })
+        .expect("timer binary not found");
 
     let rpc_api = InitThreadApi {};
     let mut rpc_server = RpcServer::new(listener, rpc_api);
