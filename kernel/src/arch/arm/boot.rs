@@ -26,7 +26,7 @@ static mut KERNEL_PUD: Table = Table::zero();
 static mut KERNEL_PD: Table = Table::zero();
 
 static mut INIT_CNODE: MaybeUninit<[CNodeEntry; INIT_CSPACE_SIZE]> = MaybeUninit::uninit();
-static INIT_THREAD_ELF: &'static [u8] = include_aligned!(Align64, "../../../build/init_thread");
+static INIT_FS: &[u8] = include_aligned!(Align64, "../../../build/initfs.cpio");
 
 pub static IDLE_THREADS: PerCore<TcbObj, NCPU> = PerCore([UnsafeCell::new(TcbObj::new()); NCPU]);
 
@@ -300,7 +300,14 @@ fn init_bsp_cpu() {
 
     let init_cnode_cap = CNodeCap::try_from(&init_cnode_obj[InitCSpace as usize]).unwrap();
     init_tcb_cap.install_cspace(&init_cnode_cap).unwrap();
-    load_init_thread(&mut init_tcb_cap, &INIT_THREAD_ELF, &mut cur_free_slot);
+
+    let init_thread_elf =
+        cpio::NewcReader::from_bytes(INIT_FS)
+            .entries()
+            .find(|entry| entry.name() == "init_thread")
+            .map(|entry| entry.content())
+            .expect("Init thread not found!");
+    load_init_thread(&mut init_tcb_cap, init_thread_elf, &mut cur_free_slot);
 
     run_secondary_cpus(crate::_start as usize);
 

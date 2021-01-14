@@ -33,3 +33,4 @@ static_assertions = "1.1.0"
 align-data = "0.1.0"
 aarch64 = { git = "https://github.com/rcore-os/aarch64" }
 elfloader = { path = "../lib/elfloader" }
+cpio = { path = "../lib/cpio" }
