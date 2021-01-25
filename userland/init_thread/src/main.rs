@@ -115,6 +115,25 @@ impl rpc::RpcRequestHandlers for InitThreadApi {
     }
 }
 
+struct InitFs;
+
+impl InitFs {
+    fn archive() -> cpio::NewcReader<'static> {
+        unsafe {
+            cpio::NewcReader::from_bytes(
+                core::slice::from_raw_parts(0x40000000 as *const u8, 0x4000000)
+            )
+        }
+    }
+
+    pub fn get(&self, name: &str) -> Option<&'static [u8]> {
+        Self::archive()
+            .entries()
+            .find(|e| e.name() == name)
+            .map(|e| e.content())
+    }
+}
+
 #[naive::main]
 async fn main() {
     kprintln!("Init thread started");
@@ -125,16 +144,11 @@ async fn main() {
     let listener = LmpListenerHandle::new(listen_ep.clone(), listen_badge);
     ep_server.insert_event(listen_badge, Box::new(listener.clone()));
 
-    let cpio_archive = unsafe {
-        cpio::NewcReader::from_bytes(
-            core::slice::from_raw_parts(0x40000000 as *const u8, 0x4000000)
-        )
-    };
+    let initfs = InitFs { };
 
-    cpio_archive.entries()
-        .find(|e| e.name() == "console")
+    initfs.get("console")
         .map(|e| {
-            naive::process::ProcessBuilder::new(e.content())
+            naive::process::ProcessBuilder::new(e)
                 .stdin(listen_ep.clone())
                 .stdout(listen_ep.clone())
                 .stderr(listen_ep.clone())
@@ -144,10 +158,9 @@ async fn main() {
         })
         .expect("console binary not found");
 
-    cpio_archive.entries()
-        .find(|e| e.name() == "shell")
+    initfs.get("shell")
         .map(|e| {
-            naive::process::ProcessBuilder::new(e.content())
+            naive::process::ProcessBuilder::new(e)
                 .stdin(listen_ep.clone())
                 .stdout(listen_ep.clone())
                 .stderr(listen_ep.clone())
@@ -157,10 +170,9 @@ async fn main() {
         })
         .expect("shell binary not found");
 
-    cpio_archive.entries()
-        .find(|e| e.name() == "timer")
+    initfs.get("timer")
         .map(|e| {
-            naive::process::ProcessBuilder::new(e.content())
+            naive::process::ProcessBuilder::new(e)
                 .stdin(listen_ep.clone())
                 .stdout(listen_ep.clone())
                 .stderr(listen_ep.clone())
