@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloc::{sync::Arc, vec::Vec};
 use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll, Waker};
@@ -169,7 +169,7 @@ impl LmpChannelHandle {
         EP_SERVER
             .try_get()
             .unwrap()
-            .insert_event(ntf_badge, Box::new(chan.clone()));
+            .insert_event(ntf_badge, chan.clone());
         Ok(chan)
     }
 

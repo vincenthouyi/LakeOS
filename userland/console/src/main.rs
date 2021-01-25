@@ -105,12 +105,12 @@ async fn main() {
         .unwrap();
     ep_server.insert_notification(
         pi::interrupt::Interrupt::Aux as usize,
-        Box::new(con.clone()),
+        con.clone(),
     );
 
     let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
     let listener = LmpListenerHandle::new(listen_ep.clone(), listen_badge);
-    ep_server.insert_event(listen_badge, Box::new(listener.clone()));
+    ep_server.insert_event(listen_badge, listener.clone());
 
     let console_api = ConsoleApi {};
     let mut console_server = RpcServer::new(listener, console_api);

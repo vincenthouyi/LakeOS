@@ -4,7 +4,7 @@ use core::{
     task::{Context, Poll, Waker},
 };
 
-use alloc::{boxed::Box, collections::VecDeque, sync::Arc};
+use alloc::{collections::VecDeque, sync::Arc};
 
 use spin::Mutex;
 
@@ -109,7 +109,7 @@ impl EpMsgHandler for LmpListenerHandle {
             let inner = self.inner.lock();
             let chan = inner.accept_with(c_ntf_cap, s_ntf_cap, conn_badge).unwrap();
             let chan = LmpChannelHandle::from_inner(chan);
-            ep_server.insert_event(conn_badge, Box::new(chan.clone()));
+            ep_server.insert_event(conn_badge, chan.clone());
             self.backlog.lock().push_back(chan.clone());
             while let Some(waker) = self.waker.lock().pop_front() {
                 waker.wake()

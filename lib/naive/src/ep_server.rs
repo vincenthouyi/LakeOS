@@ -1,4 +1,3 @@
-use alloc::boxed::Box;
 use alloc::sync::Arc;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
@@ -32,13 +31,10 @@ impl Ep {
 }
 
 pub struct EpServer {
-    event_handlers: OnceCell<Mutex<HashMap<usize, Arc<Box<dyn EpMsgHandler>>>>>,
-    ntf_handler: Mutex<[Option<Arc<Box<dyn EpNtfHandler + Sync + Send>>>; 64]>,
+    event_handlers: OnceCell<Mutex<HashMap<usize, Arc<dyn EpMsgHandler>>>>,
+    ntf_handler: Mutex<[Option<Arc<dyn EpNtfHandler>>; 64]>,
     ep: Ep,
 }
-
-unsafe impl core::marker::Send for EpServer {}
-unsafe impl core::marker::Sync for EpServer {}
 
 impl EpServer {
     pub const fn new(ep: EpCap) -> Self {
@@ -49,7 +45,7 @@ impl EpServer {
         }
     }
 
-    fn get_event_handlers(&self) -> MutexGuard<HashMap<usize, Arc<Box<dyn EpMsgHandler>>>> {
+    fn get_event_handlers(&self) -> MutexGuard<HashMap<usize, Arc<dyn EpMsgHandler>>> {
         self.event_handlers
             .try_get_or_init(|| Mutex::new(HashMap::new()))
             .unwrap()
@@ -60,7 +56,7 @@ impl EpServer {
         self.ep.derive_badged_cap()
     }
 
-    pub fn insert_event(&self, badge: usize, cb: Box<dyn EpMsgHandler>) {
+    pub fn insert_event<T: 'static + EpMsgHandler>(&self, badge: usize, cb: T) {
         self.get_event_handlers().insert(badge, Arc::new(cb));
     }
 
@@ -68,7 +64,7 @@ impl EpServer {
         self.get_event_handlers().remove(&badge);
     }
 
-    pub fn insert_notification(&self, ntf: usize, cb: Box<dyn EpNtfHandler + Sync + Send>) {
+    pub fn insert_notification<T: 'static + EpNtfHandler>(&self, ntf: usize, cb: T) {
         self.ntf_handler.lock()[ntf] = Some(Arc::new(cb));
     }
 
@@ -104,7 +100,7 @@ impl EpServer {
                     let mut ntf_mask = ntf_mask;
                     while ntf_mask.trailing_zeros() != 64 {
                         let ntf = ntf_mask.trailing_zeros() as usize;
-                        let cb = self.ntf_handler.lock()[ntf].clone();
+                        let cb = &self.ntf_handler.lock()[ntf];
                         if let Some(c) = cb {
                             c.handle_notification(self, ntf);
                         }
@@ -119,7 +115,7 @@ impl EpServer {
     }
 }
 
-pub trait EpMsgHandler {
+pub trait EpMsgHandler: Send + Sync {
     fn handle_ipc(
         &self,
         _ep_server: &EpServer,
@@ -131,7 +127,7 @@ pub trait EpMsgHandler {
     fn handle_fault(&self) {}
 }
 
-pub trait EpNtfHandler {
+pub trait EpNtfHandler: Send + Sync {
     fn handle_notification(&self, _ep_server: &EpServer, _ntf: usize) {}
 }
 

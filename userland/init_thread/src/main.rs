@@ -142,7 +142,7 @@ async fn main() {
     let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
 
     let listener = LmpListenerHandle::new(listen_ep.clone(), listen_badge);
-    ep_server.insert_event(listen_badge, Box::new(listener.clone()));
+    ep_server.insert_event(listen_badge, listener.clone());
 
     let initfs = InitFs { };
 
