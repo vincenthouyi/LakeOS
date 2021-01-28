@@ -8,29 +8,31 @@ use naive::io::ErrorKind as impErrorKind;
 use naive::io::Result as impResult;
 use crate::io::{self, ErrorKind};
 
+#[allow(ineffective_unstable_trait_impl)]
 #[unstable(feature = "lakeos", issue = "none")]
 impl From<impErrorKind> for ErrorKind {
     fn from(r: impErrorKind) -> Self {
-        match r {
-            impErrorKind::NotFound => ErrorKind::NotFound,
-            impErrorKind::PermissionDenied => ErrorKind::PermissionDenied,
-            impErrorKind::ConnectionRefused => ErrorKind::ConnectionRefused,
-            impErrorKind::ConnectionReset => ErrorKind::ConnectionReset,
-            impErrorKind::ConnectionAborted => ErrorKind::ConnectionAborted,
-            impErrorKind::NotConnected => ErrorKind::NotConnected,
-            impErrorKind::AddrInUse => ErrorKind::AddrInUse,
-            impErrorKind::AddrNotAvailable => ErrorKind::AddrNotAvailable,
-            impErrorKind::BrokenPipe => ErrorKind::BrokenPipe,
-            impErrorKind::AlreadyExists => ErrorKind::AlreadyExists,
-            impErrorKind::WouldBlock => ErrorKind::WouldBlock,
-            impErrorKind::InvalidInput => ErrorKind::InvalidInput,
-            impErrorKind::InvalidData => ErrorKind::InvalidData,
-            impErrorKind::TimedOut => ErrorKind::TimedOut,
-            impErrorKind::WriteZero => ErrorKind::WriteZero,
-            impErrorKind::Interrupted => ErrorKind::Interrupted,
-            impErrorKind::Other => ErrorKind::Other,
-            impErrorKind::UnexpectedEof => ErrorKind::UnexpectedEof,
-        }
+        unimplemented!()
+        // match r {
+        //     impErrorKind::NotFound => ErrorKind::NotFound,
+        //     impErrorKind::PermissionDenied => ErrorKind::PermissionDenied,
+        //     impErrorKind::ConnectionRefused => ErrorKind::ConnectionRefused,
+        //     impErrorKind::ConnectionReset => ErrorKind::ConnectionReset,
+        //     impErrorKind::ConnectionAborted => ErrorKind::ConnectionAborted,
+        //     impErrorKind::NotConnected => ErrorKind::NotConnected,
+        //     impErrorKind::AddrInUse => ErrorKind::AddrInUse,
+        //     impErrorKind::AddrNotAvailable => ErrorKind::AddrNotAvailable,
+        //     impErrorKind::BrokenPipe => ErrorKind::BrokenPipe,
+        //     impErrorKind::AlreadyExists => ErrorKind::AlreadyExists,
+        //     impErrorKind::WouldBlock => ErrorKind::WouldBlock,
+        //     impErrorKind::InvalidInput => ErrorKind::InvalidInput,
+        //     impErrorKind::InvalidData => ErrorKind::InvalidData,
+        //     impErrorKind::TimedOut => ErrorKind::TimedOut,
+        //     impErrorKind::WriteZero => ErrorKind::WriteZero,
+        //     impErrorKind::Interrupted => ErrorKind::Interrupted,
+        //     impErrorKind::Other => ErrorKind::Other,
+        //     impErrorKind::UnexpectedEof => ErrorKind::UnexpectedEof,
+        // }
     }
 }
 

@@ -38,6 +38,16 @@ pub use crate::os::lakeos as platform;
 
 // pub use self::rand::hashmap_random_keys;
 // pub use libc::strlen;
+pub fn strlen(ptr: *const i8) -> i32 {
+    let mut len = 0;
+    unsafe {
+        while *ptr != b'\0' as i8 {
+            len += 1;
+            ptr.offset(1);
+        }
+    }
+    len
+}
 
 // #[macro_use]
 // pub mod weak;
@@ -60,7 +70,7 @@ pub mod mutex;
 // #[cfg(target_os = "l4re")]
 // pub use self::l4re::net;
 // pub mod os;
-// pub mod path;
+pub mod path;
 // pub mod pipe;
 // pub mod process;
 // pub mod rand;
@@ -71,9 +81,9 @@ pub mod stdio;
 // pub mod thread_local_dtor;
 // pub mod thread_local_key;
 // pub mod time;
-pub mod urpc;
+// pub mod urpc;
 
-// pub use crate::sys_common::os_str_bytes as os_str;
+pub use crate::sys_common::os_str_bytes as os_str;
 
 #[cfg(not(test))]
 pub fn init() {

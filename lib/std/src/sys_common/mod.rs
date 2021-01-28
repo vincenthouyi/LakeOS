@@ -46,7 +46,7 @@
 // pub mod alloc;
 // pub mod at_exit_imp;
 // pub mod backtrace;
-// pub mod bytestring;
+pub mod bytestring;
 // pub mod condvar;
 // pub mod fs;
 // pub mod io;
@@ -54,7 +54,7 @@
 // // `doc` is required because `sys/mod.rs` imports `unix/ext/mod.rs` on Windows
 // // when generating documentation.
 // #[cfg(any(doc, not(windows)))]
-// pub mod os_str_bytes;
+pub mod os_str_bytes;
 // pub mod poison;
 // pub mod process;
 pub mod remutex;
@@ -79,31 +79,31 @@ pub mod remutex;
 //     }
 // }
 
-// // common error constructors
+// common error constructors
 
-// /// A trait for viewing representations from std types
-// #[doc(hidden)]
-// pub trait AsInner<Inner: ?Sized> {
-//     fn as_inner(&self) -> &Inner;
-// }
+/// A trait for viewing representations from std types
+#[doc(hidden)]
+pub trait AsInner<Inner: ?Sized> {
+    fn as_inner(&self) -> &Inner;
+}
 
-// /// A trait for viewing representations from std types
-// #[doc(hidden)]
-// pub trait AsInnerMut<Inner: ?Sized> {
-//     fn as_inner_mut(&mut self) -> &mut Inner;
-// }
+/// A trait for viewing representations from std types
+#[doc(hidden)]
+pub trait AsInnerMut<Inner: ?Sized> {
+    fn as_inner_mut(&mut self) -> &mut Inner;
+}
 
-// /// A trait for extracting representations from std types
-// #[doc(hidden)]
-// pub trait IntoInner<Inner> {
-//     fn into_inner(self) -> Inner;
-// }
+/// A trait for extracting representations from std types
+#[doc(hidden)]
+pub trait IntoInner<Inner> {
+    fn into_inner(self) -> Inner;
+}
 
-// /// A trait for creating std types from internal representations
-// #[doc(hidden)]
-// pub trait FromInner<Inner> {
-//     fn from_inner(inner: Inner) -> Self;
-// }
+/// A trait for creating std types from internal representations
+#[doc(hidden)]
+pub trait FromInner<Inner> {
+    fn from_inner(inner: Inner) -> Self;
+}
 
 // /// Enqueues a procedure to run when the main thread exits.
 // ///

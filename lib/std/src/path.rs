@@ -73,7 +73,7 @@ use crate::borrow::{Borrow, Cow};
 use crate::cmp;
 use crate::error::Error;
 use crate::fmt;
-use crate::fs;
+// use crate::fs;
 use crate::hash::{Hash, Hasher};
 use crate::io;
 use crate::iter::{self, FusedIterator};
@@ -2348,208 +2348,208 @@ impl Path {
         Display { path: self }
     }
 
-    /// Queries the file system to get information about a file, directory, etc.
-    ///
-    /// This function will traverse symbolic links to query information about the
-    /// destination file.
-    ///
-    /// This is an alias to [`fs::metadata`].
-    ///
-    /// [`fs::metadata`]: ../fs/fn.metadata.html
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use std::path::Path;
-    ///
-    /// let path = Path::new("/Minas/tirith");
-    /// let metadata = path.metadata().expect("metadata call failed");
-    /// println!("{:?}", metadata.file_type());
-    /// ```
-    #[stable(feature = "path_ext", since = "1.5.0")]
-    pub fn metadata(&self) -> io::Result<fs::Metadata> {
-        fs::metadata(self)
-    }
+    // /// Queries the file system to get information about a file, directory, etc.
+    // ///
+    // /// This function will traverse symbolic links to query information about the
+    // /// destination file.
+    // ///
+    // /// This is an alias to [`fs::metadata`].
+    // ///
+    // /// [`fs::metadata`]: ../fs/fn.metadata.html
+    // ///
+    // /// # Examples
+    // ///
+    // /// ```no_run
+    // /// use std::path::Path;
+    // ///
+    // /// let path = Path::new("/Minas/tirith");
+    // /// let metadata = path.metadata().expect("metadata call failed");
+    // /// println!("{:?}", metadata.file_type());
+    // /// ```
+    // #[stable(feature = "path_ext", since = "1.5.0")]
+    // pub fn metadata(&self) -> io::Result<fs::Metadata> {
+    //     fs::metadata(self)
+    // }
 
-    /// Queries the metadata about a file without following symlinks.
-    ///
-    /// This is an alias to [`fs::symlink_metadata`].
-    ///
-    /// [`fs::symlink_metadata`]: ../fs/fn.symlink_metadata.html
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use std::path::Path;
-    ///
-    /// let path = Path::new("/Minas/tirith");
-    /// let metadata = path.symlink_metadata().expect("symlink_metadata call failed");
-    /// println!("{:?}", metadata.file_type());
-    /// ```
-    #[stable(feature = "path_ext", since = "1.5.0")]
-    pub fn symlink_metadata(&self) -> io::Result<fs::Metadata> {
-        fs::symlink_metadata(self)
-    }
+    // /// Queries the metadata about a file without following symlinks.
+    // ///
+    // /// This is an alias to [`fs::symlink_metadata`].
+    // ///
+    // /// [`fs::symlink_metadata`]: ../fs/fn.symlink_metadata.html
+    // ///
+    // /// # Examples
+    // ///
+    // /// ```no_run
+    // /// use std::path::Path;
+    // ///
+    // /// let path = Path::new("/Minas/tirith");
+    // /// let metadata = path.symlink_metadata().expect("symlink_metadata call failed");
+    // /// println!("{:?}", metadata.file_type());
+    // /// ```
+    // #[stable(feature = "path_ext", since = "1.5.0")]
+    // pub fn symlink_metadata(&self) -> io::Result<fs::Metadata> {
+    //     fs::symlink_metadata(self)
+    // }
 
-    /// Returns the canonical, absolute form of the path with all intermediate
-    /// components normalized and symbolic links resolved.
-    ///
-    /// This is an alias to [`fs::canonicalize`].
-    ///
-    /// [`fs::canonicalize`]: ../fs/fn.canonicalize.html
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use std::path::{Path, PathBuf};
-    ///
-    /// let path = Path::new("/foo/test/../test/bar.rs");
-    /// assert_eq!(path.canonicalize().unwrap(), PathBuf::from("/foo/test/bar.rs"));
-    /// ```
-    #[stable(feature = "path_ext", since = "1.5.0")]
-    pub fn canonicalize(&self) -> io::Result<PathBuf> {
-        fs::canonicalize(self)
-    }
+    // /// Returns the canonical, absolute form of the path with all intermediate
+    // /// components normalized and symbolic links resolved.
+    // ///
+    // /// This is an alias to [`fs::canonicalize`].
+    // ///
+    // /// [`fs::canonicalize`]: ../fs/fn.canonicalize.html
+    // ///
+    // /// # Examples
+    // ///
+    // /// ```no_run
+    // /// use std::path::{Path, PathBuf};
+    // ///
+    // /// let path = Path::new("/foo/test/../test/bar.rs");
+    // /// assert_eq!(path.canonicalize().unwrap(), PathBuf::from("/foo/test/bar.rs"));
+    // /// ```
+    // #[stable(feature = "path_ext", since = "1.5.0")]
+    // pub fn canonicalize(&self) -> io::Result<PathBuf> {
+    //     fs::canonicalize(self)
+    // }
 
-    /// Reads a symbolic link, returning the file that the link points to.
-    ///
-    /// This is an alias to [`fs::read_link`].
-    ///
-    /// [`fs::read_link`]: ../fs/fn.read_link.html
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use std::path::Path;
-    ///
-    /// let path = Path::new("/laputa/sky_castle.rs");
-    /// let path_link = path.read_link().expect("read_link call failed");
-    /// ```
-    #[stable(feature = "path_ext", since = "1.5.0")]
-    pub fn read_link(&self) -> io::Result<PathBuf> {
-        fs::read_link(self)
-    }
+    // /// Reads a symbolic link, returning the file that the link points to.
+    // ///
+    // /// This is an alias to [`fs::read_link`].
+    // ///
+    // /// [`fs::read_link`]: ../fs/fn.read_link.html
+    // ///
+    // /// # Examples
+    // ///
+    // /// ```no_run
+    // /// use std::path::Path;
+    // ///
+    // /// let path = Path::new("/laputa/sky_castle.rs");
+    // /// let path_link = path.read_link().expect("read_link call failed");
+    // /// ```
+    // #[stable(feature = "path_ext", since = "1.5.0")]
+    // pub fn read_link(&self) -> io::Result<PathBuf> {
+    //     fs::read_link(self)
+    // }
 
-    /// Returns an iterator over the entries within a directory.
-    ///
-    /// The iterator will yield instances of [`io::Result`]`<`[`DirEntry`]`>`. New
-    /// errors may be encountered after an iterator is initially constructed.
-    ///
-    /// This is an alias to [`fs::read_dir`].
-    ///
-    /// [`io::Result`]: ../io/type.Result.html
-    /// [`DirEntry`]: ../fs/struct.DirEntry.html
-    /// [`fs::read_dir`]: ../fs/fn.read_dir.html
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use std::path::Path;
-    ///
-    /// let path = Path::new("/laputa");
-    /// for entry in path.read_dir().expect("read_dir call failed") {
-    ///     if let Ok(entry) = entry {
-    ///         println!("{:?}", entry.path());
-    ///     }
-    /// }
-    /// ```
-    #[stable(feature = "path_ext", since = "1.5.0")]
-    pub fn read_dir(&self) -> io::Result<fs::ReadDir> {
-        fs::read_dir(self)
-    }
+    // /// Returns an iterator over the entries within a directory.
+    // ///
+    // /// The iterator will yield instances of [`io::Result`]`<`[`DirEntry`]`>`. New
+    // /// errors may be encountered after an iterator is initially constructed.
+    // ///
+    // /// This is an alias to [`fs::read_dir`].
+    // ///
+    // /// [`io::Result`]: ../io/type.Result.html
+    // /// [`DirEntry`]: ../fs/struct.DirEntry.html
+    // /// [`fs::read_dir`]: ../fs/fn.read_dir.html
+    // ///
+    // /// # Examples
+    // ///
+    // /// ```no_run
+    // /// use std::path::Path;
+    // ///
+    // /// let path = Path::new("/laputa");
+    // /// for entry in path.read_dir().expect("read_dir call failed") {
+    // ///     if let Ok(entry) = entry {
+    // ///         println!("{:?}", entry.path());
+    // ///     }
+    // /// }
+    // /// ```
+    // #[stable(feature = "path_ext", since = "1.5.0")]
+    // pub fn read_dir(&self) -> io::Result<fs::ReadDir> {
+    //     fs::read_dir(self)
+    // }
 
-    /// Returns `true` if the path points at an existing entity.
-    ///
-    /// This function will traverse symbolic links to query information about the
-    /// destination file. In case of broken symbolic links this will return `false`.
-    ///
-    /// If you cannot access the directory containing the file, e.g., because of a
-    /// permission error, this will return `false`.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use std::path::Path;
-    /// assert_eq!(Path::new("does_not_exist.txt").exists(), false);
-    /// ```
-    ///
-    /// # See Also
-    ///
-    /// This is a convenience function that coerces errors to false. If you want to
-    /// check errors, call [fs::metadata].
-    ///
-    /// [fs::metadata]: ../../std/fs/fn.metadata.html
-    #[stable(feature = "path_ext", since = "1.5.0")]
-    pub fn exists(&self) -> bool {
-        fs::metadata(self).is_ok()
-    }
+    // /// Returns `true` if the path points at an existing entity.
+    // ///
+    // /// This function will traverse symbolic links to query information about the
+    // /// destination file. In case of broken symbolic links this will return `false`.
+    // ///
+    // /// If you cannot access the directory containing the file, e.g., because of a
+    // /// permission error, this will return `false`.
+    // ///
+    // /// # Examples
+    // ///
+    // /// ```no_run
+    // /// use std::path::Path;
+    // /// assert_eq!(Path::new("does_not_exist.txt").exists(), false);
+    // /// ```
+    // ///
+    // /// # See Also
+    // ///
+    // /// This is a convenience function that coerces errors to false. If you want to
+    // /// check errors, call [fs::metadata].
+    // ///
+    // /// [fs::metadata]: ../../std/fs/fn.metadata.html
+    // #[stable(feature = "path_ext", since = "1.5.0")]
+    // pub fn exists(&self) -> bool {
+    //     fs::metadata(self).is_ok()
+    // }
 
-    /// Returns `true` if the path exists on disk and is pointing at a regular file.
-    ///
-    /// This function will traverse symbolic links to query information about the
-    /// destination file. In case of broken symbolic links this will return `false`.
-    ///
-    /// If you cannot access the directory containing the file, e.g., because of a
-    /// permission error, this will return `false`.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use std::path::Path;
-    /// assert_eq!(Path::new("./is_a_directory/").is_file(), false);
-    /// assert_eq!(Path::new("a_file.txt").is_file(), true);
-    /// ```
-    ///
-    /// # See Also
-    ///
-    /// This is a convenience function that coerces errors to false. If you want to
-    /// check errors, call [`fs::metadata`] and handle its Result. Then call
-    /// [`fs::Metadata::is_file`] if it was Ok.
-    ///
-    /// When the goal is simply to read from (or write to) the source, the most
-    /// reliable way to test the source can be read (or written to) is to open
-    /// it. Only using `is_file` can break workflows like `diff <( prog_a )` on
-    /// a Unix-like system for example. See [`File::open`] or
-    /// [`OpenOptions::open`] for more information.
-    ///
-    /// [`fs::metadata`]: ../../std/fs/fn.metadata.html
-    /// [`fs::Metadata`]: ../../std/fs/struct.Metadata.html
-    /// [`fs::Metadata::is_file`]: ../../std/fs/struct.Metadata.html#method.is_file
-    /// [`File::open`]: ../../std/fs/struct.File.html#method.open
-    /// [`OpenOptions::open`]: ../../std/fs/struct.OpenOptions.html#method.open
-    #[stable(feature = "path_ext", since = "1.5.0")]
-    pub fn is_file(&self) -> bool {
-        fs::metadata(self).map(|m| m.is_file()).unwrap_or(false)
-    }
+    // /// Returns `true` if the path exists on disk and is pointing at a regular file.
+    // ///
+    // /// This function will traverse symbolic links to query information about the
+    // /// destination file. In case of broken symbolic links this will return `false`.
+    // ///
+    // /// If you cannot access the directory containing the file, e.g., because of a
+    // /// permission error, this will return `false`.
+    // ///
+    // /// # Examples
+    // ///
+    // /// ```no_run
+    // /// use std::path::Path;
+    // /// assert_eq!(Path::new("./is_a_directory/").is_file(), false);
+    // /// assert_eq!(Path::new("a_file.txt").is_file(), true);
+    // /// ```
+    // ///
+    // /// # See Also
+    // ///
+    // /// This is a convenience function that coerces errors to false. If you want to
+    // /// check errors, call [`fs::metadata`] and handle its Result. Then call
+    // /// [`fs::Metadata::is_file`] if it was Ok.
+    // ///
+    // /// When the goal is simply to read from (or write to) the source, the most
+    // /// reliable way to test the source can be read (or written to) is to open
+    // /// it. Only using `is_file` can break workflows like `diff <( prog_a )` on
+    // /// a Unix-like system for example. See [`File::open`] or
+    // /// [`OpenOptions::open`] for more information.
+    // ///
+    // /// [`fs::metadata`]: ../../std/fs/fn.metadata.html
+    // /// [`fs::Metadata`]: ../../std/fs/struct.Metadata.html
+    // /// [`fs::Metadata::is_file`]: ../../std/fs/struct.Metadata.html#method.is_file
+    // /// [`File::open`]: ../../std/fs/struct.File.html#method.open
+    // /// [`OpenOptions::open`]: ../../std/fs/struct.OpenOptions.html#method.open
+    // #[stable(feature = "path_ext", since = "1.5.0")]
+    // pub fn is_file(&self) -> bool {
+    //     fs::metadata(self).map(|m| m.is_file()).unwrap_or(false)
+    // }
 
-    /// Returns `true` if the path exists on disk and is pointing at a directory.
-    ///
-    /// This function will traverse symbolic links to query information about the
-    /// destination file. In case of broken symbolic links this will return `false`.
-    ///
-    /// If you cannot access the directory containing the file, e.g., because of a
-    /// permission error, this will return `false`.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use std::path::Path;
-    /// assert_eq!(Path::new("./is_a_directory/").is_dir(), true);
-    /// assert_eq!(Path::new("a_file.txt").is_dir(), false);
-    /// ```
-    ///
-    /// # See Also
-    ///
-    /// This is a convenience function that coerces errors to false. If you want to
-    /// check errors, call [fs::metadata] and handle its Result. Then call
-    /// [fs::Metadata::is_dir] if it was Ok.
-    ///
-    /// [fs::metadata]: ../../std/fs/fn.metadata.html
-    /// [fs::Metadata::is_dir]: ../../std/fs/struct.Metadata.html#method.is_dir
-    #[stable(feature = "path_ext", since = "1.5.0")]
-    pub fn is_dir(&self) -> bool {
-        fs::metadata(self).map(|m| m.is_dir()).unwrap_or(false)
-    }
+    // /// Returns `true` if the path exists on disk and is pointing at a directory.
+    // ///
+    // /// This function will traverse symbolic links to query information about the
+    // /// destination file. In case of broken symbolic links this will return `false`.
+    // ///
+    // /// If you cannot access the directory containing the file, e.g., because of a
+    // /// permission error, this will return `false`.
+    // ///
+    // /// # Examples
+    // ///
+    // /// ```no_run
+    // /// use std::path::Path;
+    // /// assert_eq!(Path::new("./is_a_directory/").is_dir(), true);
+    // /// assert_eq!(Path::new("a_file.txt").is_dir(), false);
+    // /// ```
+    // ///
+    // /// # See Also
+    // ///
+    // /// This is a convenience function that coerces errors to false. If you want to
+    // /// check errors, call [fs::metadata] and handle its Result. Then call
+    // /// [fs::Metadata::is_dir] if it was Ok.
+    // ///
+    // /// [fs::metadata]: ../../std/fs/fn.metadata.html
+    // /// [fs::Metadata::is_dir]: ../../std/fs/struct.Metadata.html#method.is_dir
+    // #[stable(feature = "path_ext", since = "1.5.0")]
+    // pub fn is_dir(&self) -> bool {
+    //     fs::metadata(self).map(|m| m.is_dir()).unwrap_or(false)
+    // }
 
     /// Converts a [`Box<Path>`][`Box`] into a [`PathBuf`] without copying or
     /// allocating.

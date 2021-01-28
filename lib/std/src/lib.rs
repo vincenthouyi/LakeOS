@@ -293,7 +293,7 @@
 #![feature(never_type)]
 #![feature(nll)]
 // #![feature(once_cell)]
-#![feature(optin_builtin_traits)]
+#![feature(auto_traits)]
 #![feature(or_patterns)]
 #![feature(panic_info_message)]
 #![feature(panic_internals)]
@@ -466,14 +466,14 @@ pub mod ascii;
 pub mod collections;
 // pub mod env;
 pub mod error;
-// pub mod ffi;
+pub mod ffi;
 // pub mod fs;
 pub mod io;
 // pub mod net;
 pub mod num;
 pub mod os;
 // pub mod panic;
-// pub mod path;
+pub mod path;
 pub mod process;
 pub mod sync;
 // pub mod time;
@@ -510,7 +510,7 @@ mod memchr;
 
 // The runtime entry point and a few unstable public functions used by the
 // compiler
-pub mod rt;
+// pub mod rt;
 
 //#[path = "../backtrace/src/lib.rs"]
 // #[allow(dead_code, unused_attributes)]

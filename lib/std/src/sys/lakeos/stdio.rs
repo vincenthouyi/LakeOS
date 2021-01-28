@@ -3,12 +3,9 @@ use crate::mem::ManuallyDrop;
 // use crate::sys::fd::FileDesc;
 use spin::{Mutex, MutexGuard};
 // use crate::sync::Arc;
-use super::urpc::{UrpcStream, UrpcStreamHandle};
+// use super::urpc::{UrpcStream, UrpcStreamHandle};
 use naive::space_manager::gsm;
 use rustyl4api::object::EndpointObj;
-
-static STDIN_IMP: Mutex<Option<UrpcStreamHandle>> = Mutex::new(None);
-static STDOUT_IMP: Mutex<Option<UrpcStreamHandle>> = Mutex::new(None);
 
 pub struct Stdin(());
 pub struct Stdout(());
@@ -16,26 +13,13 @@ pub struct Stderr(());
 
 impl Stdin {
     pub fn new() -> io::Result<Stdin> {
-        use rustyl4api::process::ProcessCSpace;
-        use rustyl4api::object::EpCap;
-
-        let mut guard = STDIN_IMP.lock();
-        if guard.is_none() {
-            let cap = EpCap::new(ProcessCSpace::Stdin as usize);
-            let ntf_ep = gsm!().alloc_object::<EndpointObj>(12).unwrap();
-            let chan = UrpcStream::connect(cap, ntf_ep, 1234).unwrap();
-            let chan = UrpcStreamHandle::from_stream(chan);
-            *guard = Some(chan);
-        }
-
-        Ok(Stdin(()))
+        unimplemented!()
     }
 }
 
 impl io::Read for Stdin {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        // ManuallyDrop::new(FileDesc::new(libc::STDIN_FILENO)).read(buf)
-        STDIN_IMP.lock().as_mut().unwrap().read(buf)
+        unimplemented!()
     }
 
     // fn read_vectored(&mut self, bufs: &mut [IoSliceMut<'_>]) -> io::Result<usize> {
@@ -50,25 +34,13 @@ impl io::Read for Stdin {
 
 impl Stdout {
     pub fn new() -> io::Result<Stdout> {
-        use rustyl4api::process::ProcessCSpace;
-        use rustyl4api::object::EpCap;
-
-        let mut guard = STDOUT_IMP.lock();
-        if guard.is_none() {
-            let cap = EpCap::new(ProcessCSpace::Stdout as usize);
-            let ntf_ep = gsm!().alloc_object::<EndpointObj>(12).unwrap();
-            let chan = UrpcStream::connect(cap, ntf_ep, 2345).unwrap();
-            let chan = UrpcStreamHandle::from_stream(chan);
-            *guard = Some(chan);
-        }
-
-        Ok(Stdout(()))
+        unimplemented!()
     }
 }
 
 impl io::Write for Stdout {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        STDOUT_IMP.lock().as_mut().unwrap().write(buf)
+        unimplemented!()
         // use core::fmt::Write;
         // use core::str::from_utf8;
         // use rustyl4api::debug_printer::debug_printer; 
@@ -106,17 +78,7 @@ impl Stderr {
 
 impl io::Write for Stderr {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        use core::fmt::Write;
-        use core::str::from_utf8;
-
-        let string = from_utf8(buf).unwrap();
-        for c in string.chars() {
-            use rustyl4api::object::EpCap;
-            use rustyl4api::process::ProcessCSpace;
-            let ep = EpCap::new(ProcessCSpace::Stderr as usize);
-            ep.send(&[c as usize], None);
-        }
-        Ok(buf.len())
+        unimplemented!()
     }
 
     // fn write_vectored(&mut self, bufs: &[IoSlice<'_>]) -> io::Result<usize> {
