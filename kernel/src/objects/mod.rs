@@ -45,8 +45,8 @@ pub struct CapRef<'a, T: KernelObject + ?Sized> {
 
 impl<'a, T: KernelObject + ?Sized> CapRef<'a, T> {
     pub fn cap_type(&self) -> ObjType {
-        debug_assert_eq!(T::obj_type(), self.raw().cap_type());
-        T::obj_type()
+        debug_assert_eq!(T::obj_type, self.raw().cap_type());
+        T::obj_type
     }
 
     pub fn raw(&self) -> CapRaw {
@@ -62,7 +62,7 @@ impl<'a, T: KernelObject + ?Sized> CapRef<'a, T> {
     }
 
     fn _retype<U: KernelObject + ?Sized>(self) -> CapRef<'a, U> {
-        debug_assert_eq!(U::obj_type(), self.raw().cap_type());
+        debug_assert_eq!(U::obj_type, self.raw().cap_type());
         CapRef {
             raw: self.raw,
             cap_type: PhantomData,
@@ -127,7 +127,7 @@ impl<'a, T: ?Sized + KernelObject> core::convert::TryFrom<&'a CNodeEntry> for Ca
     type Error = SysError;
 
     fn try_from(value: &'a CNodeEntry) -> SysResult<Self> {
-        if T::obj_type() != value.get().cap_type() {
+        if T::obj_type != value.get().cap_type() {
             Err(Self::Error::CapabilityTypeError)
         } else {
             Ok(Self {

@@ -372,7 +372,7 @@ where
     for i in UntypedStart as usize.. {
         let untyped_cap = UntypedCap::try_from(&cspace[i])?;
         let slots = core::slice::from_ref(slot);
-        if let Ok(_) = untyped_cap.retype(T::obj_type(), bit_sz, slots) {
+        if let Ok(_) = untyped_cap.retype(T::obj_type, bit_sz, slots) {
             return CapRef::<T>::try_from(slot);
         }
     }

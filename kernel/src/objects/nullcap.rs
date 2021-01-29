@@ -14,7 +14,7 @@ impl<'a> CapRef<'a, NullObj> {
     where
         T: KernelObject + ?Sized,
     {
-        debug_assert_eq!(T::obj_type(), raw.cap_type());
+        debug_assert_eq!(T::obj_type, raw.cap_type());
         self.raw.set(raw);
 
         CapRef {
