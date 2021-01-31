@@ -7,6 +7,7 @@ use alloc::sync::Arc;
 use alloc::task::Wake;
 
 use crossbeam_queue::SegQueue;
+use conquer_once::spin::OnceCell;
 
 pub mod executor;
 
@@ -67,4 +68,21 @@ impl Wake for TaskWaker {
     fn wake_by_ref(self: &Arc<Self>) {
         self.wake_task();
     }
+}
+
+//TODO: make global executor thread local
+unsafe impl core::marker::Send for Executor {}
+unsafe impl core::marker::Sync for Executor {}
+pub fn global_executor() -> &'static Executor {
+    static EXECUTOR: OnceCell<Executor> = OnceCell::uninit();
+
+    EXECUTOR.try_get_or_init(|| Executor::new()).unwrap()
+}
+
+pub fn spawn<F>(future: F)
+where
+    F: Future<Output = ()> + 'static
+{
+    let task = Task::new(future);
+    global_executor().spawn(task);
 }

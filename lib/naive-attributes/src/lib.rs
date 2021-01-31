@@ -37,12 +37,8 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
             use core::future::Future;
             fn worker_thread() -> ! {
-                use naive::task::Task;
-                use naive::task::Executor;
-
-                let mut exe = Executor::new();
-                exe.spawn(Task::new(main()));
-                exe.run();
+                naive::task::spawn(main());
+                naive::task::global_executor().run();
 
                 loop {}
             }

@@ -20,8 +20,8 @@ impl<T: RpcRequestHandlers + Sync> RpcServer<T> {
         }
     }
 
-    pub async fn run(&mut self) {
-        let Self { listener, handlers } = self;
+    pub async fn run(self) {
+        let Self { mut listener, handlers } = self;
 
         listener
             .incoming()
