@@ -39,11 +39,12 @@ pub use crate::os::lakeos as platform;
 // pub use self::rand::hashmap_random_keys;
 // pub use libc::strlen;
 pub fn strlen(ptr: *const i8) -> i32 {
+    let mut cur_ptr = ptr;
     let mut len = 0;
     unsafe {
-        while *ptr != b'\0' as i8 {
+        while *cur_ptr != b'\0' as i8 {
             len += 1;
-            ptr.offset(1);
+            cur_ptr = cur_ptr.offset(1);
         }
     }
     len

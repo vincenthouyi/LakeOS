@@ -4,13 +4,14 @@ use core::{
     task::{Context, Poll},
 };
 
-use alloc::{string::String, vec::Vec};
+use alloc::{vec::Vec};
 
 use rustyl4api::object::EpCap;
 
 use crate::{
     lmp::{LmpChannelHandle, LmpMessage},
     ns,
+    path::{Path, PathBuf},
 };
 
 pub struct RpcClient {
@@ -50,11 +51,11 @@ impl RpcClient {
         resp.result
     }
 
-    pub async fn rpc_read(&mut self, buf: &mut [u8]) -> usize {
+    pub async fn rpc_read(&mut self, buf: &mut [u8], offset: usize) -> usize {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::ReadRequest { len: buf.len() };
+            let payload = super::ReadRequest { len: buf.len(), offset };
             let request = LmpMessage {
                 opcode: 1,
                 msg: serde_json::to_vec(&payload).unwrap(),
@@ -121,11 +122,11 @@ impl RpcClient {
         }
     }
 
-    pub async fn register_service(&mut self, name: String, cap: usize) -> ns::Result<()> {
+    pub async fn register_service<P: AsRef<Path>>(&mut self, name: P, cap: usize) -> ns::Result<()> {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::RegisterServiceRequest { name };
+            let payload = super::RegisterServiceRequest { name: name.as_ref().to_path_buf() };
             let request = LmpMessage {
                 opcode: 4,
                 msg: serde_json::to_vec(&payload).unwrap(),
@@ -139,11 +140,11 @@ impl RpcClient {
         resp.result.into_result()
     }
 
-    pub async fn lookup_service(&mut self, name: String) -> ns::Result<usize> {
+    pub async fn lookup_service<P: AsRef<Path>>(&mut self, name: P) -> ns::Result<usize> {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::LookupServiceRequest { name };
+            let payload = super::LookupServiceRequest { name: name.as_ref().to_path_buf() };
             let request = LmpMessage {
                 opcode: 5,
                 msg: serde_json::to_vec(&payload).unwrap(),
@@ -159,11 +160,11 @@ impl RpcClient {
             .map(|_| *resp_msg.caps.get(0).unwrap())
     }
 
-    pub async fn current_time(&mut self) -> ns::Result<u64> {
+    pub async fn read_dir(&mut self) -> ns::Result<Vec<PathBuf>> {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::CurrentTimeRequest {};
+            let payload = super::ReadDirRequest {};
             let request = LmpMessage {
                 opcode: 6,
                 msg: serde_json::to_vec(&payload).unwrap(),
@@ -172,9 +173,9 @@ impl RpcClient {
             RpcCallFuture::new(channel.clone(), request)
         });
         let resp_msg = rpc.await;
-        let resp: super::CurrentTimeResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
+        let resp: super::ReadDirResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
         self.rpc_state.take();
-        Ok(resp.time)
+        Ok(resp.filename)
     }
 }
 

@@ -1,6 +1,7 @@
-use crate::ns;
-use alloc::string::String;
 use alloc::vec::Vec;
+
+use crate::ns;
+use crate::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WriteRequest {
@@ -15,6 +16,7 @@ pub struct WriteResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReadRequest {
     pub len: usize,
+    pub offset: usize,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -46,7 +48,7 @@ pub struct RequestIrqResponse {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterServiceRequest {
-    pub name: String,
+    pub name: PathBuf,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -56,7 +58,7 @@ pub struct RegisterServiceResponse {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LookupServiceRequest {
-    pub name: String,
+    pub name: PathBuf,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -65,9 +67,10 @@ pub struct LookupServiceResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct CurrentTimeRequest {}
+pub struct ReadDirRequest {
+}
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct CurrentTimeResponse {
-    pub time: u64,
+pub struct ReadDirResponse {
+    pub filename: Vec<PathBuf>,
 }

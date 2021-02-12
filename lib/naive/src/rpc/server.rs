@@ -78,59 +78,63 @@ pub trait RpcRequestHandlers {
         Err(Error::CallNotSupported)
     }
 
-    async fn handle_current_time(
+    async fn handle_read_dir(
         &self,
-        _request: &CurrentTimeRequest,
-    ) -> Result<(CurrentTimeResponse, Vec<usize>)> {
+        _request: &ReadDirRequest,
+    ) -> Result<(ReadDirResponse, Vec<usize>)> {
         Err(Error::CallNotSupported)
     }
 
-    async fn handle_request(&self, channel: LmpChannelHandle, request: LmpMessage) {
+    async fn _handle_request(&self, request: LmpMessage) -> Result<(Vec<u8>, Vec<usize>)> {
         let opcode = request.opcode;
-        let (resp_payload, cap) = match opcode {
+        let r = match opcode {
             0 => {
-                let request: WriteRequest = serde_json::from_slice(&request.msg).unwrap();
-                let (resp, cap) = self.handle_write(&request).await.unwrap();
+                let request: WriteRequest = serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
+                let (resp, cap) = self.handle_write(&request).await?;
                 (serde_json::to_vec(&resp).unwrap(), cap)
             }
             1 => {
-                let request: ReadRequest = serde_json::from_slice(&request.msg).unwrap();
-                let (resp, cap) = self.handle_read(&request).await.unwrap();
+                let request: ReadRequest = serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
+                let (resp, cap) = self.handle_read(&request).await?;
                 (serde_json::to_vec(&resp).unwrap(), cap)
             }
             2 => {
-                let request = serde_json::from_slice(&request.msg).unwrap();
-                let (resp, cap) = self.handle_request_memory(&request).await.unwrap();
+                let request = serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
+                let (resp, cap) = self.handle_request_memory(&request).await?;
                 (serde_json::to_vec(&resp).unwrap(), cap)
             }
             3 => {
-                let request = serde_json::from_slice(&request.msg).unwrap();
-                let (resp, cap) = self.handle_request_irq(&request).await.unwrap();
+                let request = serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
+                let (resp, cap) = self.handle_request_irq(&request).await?;
                 (serde_json::to_vec(&resp).unwrap(), cap)
             }
             4 => {
-                let request_msg = serde_json::from_slice(&request.msg).unwrap();
+                let request_msg = serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
                 let (resp, cap) = self
                     .handle_register_service(&request_msg, request.caps)
-                    .await
-                    .unwrap();
+                    .await?;
                 (serde_json::to_vec(&resp).unwrap(), cap)
             }
             5 => {
-                let request_msg = serde_json::from_slice(&request.msg).unwrap();
-                let (resp, cap) = self.handle_lookup_service(&request_msg).await.unwrap();
+                let request_msg = serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
+                let (resp, cap) = self.handle_lookup_service(&request_msg).await?;
                 (serde_json::to_vec(&resp).unwrap(), cap)
             }
             6 => {
-                let request_msg = serde_json::from_slice(&request.msg).unwrap();
-                let (resp, cap) = self.handle_current_time(&request_msg).await.unwrap();
+                let request_msg = serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
+                let (resp, cap) = self.handle_read_dir(&request_msg).await?;
                 (serde_json::to_vec(&resp).unwrap(), cap)
             }
             _ => {
                 todo!()
             }
         };
+        Ok(r)
+    }
 
+    async fn handle_request(&self, channel: LmpChannelHandle, request: LmpMessage) {
+        let opcode = request.opcode;
+        let (resp_payload, cap) = self._handle_request(request).await.unwrap();
         let resp = LmpMessage {
             opcode: opcode,
             msg: resp_payload,

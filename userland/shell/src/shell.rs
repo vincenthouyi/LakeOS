@@ -1,13 +1,13 @@
 use alloc::string::String;
 use alloc::vec::Vec;
-// use crate::prelude::*;
-//use std::path::PathBuf;
-//use super::FILE_SYSTEM;
-//use fat32::traits::{FileSystem, Dir, Entry};
-//use std::io;
-//use std::str;
 
+use naive::fs::{read_dir, File, current_dir, set_current_dir};
 use naive::stream::StreamExt;
+use naive::path::Path;
+use naive::io::AsyncReadExt;
+use naive::os_str::OsStr;
+
+use crate::naive::os_str::OsStrExt;
 
 /// Error type for `Command` parse failures.
 #[derive(Debug)]
@@ -39,155 +39,61 @@ impl<'a> Command<'a> {
         Ok(Command { args })
     }
 
-    //    /// Returns this command's path. This is equivalent to the first argument.
-    //    fn path(&self) -> &str {
-    //        self.args[0]
-    //    }
-    //
-    //    fn cat(&self, pwd: &mut PathBuf) -> Result<(), ()> {
-    //        use std::io::{Read};
-    //        let dir_buf = PathBuf::from(self.args[1]);
-    //        let abs_path = {
-    //            if dir_buf.is_absolute() {
-    //                dir_buf
-    //            } else {
-    //                let mut tmp_pwd = pwd.clone();
-    //                tmp_pwd.push(dir_buf);
-    //                tmp_pwd
-    //            }
-    //        };
-    //
-    //        FILE_SYSTEM.open(abs_path)
-    //            .and_then(|dir_entry|
-    //                      dir_entry.into_file().ok_or(io::Error::new(io::ErrorKind::Other,
-    //                                                                "Is a directory")))
-    //            .and_then(|mut file| {
-    //                let mut buf = Vec::new();
-    //                match file.read_to_end(&mut buf) {
-    //                    Ok(n) => {
-    //                        let s = str::from_utf8(&buf[..n]).unwrap();
-    //                        println!("{}", s);
-    //                        Ok(())
-    //                    }
-    //                    Err(e) => {
-    //                        Err(e)
-    //                    }
-    //                }
-    //            })
-    //            .map_err(|e| {
-    //                match e.kind() {
-    //                    io::ErrorKind::Other => println!("Is a directory"),
-    //                    _ => {}
-    //                }
-    //                ()
-    //            })
-    //    }
-    //
-    //    fn cd(&self, pwd: &mut PathBuf) -> Result<(), ()> {
-    //        let dir_buf = PathBuf::from(if self.args.len() < 1 {
-    //            "/"
-    //        } else {
-    //            self.args[1]
-    //        });
-    //
-    //        let abs_path = {
-    //            if dir_buf.is_absolute() {
-    //                dir_buf
-    //            } else {
-    //                let mut tmp_pwd = pwd.to_path_buf();
-    //                tmp_pwd.push(dir_buf);
-    //                tmp_pwd
-    //            }
-    //        };
-    //
-    //        let dir_entry = FILE_SYSTEM.open(abs_path.clone());
-    //        if dir_entry.is_err() {
-    //            println!("cd: no such file or directory: {}", self.args[1]);
-    //            return Err(());
-    //        }
-    //
-    //        if dir_entry.unwrap().as_dir().is_some() {
-    //            pwd.set_file_name(abs_path);
-    //            return Ok(());
-    //        } else {
-    //            println!("cd: not a directory: {}", self.args[1]);
-    //            return Err(());
-    //        }
-    //    }
-    //
-    //    fn ls(&self, pwd: &mut PathBuf) -> Result<(),()> {
-    //        use fat32::traits::Metadata;
-    //
-    //        let mut args = &self.args[1..];
-    //        let all = args.get(0).and_then(|&arg| {
-    //            if arg == "-a" {
-    //                args = &args[1..];
-    //                Some(true)
-    //            } else {
-    //                None
-    //            }
-    //        }).unwrap_or(false);
-    //
-    //        let dir_buf = if args.len() < 1 {
-    //            pwd.clone()
-    //        } else {
-    //            PathBuf::from(args[0])
-    //        };
-    //
-    //        let abs_path = {
-    //            if dir_buf.is_absolute() {
-    //                dir_buf
-    //            } else {
-    //                let mut tmp_pwd = pwd.clone();
-    //                tmp_pwd.push(dir_buf);
-    //                tmp_pwd
-    //            }
-    //        };
-    //
-    //        FILE_SYSTEM.open(abs_path.clone())
-    //            .and_then(|dir_entry|
-    //                      dir_entry.into_dir().ok_or(io::Error::new(io::ErrorKind::Other,
-    //                                                                "not dir")))
-    //            .and_then(|dir| dir.entries())
-    //            .and_then(|entries| {
-    //                for e in entries {
-    //                    if all || !e.metadata().hidden() {
-    //                        println!("{}", e.name());
-    //                    }
-    //                }
-    //                Ok(())
-    //            })
-    //            .map_err(|e| {
-    //                match e.kind() {
-    //                    io::ErrorKind::Other => println!("ls: not supported {}", args[0]),
-    //                    io::ErrorKind::NotFound => println!("ls: no such file or directory: {}", args[0]),
-    //                    _ => {},
-    //                }
-    //                ()
-    //            })
-    //    }
-    //
-    //    pub fn exec(&self, pwd: &mut PathBuf) {
-    //        match self.path() {
-    //            "echo" => {
-    //                let len = self.args.len();
-    //                for i in 1..(len - 1) {
-    //                    print!("{} ", self.args.as_slice()[i]);
-    //                }
-    //                println!("{}", self.args.as_slice()[len - 1]);
-    //                Ok(())
-    //            }
-    //            "ls" => self.ls(pwd),
-    //            "pwd" => { println!("{}", pwd.to_str().unwrap()); Ok(()) }
-    //            "cd" => self.cd(pwd),
-    //            "cat" => self.cat(pwd),
-    //            cmd => {
-    //                println!("unknown command: {}", cmd);
-    //                Ok(())
-    //            }
-    //
-    //        }.unwrap_or(());
-    //    }
+    async fn cat(&self, path: &Path) -> Result<(), ()> {
+        let mut file = File::open(path).await?;
+        let mut buf = Vec::new();
+
+        file.read_to_end(&mut buf).await.map_err(|_|())?;
+        print!("{}", String::from_utf8(buf).unwrap()).await;
+        Ok(())
+    }
+
+    async fn cd<P: AsRef<Path>>(&self, pwd: P) -> Result<(), ()> {
+        set_current_dir(pwd).await
+    }
+
+    async fn ls(&self, args: &[&str]) -> Result<(),()> {
+        let path = args.get(0)
+            .map(|p| OsStr::from_bytes(p.as_bytes()).into())
+            .unwrap_or_else(|| current_dir().unwrap());
+        match read_dir(&path).await {
+            Ok(dir) => {
+                for entry in dir {
+                    println!("{:?}", entry.unwrap().path()).await;
+                }
+            }
+            Err(e) => {
+                println!("{}: {:?}", path.to_str().unwrap(), e).await;
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn exec(&self) {
+        match self.args.as_slice() {
+            ["echo", args @ ..] => { println!("{}", args.join(" ")).await; }
+            ["ls", args @ ..] => { self.ls(args).await.unwrap(); }
+            ["pwd"] => {
+                println!("{}", current_dir().unwrap().to_str().unwrap()).await
+            }
+            ["cd", args @ ..] => {
+                let path = args.get(0).unwrap_or(&"/");
+                let path = OsStr::from_bytes(path.as_bytes());
+                self.cd(path).await.unwrap();
+            },
+            ["cat", args @ ..] => {
+                for path in args {
+                    let path = OsStr::from_bytes(path.as_bytes()).as_ref();
+                    let res = self.cat(path).await;
+                    if let Err(e) = res {
+                        println!("Error {:?}", e).await;
+                    }
+                }
+            },
+            [] => { /* Ignore empty command */}
+            cmd => { println!("unknown command: {:?}", cmd).await; }
+        };
+    }
 }
 
 const BS: u8 = 0x08;
@@ -199,13 +105,15 @@ async fn read_line() -> String {
     let mut read: usize = 0;
 
     let mut cmd = Vec::new();
+    let mut stdin = naive::io::stdin().await;
     'outer: loop {
-        while let Some(b) = naive::io::stdin().next().await {
+        while let Some(b) = stdin.next().await {
             match b {
                 BS | DEL if read > 0 => {
                     print!("{}", BS as char).await;
                     print!(" ").await;
                     print!("{}", BS as char).await;
+                    cmd.pop();
                     read -= 1;
                 }
                 LF | CR => {
@@ -229,15 +137,11 @@ async fn read_line() -> String {
 /// Starts a shell using `prefix` as the prefix for each line. This function
 /// returns if the `exit` command is called.
 pub async fn shell(prefix: &str) {
-    //    let mut pwd = PathBuf::from("/");
-
     loop {
-        //        print!("{} {}", pwd.to_str().unwrap(), prefix);
         print!("{} ", prefix).await;
         match Command::parse(&read_line().await) {
             //TODO exit
-            //            Ok(cmd) => cmd.exec(&mut pwd),
-            Ok(cmd) => println!("command: {:?}", cmd).await,
+            Ok(cmd) => cmd.exec().await,
             Err(Error::Empty) => {}
         }
     }

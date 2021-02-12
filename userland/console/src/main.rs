@@ -86,7 +86,6 @@ impl naive::rpc::RpcRequestHandlers for ConsoleApi {
 
 #[naive::main]
 async fn main() {
-    use crate::alloc::string::ToString;
     use rustyl4api::object::interrupt::InterruptCap;
     gpio::init_gpio_server().await;
     console::console_server_init().await;
@@ -113,11 +112,11 @@ async fn main() {
     ep_server.insert_event(listen_badge, listener.clone());
 
     let console_api = ConsoleApi {};
-    let mut console_server = RpcServer::new(listener, console_api);
+    let console_server = RpcServer::new(listener, console_api);
 
     ns_client()
         .lock()
-        .register_service("tty".to_string(), listen_ep.slot)
+        .register_service("/dev/tty", listen_ep.slot)
         .await
         .unwrap();
 

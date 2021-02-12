@@ -2,7 +2,7 @@ use core::{fmt, str, slice, iter};
 
 const HEADER_LEN: usize = 110; // length of fixed part
 const MAGIC: &[u8] = b"070701";
-const TRAILER_NAME: &str = "TRAILER!!!";
+const TRAILER_NAME: &[u8] = b"TRAILER!!!";
 
 #[repr(C)]
 pub struct Entry {
@@ -68,9 +68,9 @@ impl Entry {
     pub fn check_sum(&self) -> u32 {
         newc_atoi(&self.check_sum)
     }
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &[u8] {
         let len = self.name_len() as usize;
-        str::from_utf8(&self.name[..len - 1]).unwrap()
+        &self.name[..len - 1]
     }
     pub fn header_size(&self) -> usize {
         align_up(HEADER_LEN + self.name_len() as usize, 4)
@@ -127,6 +127,7 @@ impl Entry {
     }
 }
 
+#[derive(Debug)]
 pub struct Reader<'a> {
     inner: &'a [u8]
 }

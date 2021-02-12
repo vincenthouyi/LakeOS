@@ -1,9 +1,8 @@
 use core::fmt;
-use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
-use alloc::{boxed::Box, format, sync::Arc};
+use alloc::{format, sync::Arc};
 
 use spin::Mutex;
 
@@ -15,17 +14,16 @@ use futures_util::stream::Stream;
 use rustyl4api::object::EpCap;
 use rustyl4api::process::ProcessCSpace;
 
-use crate::ep_server::EP_SERVER;
 use crate::io;
-use crate::rpc::RpcClient;
+use crate::fs::File;
 
 pub struct Stdout {
-    channel: Arc<Mutex<RpcClient>>,
+    fd: Arc<Mutex<File>>,
 }
 
 impl Stdout {
-    pub fn new(channel: Arc<Mutex<RpcClient>>) -> Self {
-        Self { channel }
+    pub fn new(fd: Arc<Mutex<File>>) -> Self {
+        Self { fd }
     }
 }
 
@@ -35,9 +33,7 @@ impl AsyncWrite for Stdout {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        let mut chan = self.channel.lock();
-        let mut fut = Box::pin(chan.rpc_write(buf));
-        Pin::new(&mut fut).poll(cx).map(|r| Ok(r))
+        Pin::new(&mut *self.fd.lock()).poll_write(cx, buf)
     }
 
     fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
@@ -49,31 +45,32 @@ impl AsyncWrite for Stdout {
     }
 }
 
-pub static mut STDOUT_CAP: usize = ProcessCSpace::Stdout as usize;
+static STDOUT: OnceCell<Arc<Mutex<File>>> = OnceCell::uninit();
 
-pub fn stdout() -> Stdout {
-    static STDOUT: OnceCell<Arc<Mutex<RpcClient>>> = OnceCell::uninit();
-
-    let inner = STDOUT
-        .try_get_or_init(|| {
-            let ep_server = EP_SERVER.try_get().unwrap();
-            let (ntf_badge, ntf_ep) = ep_server.derive_badged_cap().unwrap();
-            let client =
-                RpcClient::connect(EpCap::new(unsafe { STDOUT_CAP }), ntf_ep, ntf_badge).unwrap();
-            Arc::new(Mutex::new(client))
-        })
-        .unwrap()
-        .clone();
+pub async fn stdout() -> Stdout {
+    if !STDOUT.is_initialized() {
+        let fd = File::connect(EpCap::new(ProcessCSpace::Stdout as usize)).await.unwrap();
+        STDOUT.get_or_init(|| Arc::new(Mutex::new(fd)));
+    }
+    let inner = STDOUT.get().unwrap().clone();
     Stdout::new(inner)
 }
 
+pub fn set_stdout(file_handle: File) {
+    if !STDOUT.is_initialized() {
+        STDOUT.get_or_init(|| Arc::new(Mutex::new(file_handle)));
+    } else {
+        *STDOUT.get().unwrap().lock() = file_handle;
+    }
+}
+
 pub struct Stdin {
-    channel: Arc<Mutex<RpcClient>>,
+    fd: Arc<Mutex<File>>,
 }
 
 impl Stdin {
-    pub fn new(channel: Arc<Mutex<RpcClient>>) -> Self {
-        Self { channel }
+    pub fn new(fd: Arc<Mutex<File>>) -> Self {
+        Self { fd }
     }
 }
 
@@ -83,9 +80,7 @@ impl AsyncRead for Stdin {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        let mut chan = self.channel.lock();
-        let mut fut = Box::pin(chan.rpc_read(buf));
-        Pin::new(&mut fut).poll(cx).map(|r| Ok(r))
+        Pin::new(&mut *self.fd.lock()).poll_read(cx, buf)
     }
 }
 
@@ -97,28 +92,29 @@ impl Stream for Stdin {
     }
 }
 
-pub static mut STDIN_CAP: usize = ProcessCSpace::Stdout as usize;
+static STDIN: OnceCell<Arc<Mutex<File>>> = OnceCell::uninit();
 
-pub fn stdin() -> Stdin {
-    static STDIN: OnceCell<Arc<Mutex<RpcClient>>> = OnceCell::uninit();
-
-    let inner = STDIN
-        .try_get_or_init(|| {
-            let ep_server = EP_SERVER.try_get().unwrap();
-            let (ntf_badge, ntf_ep) = ep_server.derive_badged_cap().unwrap();
-            let client =
-                RpcClient::connect(EpCap::new(unsafe { STDOUT_CAP }), ntf_ep, ntf_badge).unwrap();
-            Arc::new(Mutex::new(client))
-        })
-        .unwrap()
-        .clone();
+pub async fn stdin() -> Stdin {
+    if !STDIN.is_initialized() {
+        let fd = File::connect(EpCap::new(ProcessCSpace::Stdin as usize)).await.unwrap();
+        STDIN.get_or_init(|| Arc::new(Mutex::new(fd)));
+    }
+    let inner = STDIN.get().unwrap().clone();
     Stdin::new(inner)
+}
+
+pub fn set_stdin(file_handle: File) {
+    if !STDIN.is_initialized() {
+        STDIN.get_or_init(|| Arc::new(Mutex::new(file_handle)));
+    } else {
+        *STDIN.get().unwrap().lock() = file_handle;
+    }
 }
 
 pub async fn _print(args: fmt::Arguments<'_>) {
     use futures_util::io::AsyncWriteExt;
 
-    if let Err(e) = stdout().write_all(&format!("{}", args).into_bytes()).await {
+    if let Err(e) = stdout().await.write_all(&format!("{}", args).into_bytes()).await {
         panic!("failed printing to stdout: {}", e);
     }
 }

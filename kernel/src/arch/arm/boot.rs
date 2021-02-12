@@ -518,7 +518,7 @@ fn init_bsp_cpu() {
     let init_thread_elf =
         cpio::NewcReader::from_bytes(INIT_FS)
             .entries()
-            .find(|entry| entry.name() == "init_thread")
+            .find(|entry| entry.name() == b"init_thread")
             .map(|entry| entry.content())
             .expect("Init thread not found!");
     load_init_thread(&mut init_tcb_cap, init_thread_elf, &mut cur_free_slot);

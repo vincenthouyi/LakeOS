@@ -1,37 +1,16 @@
 use conquer_once::spin::OnceCell;
 use spin::Mutex;
 
-use rustyl4api::object::EpCap;
+use futures_util::AsyncReadExt;
 
-use crate::ep_server::EP_SERVER;
-use crate::ns;
-use crate::rpc::RpcClient;
+use crate::fs::File;
 
-static TIME_CLIENT: OnceCell<Mutex<RpcClient>> = OnceCell::uninit();
+static TIME_CLIENT: OnceCell<Mutex<File>> = OnceCell::uninit();
 
-async fn time_client() -> &'static Mutex<RpcClient> {
-    use crate::alloc::string::ToString;
-
+async fn time_client() -> &'static Mutex<File> {
     let time_client = if TIME_CLIENT.get().is_none() {
-        let timer_cap_slot = {
-            let mut slot: Option<usize> = None;
-            while let None = slot {
-                slot = ns::ns_client()
-                    .lock()
-                    .lookup_service("timer".to_string())
-                    .await
-                    .ok();
-            }
-            slot.unwrap()
-        };
-        let timer_cap = EpCap::new(timer_cap_slot);
-
-        let ep_server = EP_SERVER.try_get().unwrap();
-        let (cli_badge, cli_ep) = ep_server.derive_badged_cap().unwrap();
-
-        Some(Mutex::new(
-            RpcClient::connect(timer_cap, cli_ep, cli_badge).unwrap(),
-        ))
+        let timer_fd = File::open(&"/dev/timer").await.unwrap();
+        Some(Mutex::new(timer_fd))
     } else {
         None
     };
@@ -40,7 +19,11 @@ async fn time_client() -> &'static Mutex<RpcClient> {
 }
 
 pub async fn current_time() -> u64 {
-    time_client().await.lock().current_time().await.unwrap()
+    let mut time_buf = [0; 8];
+    time_client().await.lock().read(&mut time_buf).await.unwrap();
+    unsafe {
+        core::mem::transmute(time_buf)
+    }
 }
 
 pub async fn sleep_us(us: u64) {

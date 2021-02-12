@@ -9,17 +9,18 @@ extern crate alloc;
 extern crate rustyl4api;
 
 // mod rt;
+mod vfs;
+mod initfs;
+mod devfs;
 
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
 use async_trait::async_trait;
 
-use rustyl4api::object::CNodeCap;
+use rustyl4api::object::{CNodeCap, EpCap};
 
-use alloc::string::String;
 use conquer_once::spin::OnceCell;
-use hashbrown::HashMap;
 use naive::lmp::LmpListenerHandle;
 use naive::ns;
 use naive::rpc::{
@@ -28,20 +29,6 @@ use naive::rpc::{
     RequestMemoryResponse, RpcServer,
 };
 use spin::Mutex;
-
-pub struct NameServer {
-    pub services: Mutex<HashMap<String, usize>>,
-}
-
-pub fn name_server() -> &'static NameServer {
-    static NAME_SERVER: OnceCell<NameServer> = OnceCell::uninit();
-
-    NAME_SERVER
-        .try_get_or_init(|| NameServer {
-            services: Mutex::new(HashMap::new()),
-        })
-        .unwrap()
-}
 
 struct InitThreadApi;
 
@@ -85,12 +72,15 @@ impl rpc::RpcRequestHandlers for InitThreadApi {
         request: &RegisterServiceRequest,
         cap: Vec<usize>,
     ) -> rpc::Result<(RegisterServiceResponse, Vec<usize>)> {
-        name_server()
-            .services
-            .lock()
-            .insert(request.name.clone(), cap[0]);
+        let ret = vfs().lock().publish(&request.name, EpCap::new(cap[0]));
         let resp = RegisterServiceResponse {
-            result: ns::Error::Success,
+            result: {
+                if ret.is_ok() {
+                    ns::Error::Success
+                } else {
+                    ns::Error::ServiceNotFound
+                }
+            },
         };
         Ok((resp, [].to_vec()))
     }
@@ -99,13 +89,14 @@ impl rpc::RpcRequestHandlers for InitThreadApi {
         &self,
         request: &LookupServiceRequest,
     ) -> rpc::Result<(LookupServiceResponse, Vec<usize>)> {
-        let services = name_server().services.lock();
-        let cap = services.get(&request.name);
-        if let Some(c) = cap {
+        let mut vfs_guard = vfs().lock();
+        let res = vfs_guard
+            .open(&request.name);
+        if let Ok(node) = res {
             let resp = LookupServiceResponse {
                 result: ns::Error::Success,
             };
-            Ok((resp, [*c].to_vec()))
+            Ok((resp, [node.cap].to_vec()))
         } else {
             let resp = LookupServiceResponse {
                 result: ns::Error::ServiceNotFound,
@@ -115,23 +106,12 @@ impl rpc::RpcRequestHandlers for InitThreadApi {
     }
 }
 
-struct InitFs;
+use vfs::Vfs;
+pub fn vfs() -> &'static Mutex<Vfs> {
+    static VFS: OnceCell<Mutex<Vfs>> = OnceCell::uninit();
 
-impl InitFs {
-    fn archive() -> cpio::NewcReader<'static> {
-        unsafe {
-            cpio::NewcReader::from_bytes(
-                core::slice::from_raw_parts(0x40000000 as *const u8, 0x4000000)
-            )
-        }
-    }
-
-    pub fn get(&self, name: &str) -> Option<&'static [u8]> {
-        Self::archive()
-            .entries()
-            .find(|e| e.name() == name)
-            .map(|e| e.content())
-    }
+    VFS.try_get_or_init(|| Mutex::new(Vfs::new()))
+        .unwrap()
 }
 
 #[naive::main]
@@ -144,9 +124,12 @@ async fn main() {
     let listener = LmpListenerHandle::new(listen_ep.clone(), listen_badge);
     ep_server.insert_event(listen_badge, listener.clone());
 
-    let initfs = InitFs { };
+    vfs().lock().mount("/", initfs::InitFs::new()  ).unwrap();
+    vfs().lock().mount("/dev", devfs::DevFs::new()).unwrap();
 
-    initfs.get("console")
+    let initfs = initfs::InitFs::new() ;
+
+    initfs.get(b"console")
         .map(|e| {
             naive::process::ProcessBuilder::new(e)
                 .stdin(listen_ep.clone())
@@ -158,7 +141,7 @@ async fn main() {
         })
         .expect("console binary not found");
 
-    initfs.get("shell")
+    initfs.get(b"shell")
         .map(|e| {
             naive::process::ProcessBuilder::new(e)
                 .stdin(listen_ep.clone())
@@ -170,7 +153,7 @@ async fn main() {
         })
         .expect("shell binary not found");
 
-    initfs.get("timer")
+    initfs.get(b"timer")
         .map(|e| {
             naive::process::ProcessBuilder::new(e)
                 .stdin(listen_ep.clone())
@@ -183,7 +166,7 @@ async fn main() {
         .expect("timer binary not found");
 
     let rpc_api = InitThreadApi {};
-    let mut rpc_server = RpcServer::new(listener, rpc_api);
+    let rpc_server = RpcServer::new(listener, rpc_api);
 
     rpc_server.run().await;
 }

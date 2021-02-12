@@ -8,6 +8,10 @@
 #![feature(linked_list_cursors)]
 #![feature(llvm_asm)]
 #![feature(wake_trait)]
+#![feature(extend_one)]
+#![feature(toowned_clone_into)]
+#![feature(str_internals)]
+#![feature(shrink_to)]
 #![no_std]
 
 extern crate alloc;
@@ -37,6 +41,10 @@ pub mod task;
 pub mod thread;
 pub mod time;
 mod vm_allocator;
+pub mod fs;
+pub mod path;
+pub mod os_str;
+mod os_str_bytes;
 
 pub use naive_attributes::main;
 
