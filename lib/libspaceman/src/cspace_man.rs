@@ -34,10 +34,10 @@ impl CNodeBlock {
             let node_sz = self.size.load(Ordering::Relaxed);
             if cur_wm < node_sz {
                 let new_wm = cur_wm + 1;
-                if cur_wm
-                    == self
+                if let Ok(_)
+                    = self
                         .free_watermark
-                        .compare_and_swap(cur_wm, new_wm, Ordering::Relaxed)
+                        .compare_exchange(cur_wm, new_wm, Ordering::Relaxed, Ordering::Relaxed)
                 {
                     return Some(new_wm);
                 }
@@ -53,10 +53,10 @@ impl CNodeBlock {
             let cur_wm = self.free_watermark.load(Ordering::Relaxed);
             let node_sz = self.size.load(Ordering::Relaxed);
             if slot < node_sz && slot >= cur_wm {
-                if cur_wm
-                    == self
+                if let Ok(_)
+                    = self
                         .free_watermark
-                        .compare_and_swap(cur_wm, slot + 1, Ordering::Relaxed)
+                        .compare_exchange(cur_wm, slot + 1, Ordering::Relaxed, Ordering::Relaxed)
                 {
                     return Some(slot);
                 }

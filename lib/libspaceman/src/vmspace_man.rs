@@ -59,7 +59,7 @@ impl VMSpaceMan {
             let start = align_up(self.end_brk.load(Ordering::Relaxed), layout.align());
             let size = layout.size();
             let end = start + size;
-            if start == self.end_brk.compare_and_swap(start, end, Ordering::Relaxed) {
+            if let Ok(start) = self.end_brk.compare_exchange(start, end, Ordering::Relaxed, Ordering::Relaxed) {
                 return start;
             }
         }
