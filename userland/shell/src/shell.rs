@@ -1,11 +1,11 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use naive::fs::{read_dir, File, current_dir, set_current_dir};
-use naive::stream::StreamExt;
-use naive::path::Path;
+use naive::fs::{current_dir, read_dir, set_current_dir, File};
 use naive::io::AsyncReadExt;
 use naive::os_str::OsStr;
+use naive::path::Path;
+use naive::stream::StreamExt;
 
 use crate::naive::os_str::OsStrExt;
 
@@ -43,7 +43,7 @@ impl<'a> Command<'a> {
         let mut file = File::open(path).await?;
         let mut buf = Vec::new();
 
-        file.read_to_end(&mut buf).await.map_err(|_|())?;
+        file.read_to_end(&mut buf).await.map_err(|_| ())?;
         print!("{}", String::from_utf8(buf).unwrap()).await;
         Ok(())
     }
@@ -52,8 +52,9 @@ impl<'a> Command<'a> {
         set_current_dir(pwd).await
     }
 
-    async fn ls(&self, args: &[&str]) -> Result<(),()> {
-        let path = args.get(0)
+    async fn ls(&self, args: &[&str]) -> Result<(), ()> {
+        let path = args
+            .get(0)
             .map(|p| OsStr::from_bytes(p.as_bytes()).into())
             .unwrap_or_else(|| current_dir().unwrap());
         match read_dir(&path).await {
@@ -71,16 +72,18 @@ impl<'a> Command<'a> {
 
     pub async fn exec(&self) {
         match self.args.as_slice() {
-            ["echo", args @ ..] => { println!("{}", args.join(" ")).await; }
-            ["ls", args @ ..] => { self.ls(args).await.unwrap(); }
-            ["pwd"] => {
-                println!("{}", current_dir().unwrap().to_str().unwrap()).await
+            ["echo", args @ ..] => {
+                println!("{}", args.join(" ")).await;
             }
+            ["ls", args @ ..] => {
+                self.ls(args).await.unwrap();
+            }
+            ["pwd"] => println!("{}", current_dir().unwrap().to_str().unwrap()).await,
             ["cd", args @ ..] => {
                 let path = args.get(0).unwrap_or(&"/");
                 let path = OsStr::from_bytes(path.as_bytes());
                 self.cd(path).await.unwrap();
-            },
+            }
             ["cat", args @ ..] => {
                 for path in args {
                     let path = OsStr::from_bytes(path.as_bytes()).as_ref();
@@ -89,9 +92,11 @@ impl<'a> Command<'a> {
                         println!("Error {:?}", e).await;
                     }
                 }
-            },
-            [] => { /* Ignore empty command */}
-            cmd => { println!("unknown command: {:?}", cmd).await; }
+            }
+            [] => { /* Ignore empty command */ }
+            cmd => {
+                println!("unknown command: {:?}", cmd).await;
+            }
         };
     }
 }

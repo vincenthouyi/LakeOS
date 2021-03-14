@@ -1,22 +1,19 @@
+use alloc::{boxed::Box, vec::Vec};
 use core::{
+    convert::AsRef,
+    future::Future,
     pin::Pin,
     task::{Context, Poll},
-    future::Future,
-    convert::AsRef,
-};
-use alloc::{
-    boxed::Box,
-    vec::Vec,
 };
 
 pub use futures_util::io::{AsyncRead, AsyncWrite};
 
 use crate::{
-    io,
     ep_server::EP_SERVER,
-    rpc::RpcClient,
+    io,
     ns::ns_client,
     path::{Path, PathBuf},
+    rpc::RpcClient,
 };
 use rustyl4api::object::EpCap;
 
@@ -27,19 +24,18 @@ pub struct File {
 
 impl File {
     pub async fn open<P: AsRef<Path>>(path: P) -> Result<Self, ()> {
-
-        let resp = ns_client().lock().lookup_service(path.as_ref()).await.map_err(|_|())?;
+        let resp = ns_client()
+            .lock()
+            .lookup_service(path.as_ref())
+            .await
+            .map_err(|_| ())?;
         Self::connect(EpCap::new(resp)).await
     }
 
     pub async fn connect(ep: EpCap) -> Result<Self, ()> {
         let ep_server = EP_SERVER.try_get().unwrap();
         let (ntf_badge, ntf_ep) = ep_server.derive_badged_cap().unwrap();
-        let cli = RpcClient::connect(
-            ep,
-            ntf_ep,
-            ntf_badge
-        ).unwrap();
+        let cli = RpcClient::connect(ep, ntf_ep, ntf_badge).unwrap();
         Ok(Self {
             client: cli,
             offset: 0,

@@ -12,7 +12,7 @@ use async_trait::async_trait;
 
 use naive::lmp::LmpListenerHandle;
 use naive::ns::ns_client;
-use naive::rpc::{self, RpcServer, ReadRequest, ReadResponse};
+use naive::rpc::{self, ReadRequest, ReadResponse, RpcServer};
 
 mod timer;
 
@@ -31,12 +31,14 @@ struct TimerApi;
 impl naive::rpc::RpcRequestHandlers for TimerApi {
     async fn handle_read(&self, _request: &ReadRequest) -> rpc::Result<(ReadResponse, Vec<usize>)> {
         let time = timer::current_time();
-        let time_buf: [u8; 8] = unsafe {
-            core::mem::transmute(time)
-        };
-        Ok((ReadResponse { buf: time_buf.to_vec() }, [].to_vec()))
+        let time_buf: [u8; 8] = unsafe { core::mem::transmute(time) };
+        Ok((
+            ReadResponse {
+                buf: time_buf.to_vec(),
+            },
+            [].to_vec(),
+        ))
     }
-
 }
 
 #[naive::main]

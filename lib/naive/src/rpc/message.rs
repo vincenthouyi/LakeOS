@@ -67,8 +67,7 @@ pub struct LookupServiceResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ReadDirRequest {
-}
+pub struct ReadDirRequest {}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReadDirResponse {

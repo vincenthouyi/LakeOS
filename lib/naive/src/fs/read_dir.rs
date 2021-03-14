@@ -1,9 +1,7 @@
-use core::iter::Iterator;
 use core::convert::AsRef;
+use core::iter::Iterator;
 
-use alloc::{
-    vec::Vec,
-};
+use alloc::vec::Vec;
 
 use crate::path::{Path, PathBuf};
 
@@ -19,7 +17,11 @@ pub async fn read_dir<P: AsRef<Path>>(path: P) -> Result<ReadDir, ()> {
     let pathbuf = path.as_ref().to_path_buf();
     let mut fd = File::open(path).await?;
     let filenames = fd.read_dir().await?;
-    Ok(ReadDir { path: pathbuf, filenames, idx: 0 })
+    Ok(ReadDir {
+        path: pathbuf,
+        filenames,
+        idx: 0,
+    })
 }
 
 impl Iterator for ReadDir {
@@ -27,7 +29,7 @@ impl Iterator for ReadDir {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.idx >= self.filenames.len() {
-            return None
+            return None;
         }
 
         let filename = &self.filenames[self.idx];
@@ -35,14 +37,12 @@ impl Iterator for ReadDir {
 
         let mut path = self.path.clone();
         path.set_file_name(filename);
-        Some(Ok(DirEntry {
-            path
-        }))
+        Some(Ok(DirEntry { path }))
     }
 }
 
 pub struct DirEntry {
-    path: PathBuf 
+    path: PathBuf,
 }
 
 impl DirEntry {

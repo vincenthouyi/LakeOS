@@ -4,7 +4,7 @@ use core::{
     task::{Context, Poll},
 };
 
-use alloc::{vec::Vec};
+use alloc::vec::Vec;
 
 use rustyl4api::object::EpCap;
 
@@ -55,7 +55,10 @@ impl RpcClient {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::ReadRequest { len: buf.len(), offset };
+            let payload = super::ReadRequest {
+                len: buf.len(),
+                offset,
+            };
             let request = LmpMessage {
                 opcode: 1,
                 msg: serde_json::to_vec(&payload).unwrap(),
@@ -122,11 +125,17 @@ impl RpcClient {
         }
     }
 
-    pub async fn register_service<P: AsRef<Path>>(&mut self, name: P, cap: usize) -> ns::Result<()> {
+    pub async fn register_service<P: AsRef<Path>>(
+        &mut self,
+        name: P,
+        cap: usize,
+    ) -> ns::Result<()> {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::RegisterServiceRequest { name: name.as_ref().to_path_buf() };
+            let payload = super::RegisterServiceRequest {
+                name: name.as_ref().to_path_buf(),
+            };
             let request = LmpMessage {
                 opcode: 4,
                 msg: serde_json::to_vec(&payload).unwrap(),
@@ -144,7 +153,9 @@ impl RpcClient {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::LookupServiceRequest { name: name.as_ref().to_path_buf() };
+            let payload = super::LookupServiceRequest {
+                name: name.as_ref().to_path_buf(),
+            };
             let request = LmpMessage {
                 opcode: 5,
                 msg: serde_json::to_vec(&payload).unwrap(),

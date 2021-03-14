@@ -1,16 +1,16 @@
-use core::slice;
+use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use alloc::boxed::Box;
+use core::slice;
 
 use async_trait::async_trait;
 use hashbrown::{HashMap, HashSet};
 use spin::Mutex;
 
-use naive::rpc::{self, RpcServer, ReadDirRequest, ReadDirResponse};
-use naive::lmp::LmpListenerHandle;
 use naive::ep_server::EP_SERVER;
+use naive::lmp::LmpListenerHandle;
 use naive::path::{Path, PathBuf};
+use naive::rpc::{self, ReadDirRequest, ReadDirResponse, RpcServer};
 use rustyl4api::object::EpCap;
 
 use crate::vfs::INode;
@@ -42,16 +42,16 @@ impl DirEntry {
     pub fn open(&self) -> Result<Option<usize>, ()> {
         let mut inner = self.0.lock();
         if let Some(ep) = inner.cached_ep {
-            return Ok(Some(ep))
+            return Ok(Some(ep));
         }
         let ep = inner.open()?;
         if let Some(ep) = ep {
             inner.cached_ep = Some(ep);
-            return Ok(Some(ep))
+            return Ok(Some(ep));
         }
 
         let node = DentryNode {
-            dentry: self.clone()
+            dentry: self.clone(),
         };
 
         let ep_server = EP_SERVER.try_get().unwrap();
@@ -73,7 +73,7 @@ impl DirEntry {
     pub fn remove_child<P: AsRef<Path>>(&self, name: P) {
         self.0.lock().children.remove(name.as_ref());
     }
-    
+
     pub fn is_negative(&self) -> bool {
         self.0.lock().is_negative()
     }
@@ -87,12 +87,7 @@ impl DirEntry {
     }
 
     pub fn read(&self, buf: &mut [u8], offset: usize) -> Result<usize, ()> {
-        self.0
-            .lock()
-            .inode
-            .as_mut()
-            .ok_or(())?
-            .read(buf, offset)
+        self.0.lock().inode.as_mut().ok_or(())?.read(buf, offset)
     }
 }
 
@@ -104,7 +99,8 @@ pub struct DirEntryImp {
 }
 
 fn lookup_inode<P: AsRef<Path>>(inode: &Arc<dyn INode>, name: P) -> Option<DirEntry> {
-    inode.lookup(&name)
+    inode
+        .lookup(&name)
         .map(|child_node| DirEntry::new(child_node))
 }
 
@@ -113,7 +109,7 @@ impl DirEntryImp {
         Self {
             children: HashMap::new(),
             inode: Some(inode),
-            cached_ep: None
+            cached_ep: None,
         }
     }
 
@@ -121,7 +117,7 @@ impl DirEntryImp {
         Self {
             children: HashMap::new(),
             inode: None,
-            cached_ep: None
+            cached_ep: None,
         }
     }
 
@@ -135,25 +131,17 @@ impl DirEntryImp {
         Some(
             self.children
                 .entry(name.as_ref().to_path_buf())
-                .or_insert_with(
-                    || lookup_inode(inode, name)
-                        .unwrap_or(DirEntry::new_negative()))
-                .clone()
+                .or_insert_with(|| lookup_inode(inode, name).unwrap_or(DirEntry::new_negative()))
+                .clone(),
         )
     }
 
     pub fn publish<P: AsRef<Path>>(&mut self, name: P, ep: EpCap) -> Result<(), ()> {
-        self.inode
-            .as_ref()
-            .ok_or(())?
-            .publish(&name, ep)
+        self.inode.as_ref().ok_or(())?.publish(&name, ep)
     }
 
     pub fn open(&self) -> Result<Option<usize>, ()> {
-        self.inode
-            .as_ref()
-            .ok_or(())?
-            .open()
+        self.inode.as_ref().ok_or(())?.open()
     }
 
     pub fn is_negative(&self) -> bool {
@@ -161,22 +149,16 @@ impl DirEntryImp {
     }
 
     pub fn read_dir(&self) -> Result<Vec<PathBuf>, ()> {
-        self.inode
-            .as_ref()
-            .ok_or(())?
-            .read_dir()
+        self.inode.as_ref().ok_or(())?.read_dir()
     }
 
     pub fn cached_entries(&self) -> Vec<PathBuf> {
-        self.children
-            .keys()
-            .cloned()
-            .collect()
+        self.children.keys().cloned().collect()
     }
 }
 
 struct DentryNode {
-    dentry: DirEntry
+    dentry: DirEntry,
 }
 
 #[async_trait]
@@ -186,18 +168,27 @@ impl rpc::RpcRequestHandlers for DentryNode {
         _request: &ReadDirRequest,
     ) -> rpc::Result<(ReadDirResponse, Vec<usize>)> {
         let cached_entries = self.dentry.cached_entries();
-        let inode_entries = self.dentry.read_dir().map_err(|_| rpc::Error::CallNotSupported)?;
+        let inode_entries = self
+            .dentry
+            .read_dir()
+            .map_err(|_| rpc::Error::CallNotSupported)?;
         let mut ret = HashSet::new();
 
         for i in cached_entries.into_iter().chain(inode_entries.into_iter()) {
             ret.insert(i);
         }
-        Ok((ReadDirResponse {
-            filename: ret.into_iter().collect()
-        }, [].to_vec()))
+        Ok((
+            ReadDirResponse {
+                filename: ret.into_iter().collect(),
+            },
+            [].to_vec(),
+        ))
     }
 
-    async fn handle_read(&self, request: &rpc::ReadRequest) -> rpc::Result<(rpc::ReadResponse, Vec<usize>)> {
+    async fn handle_read(
+        &self,
+        request: &rpc::ReadRequest,
+    ) -> rpc::Result<(rpc::ReadResponse, Vec<usize>)> {
         let mut buf = Vec::with_capacity(request.len);
 
         unsafe {
@@ -211,5 +202,4 @@ impl rpc::RpcRequestHandlers for DentryNode {
                 .map_err(|_| rpc::Error::CallNotSupported)
         }
     }
-
 }

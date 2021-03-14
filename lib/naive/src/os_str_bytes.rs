@@ -1,19 +1,19 @@
 //! The underlying OsString/OsStr implementation on Unix and many other
 //! systems: just a `Vec<u8>`/`[u8]`.
 
-use alloc::borrow::Cow;
 use crate::os_str::{OsStr, OsString};
+use alloc::borrow::Cow;
+use alloc::rc::Rc;
+use alloc::sync::Arc;
 use core::fmt;
 use core::mem;
-use alloc::rc::Rc;
 use core::str;
-use alloc::sync::Arc;
 // use crate::sys_common::bytestring::debug_fmt_bytestring;
 // use crate::sys_common::{AsInner, FromInner, IntoInner};
-use alloc::vec::Vec;
-use alloc::string::String;
-use alloc::boxed::Box;
 use crate::alloc::borrow::ToOwned;
+use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::vec::Vec;
 
 // use core::str::lossy::Utf8Lossy;
 
@@ -61,8 +61,7 @@ pub fn debug_fmt_bytestring(slice: &[u8], f: &mut Formatter<'_>) -> core::fmt::R
     f.write_str("\"")
 }
 
-#[derive(Clone, Hash)]
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Hash, Serialize, Deserialize)]
 pub(crate) struct Buf {
     pub inner: Vec<u8>,
 }
@@ -116,12 +115,16 @@ impl AsInner<[u8]> for Buf {
 
 impl Buf {
     pub fn from_string(s: String) -> Buf {
-        Buf { inner: s.into_bytes() }
+        Buf {
+            inner: s.into_bytes(),
+        }
     }
 
     #[inline]
     pub fn with_capacity(capacity: usize) -> Buf {
-        Buf { inner: Vec::with_capacity(capacity) }
+        Buf {
+            inner: Vec::with_capacity(capacity),
+        }
     }
 
     #[inline]
@@ -171,7 +174,9 @@ impl Buf {
     }
 
     pub fn into_string(self) -> Result<String, Buf> {
-        String::from_utf8(self.inner).map_err(|p| Buf { inner: p.into_bytes() })
+        String::from_utf8(self.inner).map_err(|p| Buf {
+            inner: p.into_bytes(),
+        })
     }
 
     pub fn push_slice(&mut self, s: &Slice) {
@@ -186,7 +191,9 @@ impl Buf {
     #[inline]
     pub fn from_box(boxed: Box<Slice>) -> Buf {
         let inner: Box<[u8]> = unsafe { mem::transmute(boxed) };
-        Buf { inner: inner.into_vec() }
+        Buf {
+            inner: inner.into_vec(),
+        }
     }
 
     #[inline]
@@ -220,7 +227,9 @@ impl Slice {
     }
 
     pub fn to_owned(&self) -> Buf {
-        Buf { inner: self.inner.to_vec() }
+        Buf {
+            inner: self.inner.to_vec(),
+        }
     }
 
     pub fn clone_into(&self, buf: &mut Buf) {
@@ -262,12 +271,16 @@ impl Slice {
 
     #[inline]
     pub fn to_ascii_lowercase(&self) -> Buf {
-        Buf { inner: self.inner.to_ascii_lowercase() }
+        Buf {
+            inner: self.inner.to_ascii_lowercase(),
+        }
     }
 
     #[inline]
     pub fn to_ascii_uppercase(&self) -> Buf {
-        Buf { inner: self.inner.to_ascii_uppercase() }
+        Buf {
+            inner: self.inner.to_ascii_uppercase(),
+        }
     }
 
     #[inline]

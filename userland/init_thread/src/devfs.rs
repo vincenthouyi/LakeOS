@@ -4,11 +4,10 @@ use alloc::vec::Vec;
 use hashbrown::HashMap;
 use spin::Mutex;
 
-use rustyl4api::object::EpCap;
 use naive::path::{Path, PathBuf};
+use rustyl4api::object::EpCap;
 
 use crate::vfs::{self, INode};
-
 
 #[derive(Debug, Clone)]
 pub struct DevFs {
@@ -18,7 +17,7 @@ pub struct DevFs {
 impl DevFs {
     pub fn new() -> Self {
         Self {
-            nodes: Arc::new(Mutex::new(HashMap::new()))
+            nodes: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -29,7 +28,7 @@ impl vfs::FileSystem for DevFs {
     }
 
     fn publish(&self, path: &Path, ep: EpCap) -> Result<(), ()> {
-        self.nodes.lock().insert(path.to_path_buf(), DevNode{ ep });
+        self.nodes.lock().insert(path.to_path_buf(), DevNode { ep });
         Ok(())
     }
 }
@@ -61,7 +60,7 @@ impl INode for Dir {
         let dev_guard = self.fs.nodes.lock();
         let node = dev_guard.get(&name.as_ref().to_path_buf())?;
         Some(Arc::new(DevNode {
-            ep: node.ep.clone()
+            ep: node.ep.clone(),
         }))
     }
 
@@ -74,12 +73,7 @@ impl INode for Dir {
     }
 
     fn read_dir(&self) -> Result<Vec<PathBuf>, ()> {
-        let entries = self.fs
-            .nodes
-            .lock()
-            .keys()
-            .cloned()
-            .collect();
+        let entries = self.fs.nodes.lock().keys().cloned().collect();
         Ok(entries)
     }
 }

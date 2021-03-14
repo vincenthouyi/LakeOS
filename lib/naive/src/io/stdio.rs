@@ -14,8 +14,8 @@ use futures_util::stream::Stream;
 use rustyl4api::object::EpCap;
 use rustyl4api::process::ProcessCSpace;
 
-use crate::io;
 use crate::fs::File;
+use crate::io;
 
 pub struct Stdout {
     fd: Arc<Mutex<File>>,
@@ -49,7 +49,9 @@ static STDOUT: OnceCell<Arc<Mutex<File>>> = OnceCell::uninit();
 
 pub async fn stdout() -> Stdout {
     if !STDOUT.is_initialized() {
-        let fd = File::connect(EpCap::new(ProcessCSpace::Stdout as usize)).await.unwrap();
+        let fd = File::connect(EpCap::new(ProcessCSpace::Stdout as usize))
+            .await
+            .unwrap();
         STDOUT.get_or_init(|| Arc::new(Mutex::new(fd)));
     }
     let inner = STDOUT.get().unwrap().clone();
@@ -96,7 +98,9 @@ static STDIN: OnceCell<Arc<Mutex<File>>> = OnceCell::uninit();
 
 pub async fn stdin() -> Stdin {
     if !STDIN.is_initialized() {
-        let fd = File::connect(EpCap::new(ProcessCSpace::Stdin as usize)).await.unwrap();
+        let fd = File::connect(EpCap::new(ProcessCSpace::Stdin as usize))
+            .await
+            .unwrap();
         STDIN.get_or_init(|| Arc::new(Mutex::new(fd)));
     }
     let inner = STDIN.get().unwrap().clone();
@@ -114,7 +118,11 @@ pub fn set_stdin(file_handle: File) {
 pub async fn _print(args: fmt::Arguments<'_>) {
     use futures_util::io::AsyncWriteExt;
 
-    if let Err(e) = stdout().await.write_all(&format!("{}", args).into_bytes()).await {
+    if let Err(e) = stdout()
+        .await
+        .write_all(&format!("{}", args).into_bytes())
+        .await
+    {
         panic!("failed printing to stdout: {}", e);
     }
 }

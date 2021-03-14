@@ -21,7 +21,10 @@ impl<T: RpcRequestHandlers + Sync> RpcServer<T> {
     }
 
     pub async fn run(self) {
-        let Self { mut listener, handlers } = self;
+        let Self {
+            mut listener,
+            handlers,
+        } = self;
 
         listener
             .incoming()
@@ -89,39 +92,46 @@ pub trait RpcRequestHandlers {
         let opcode = request.opcode;
         let r = match opcode {
             0 => {
-                let request: WriteRequest = serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
+                let request: WriteRequest =
+                    serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
                 let (resp, cap) = self.handle_write(&request).await?;
                 (serde_json::to_vec(&resp).unwrap(), cap)
             }
             1 => {
-                let request: ReadRequest = serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
+                let request: ReadRequest =
+                    serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
                 let (resp, cap) = self.handle_read(&request).await?;
                 (serde_json::to_vec(&resp).unwrap(), cap)
             }
             2 => {
-                let request = serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
+                let request =
+                    serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
                 let (resp, cap) = self.handle_request_memory(&request).await?;
                 (serde_json::to_vec(&resp).unwrap(), cap)
             }
             3 => {
-                let request = serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
+                let request =
+                    serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
                 let (resp, cap) = self.handle_request_irq(&request).await?;
                 (serde_json::to_vec(&resp).unwrap(), cap)
             }
             4 => {
-                let request_msg = serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
+                let request_msg =
+                    serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
                 let (resp, cap) = self
                     .handle_register_service(&request_msg, request.caps)
                     .await?;
                 (serde_json::to_vec(&resp).unwrap(), cap)
             }
             5 => {
-                let request_msg = serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
+                let request_msg =
+                    serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
                 let (resp, cap) = self.handle_lookup_service(&request_msg).await?;
                 (serde_json::to_vec(&resp).unwrap(), cap)
             }
             6 => {
-                let request_msg = serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
+                let request_msg =
+                    serde_json::from_slice(&request.msg).map_err(|_| Error::BadRequest)?;
                 let (resp, cap) = self.handle_read_dir(&request_msg).await?;
                 (serde_json::to_vec(&resp).unwrap(), cap)
             }

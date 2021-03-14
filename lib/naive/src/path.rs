@@ -76,14 +76,14 @@ use core::fmt;
 // use crate::fs;
 use core::hash::{Hash, Hasher};
 // use crate::io;
+use alloc::boxed::Box;
+use alloc::rc::Rc;
+use alloc::string::String;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
 use core::iter::{self, FusedIterator};
 use core::ops::{self, Deref};
-use alloc::rc::Rc;
 use core::str::FromStr;
-use alloc::sync::Arc;
-use alloc::boxed::Box;
-use alloc::string::String;
-use alloc::vec::Vec;
 
 use crate::os_str::{OsStr, OsString};
 
@@ -104,7 +104,6 @@ pub fn parse_prefix(_: &OsStr) -> Option<Prefix<'_>> {
 
 pub const MAIN_SEP_STR: &str = "/";
 pub const MAIN_SEP: char = '/';
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // GENERAL NOTES
@@ -164,7 +163,9 @@ pub enum Prefix<'a> {
     /// Verbatim prefixes consist of `\\?\` immediately followed by the given
     /// component.
     //#[stable(feature = "rust1", since = "1.0.0")]
-    Verbatim(/*#[stable(feature = "rust1", since = "1.0.0")]*/ &'a OsStr),
+    Verbatim(
+        /*#[stable(feature = "rust1", since = "1.0.0")]*/ &'a OsStr,
+    ),
 
     /// Verbatim prefix using Windows' _**U**niform **N**aming **C**onvention_,
     /// e.g., `\\?\UNC\server\share`.
@@ -189,7 +190,9 @@ pub enum Prefix<'a> {
     /// Device namespace prefixes consist of `\\.\` immediately followed by the
     /// device name.
     //#[stable(feature = "rust1", since = "1.0.0")]
-    DeviceNS(/*#[stable(feature = "rust1", since = "1.0.0")]*/ &'a OsStr),
+    DeviceNS(
+        /*#[stable(feature = "rust1", since = "1.0.0")]*/ &'a OsStr,
+    ),
 
     /// Prefix using Windows' _**U**niform **N**aming **C**onvention_, e.g.
     /// `\\server\share`.
@@ -216,10 +219,22 @@ impl<'a> Prefix<'a> {
         match *self {
             Verbatim(x) => 4 + os_str_len(x),
             VerbatimUNC(x, y) => {
-                8 + os_str_len(x) + if os_str_len(y) > 0 { 1 + os_str_len(y) } else { 0 }
+                8 + os_str_len(x)
+                    + if os_str_len(y) > 0 {
+                        1 + os_str_len(y)
+                    } else {
+                        0
+                    }
             }
             VerbatimDisk(_) => 6,
-            UNC(x, y) => 2 + os_str_len(x) + if os_str_len(y) > 0 { 1 + os_str_len(y) } else { 0 },
+            UNC(x, y) => {
+                2 + os_str_len(x)
+                    + if os_str_len(y) > 0 {
+                        1 + os_str_len(y)
+                    } else {
+                        0
+                    }
+            }
             DeviceNS(x) => 4 + os_str_len(x),
             Disk(_) => 2,
         }
@@ -335,7 +350,11 @@ fn has_redox_scheme(s: &[u8]) -> bool {
 
 /// Says whether the first byte after the prefix is a separator.
 fn has_physical_root(s: &[u8], prefix: Option<Prefix<'_>>) -> bool {
-    let path = if let Some(p) = prefix { &s[p.len()..] } else { s };
+    let path = if let Some(p) = prefix {
+        &s[p.len()..]
+    } else {
+        s
+    };
     !path.is_empty() && is_sep_byte(path[0])
 }
 
@@ -357,7 +376,10 @@ fn split_file_at_dot(file: &OsStr) -> (Option<&OsStr>, Option<&OsStr>) {
         if before == Some(b"") {
             (Some(file), None)
         } else {
-            (before.map(|s| u8_slice_as_os_str(s)), after.map(|s| u8_slice_as_os_str(s)))
+            (
+                before.map(|s| u8_slice_as_os_str(s)),
+                after.map(|s| u8_slice_as_os_str(s)),
+            )
         }
     }
 }
@@ -513,7 +535,9 @@ pub enum Component<'a> {
     ///
     /// [`Prefix`]: enum.Prefix.html
     //#[stable(feature = "rust1", since = "1.0.0")]
-    Prefix(/*#[stable(feature = "rust1", since = "1.0.0")]*/ PrefixComponent<'a>),
+    Prefix(
+        /*#[stable(feature = "rust1", since = "1.0.0")]*/ PrefixComponent<'a>,
+    ),
 
     /// The root directory component, appears after any prefix and before anything else.
     ///
@@ -534,7 +558,9 @@ pub enum Component<'a> {
     /// This variant is the most common one, it represents references to files
     /// or directories.
     //#[stable(feature = "rust1", since = "1.0.0")]
-    Normal(/*#[stable(feature = "rust1", since = "1.0.0")]*/ &'a OsStr),
+    Normal(
+        /*#[stable(feature = "rust1", since = "1.0.0")]*/ &'a OsStr,
+    ),
 }
 
 impl<'a> Component<'a> {
@@ -643,7 +669,9 @@ impl fmt::Debug for Components<'_> {
             }
         }
 
-        f.debug_tuple("Components").field(&DebugHelper(self.as_path())).finish()
+        f.debug_tuple("Components")
+            .field(&DebugHelper(self.as_path()))
+            .finish()
     }
 }
 
@@ -656,20 +684,35 @@ impl<'a> Components<'a> {
 
     #[inline]
     fn prefix_verbatim(&self) -> bool {
-        self.prefix.as_ref().map(Prefix::is_verbatim).unwrap_or(false)
+        self.prefix
+            .as_ref()
+            .map(Prefix::is_verbatim)
+            .unwrap_or(false)
     }
 
     /// how much of the prefix is left from the point of view of iteration?
     #[inline]
     fn prefix_remaining(&self) -> usize {
-        if self.front == State::Prefix { self.prefix_len() } else { 0 }
+        if self.front == State::Prefix {
+            self.prefix_len()
+        } else {
+            0
+        }
     }
 
     // Given the iteration so far, how much of the pre-State::Body path is left?
     #[inline]
     fn len_before_body(&self) -> usize {
-        let root = if self.front <= State::StartDir && self.has_physical_root { 1 } else { 0 };
-        let cur_dir = if self.front <= State::StartDir && self.include_cur_dir() { 1 } else { 0 };
+        let root = if self.front <= State::StartDir && self.has_physical_root {
+            1
+        } else {
+            0
+        };
+        let cur_dir = if self.front <= State::StartDir && self.include_cur_dir() {
+            1
+        } else {
+            0
+        };
         self.prefix_remaining() + root + cur_dir
     }
 
@@ -681,7 +724,11 @@ impl<'a> Components<'a> {
 
     #[inline]
     fn is_sep_byte(&self, b: u8) -> bool {
-        if self.prefix_verbatim() { is_verbatim_sep(b) } else { is_sep_byte(b) }
+        if self.prefix_verbatim() {
+            is_verbatim_sep(b)
+        } else {
+            is_sep_byte(b)
+        }
     }
 
     /// Extracts a slice corresponding to the portion of the path remaining for iteration.
@@ -764,7 +811,10 @@ impl<'a> Components<'a> {
     fn parse_next_component_back(&self) -> (usize, Option<Component<'a>>) {
         debug_assert!(self.back == State::Body);
         let start = self.len_before_body();
-        let (extra, comp) = match self.path[start..].iter().rposition(|b| self.is_sep_byte(*b)) {
+        let (extra, comp) = match self.path[start..]
+            .iter()
+            .rposition(|b| self.is_sep_byte(*b))
+        {
             None => (0, &self.path[start..]),
             Some(i) => (1, &self.path[start + i + 1..]),
         };
@@ -821,7 +871,9 @@ impl fmt::Debug for Iter<'_> {
             }
         }
 
-        f.debug_tuple("Iter").field(&DebugHelper(self.as_path())).finish()
+        f.debug_tuple("Iter")
+            .field(&DebugHelper(self.as_path()))
+            .finish()
     }
 }
 
@@ -1128,7 +1180,9 @@ impl PathBuf {
     /// ```
     //#[stable(feature = "rust1", since = "1.0.0")]
     pub fn new() -> PathBuf {
-        PathBuf { inner: OsString::new() }
+        PathBuf {
+            inner: OsString::new(),
+        }
     }
 
     /// Creates a new `PathBuf` with a given capacity used to create the
@@ -1152,7 +1206,9 @@ impl PathBuf {
     /// [`OsString`]: ../ffi/struct.OsString.html
     //#[stable(feature = "path_buf_capacity", since = "1.44.0")]
     pub fn with_capacity(capacity: usize) -> PathBuf {
-        PathBuf { inner: OsString::with_capacity(capacity) }
+        PathBuf {
+            inner: OsString::with_capacity(capacity),
+        }
     }
 
     /// Coerces to a [`Path`] slice.
@@ -1210,7 +1266,11 @@ impl PathBuf {
 
     fn _push(&mut self, path: &Path) {
         // in general, a separator is needed if the rightmost byte is not a separator
-        let mut need_sep = self.as_mut_vec().last().map(|c| !is_sep_byte(*c)).unwrap_or(false);
+        let mut need_sep = self
+            .as_mut_vec()
+            .last()
+            .map(|c| !is_sep_byte(*c))
+            .unwrap_or(false);
 
         // in the special case of `C:` on Windows, do *not* add a separator
         {
@@ -2168,7 +2228,9 @@ impl Path {
     /// ```
     //#[stable(feature = "rust1", since = "1.0.0")]
     pub fn file_stem(&self) -> Option<&OsStr> {
-        self.file_name().map(split_file_at_dot).and_then(|(before, after)| before.or(after))
+        self.file_name()
+            .map(split_file_at_dot)
+            .and_then(|(before, after)| before.or(after))
     }
 
     /// Extracts the extension of [`self.file_name`], if possible.
@@ -2194,7 +2256,9 @@ impl Path {
     /// ```
     //#[stable(feature = "rust1", since = "1.0.0")]
     pub fn extension(&self) -> Option<&OsStr> {
-        self.file_name().map(split_file_at_dot).and_then(|(before, after)| before.and(after))
+        self.file_name()
+            .map(split_file_at_dot)
+            .and_then(|(before, after)| before.and(after))
     }
 
     /// Creates an owned [`PathBuf`] with `path` adjoined to `self`.
@@ -2348,7 +2412,9 @@ impl Path {
     /// ```
     //#[stable(feature = "rust1", since = "1.0.0")]
     pub fn iter(&self) -> Iter<'_> {
-        Iter { inner: self.components() }
+        Iter {
+            inner: self.components(),
+        }
     }
 
     /// Returns an object that implements [`Display`] for safely printing paths
@@ -2582,7 +2648,9 @@ impl Path {
     pub fn into_path_buf(self: Box<Path>) -> PathBuf {
         let rw = Box::into_raw(self) as *mut OsStr;
         let inner = unsafe { Box::from_raw(rw) };
-        PathBuf { inner: OsString::from(inner) }
+        PathBuf {
+            inner: OsString::from(inner),
+        }
     }
 }
 

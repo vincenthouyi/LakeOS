@@ -47,8 +47,7 @@ impl Executor {
                 .unwrap_or_else(|| TaskWaker::new(task_id, task_queue.clone()));
             let mut context = Context::from_waker(&waker);
             match task.poll(&mut context) {
-                Poll::Ready(()) => {
-                }
+                Poll::Ready(()) => {}
                 Poll::Pending => {
                     tasks.lock().insert(task_id, task);
                     waker_cache.lock().insert(task_id, waker);

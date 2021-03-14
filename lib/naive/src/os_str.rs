@@ -1,16 +1,16 @@
 use alloc::borrow::{Borrow, Cow, ToOwned};
+use alloc::boxed::Box;
+use alloc::rc::Rc;
+use alloc::string::String;
+use alloc::sync::Arc;
 use core::cmp;
 use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::ops;
-use alloc::rc::Rc;
 use core::str::FromStr;
-use alloc::sync::Arc;
-use alloc::string::String;
-use alloc::boxed::Box;
 
-use crate::os_str_bytes::{Buf, Slice};
 use crate::os_str_bytes::{AsInner, FromInner, IntoInner};
+use crate::os_str_bytes::{Buf, Slice};
 
 pub use crate::os_str_bytes::OsStrExt;
 
@@ -80,8 +80,7 @@ pub use crate::os_str_bytes::OsStrExt;
 /// [`push`]: #method.push
 /// [`as_os_str`]: #method.as_os_str
 /// [conversions]: index.html#conversions
-#[derive(Clone)]
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 //#[stable(feature = "rust1", since = "1.0.0")]
 pub struct OsString {
     inner: Buf,
@@ -126,7 +125,9 @@ impl OsString {
     /// ```
     //#[stable(feature = "rust1", since = "1.0.0")]
     pub fn new() -> OsString {
-        OsString { inner: Buf::from_string(String::new()) }
+        OsString {
+            inner: Buf::from_string(String::new()),
+        }
     }
 
     /// Converts to an [`OsStr`] slice.
@@ -164,7 +165,9 @@ impl OsString {
     /// ```
     //#[stable(feature = "rust1", since = "1.0.0")]
     pub fn into_string(self) -> Result<String, OsString> {
-        self.inner.into_string().map_err(|buf| OsString { inner: buf })
+        self.inner
+            .into_string()
+            .map_err(|buf| OsString { inner: buf })
     }
 
     /// Extends the string with the given [`&OsStr`] slice.
@@ -208,7 +211,9 @@ impl OsString {
     /// ```
     //#[stable(feature = "osstring_simple_functions", since = "1.9.0")]
     pub fn with_capacity(capacity: usize) -> OsString {
-        OsString { inner: Buf::with_capacity(capacity) }
+        OsString {
+            inner: Buf::with_capacity(capacity),
+        }
     }
 
     /// Truncates the `OsString` to zero length.
@@ -365,7 +370,9 @@ impl From<String> for OsString {
     ///
     /// [`OsString`]: ../../std/ffi/struct.OsString.html
     fn from(s: String) -> OsString {
-        OsString { inner: Buf::from_string(s) }
+        OsString {
+            inner: Buf::from_string(s),
+        }
     }
 }
 
@@ -632,7 +639,9 @@ impl OsStr {
     /// ```
     //#[stable(feature = "rust1", since = "1.0.0")]
     pub fn to_os_string(&self) -> OsString {
-        OsString { inner: self.inner.to_owned() }
+        OsString {
+            inner: self.inner.to_owned(),
+        }
     }
 
     /// Checks whether the `OsStr` is empty.
@@ -694,7 +703,9 @@ impl OsStr {
     //#[stable(feature = "into_boxed_os_str", since = "1.20.0")]
     pub fn into_os_string(self: Box<OsStr>) -> OsString {
         let boxed = unsafe { Box::from_raw(Box::into_raw(self) as *mut Slice) };
-        OsString { inner: Buf::from_box(boxed) }
+        OsString {
+            inner: Buf::from_box(boxed),
+        }
     }
 
     /// Gets the underlying byte representation.

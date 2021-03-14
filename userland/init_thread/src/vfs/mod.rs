@@ -3,10 +3,10 @@ use core::convert::AsRef;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 
-use hashbrown::{HashMap};
+use hashbrown::HashMap;
 
-use rustyl4api::object::{EpCap, CNodeCap};
-use naive::path::{Path, PathBuf, Component};
+use naive::path::{Component, Path, PathBuf};
+use rustyl4api::object::{CNodeCap, EpCap};
 
 pub use dcache::*;
 pub use inode::*;
@@ -39,10 +39,15 @@ impl Vfs {
         Some(cur_dentry)
     }
 
-    pub fn mount<T: 'static + FileSystem, P: AsRef<Path>>(&mut self, path: P, fs: T) -> Result<(), ()> {
+    pub fn mount<T: 'static + FileSystem, P: AsRef<Path>>(
+        &mut self,
+        path: P,
+        fs: T,
+    ) -> Result<(), ()> {
         let entry = self.lookup(path.as_ref()).ok_or(())?;
         entry.set_inode(fs.root());
-        self.mount_table.insert(path.as_ref().to_path_buf(), Box::new(fs));
+        self.mount_table
+            .insert(path.as_ref().to_path_buf(), Box::new(fs));
         Ok(())
     }
 
@@ -53,17 +58,12 @@ impl Vfs {
     pub fn open<P: AsRef<Path>>(&mut self, path: P) -> Result<IndexNode, ()> {
         let entry = self.lookup(path).ok_or(())?;
         if entry.is_negative() {
-            return Err(())
+            return Err(());
         }
         let ep = entry.open()?.ok_or(())?;
         let copy_slot = naive::space_manager::gsm!().cspace_alloc().unwrap();
         let cspace = CNodeCap::new(rustyl4api::init::InitCSpaceSlot::InitCSpace as usize);
-        cspace
-            .cap_copy(
-                copy_slot,
-                ep,
-            )
-            .unwrap();
+        cspace.cap_copy(copy_slot, ep).unwrap();
         Ok(IndexNode {
             cap: copy_slot,
             node_type: NodeType::File,
@@ -72,7 +72,7 @@ impl Vfs {
 
     pub fn publish<P: AsRef<Path>>(&mut self, path: P, ep: EpCap) -> Result<(), ()> {
         let parent = path.as_ref().parent().ok_or(())?;
-        let filename= path.as_ref().file_stem().ok_or(())?;
+        let filename = path.as_ref().file_stem().ok_or(())?;
         let parent_dentry = self.lookup(parent).ok_or(())?;
         let ret = parent_dentry.publish(filename, ep)?;
         parent_dentry.remove_child(filename);
@@ -82,7 +82,7 @@ impl Vfs {
 
 pub enum NodeType {
     File,
-    Directory
+    Directory,
 }
 
 pub struct IndexNode {

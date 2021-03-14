@@ -20,10 +20,13 @@ async fn time_client() -> &'static Mutex<File> {
 
 pub async fn current_time() -> u64 {
     let mut time_buf = [0; 8];
-    time_client().await.lock().read(&mut time_buf).await.unwrap();
-    unsafe {
-        core::mem::transmute(time_buf)
-    }
+    time_client()
+        .await
+        .lock()
+        .read(&mut time_buf)
+        .await
+        .unwrap();
+    unsafe { core::mem::transmute(time_buf) }
 }
 
 pub async fn sleep_us(us: u64) {

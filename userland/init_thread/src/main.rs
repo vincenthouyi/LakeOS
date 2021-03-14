@@ -1,6 +1,3 @@
-#![feature(decl_macro)]
-#![feature(asm)]
-#![feature(const_fn)]
 #![no_std]
 #![no_main]
 
@@ -9,9 +6,9 @@ extern crate alloc;
 extern crate rustyl4api;
 
 // mod rt;
-mod vfs;
-mod initfs;
 mod devfs;
+mod initfs;
+mod vfs;
 
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -90,8 +87,7 @@ impl rpc::RpcRequestHandlers for InitThreadApi {
         request: &LookupServiceRequest,
     ) -> rpc::Result<(LookupServiceResponse, Vec<usize>)> {
         let mut vfs_guard = vfs().lock();
-        let res = vfs_guard
-            .open(&request.name);
+        let res = vfs_guard.open(&request.name);
         if let Ok(node) = res {
             let resp = LookupServiceResponse {
                 result: ns::Error::Success,
@@ -110,8 +106,7 @@ use vfs::Vfs;
 pub fn vfs() -> &'static Mutex<Vfs> {
     static VFS: OnceCell<Mutex<Vfs>> = OnceCell::uninit();
 
-    VFS.try_get_or_init(|| Mutex::new(Vfs::new()))
-        .unwrap()
+    VFS.try_get_or_init(|| Mutex::new(Vfs::new())).unwrap()
 }
 
 #[naive::main]
@@ -124,12 +119,13 @@ async fn main() {
     let listener = LmpListenerHandle::new(listen_ep.clone(), listen_badge);
     ep_server.insert_event(listen_badge, listener.clone());
 
-    vfs().lock().mount("/", initfs::InitFs::new()  ).unwrap();
+    vfs().lock().mount("/", initfs::InitFs::new()).unwrap();
     vfs().lock().mount("/dev", devfs::DevFs::new()).unwrap();
 
-    let initfs = initfs::InitFs::new() ;
+    let initfs = initfs::InitFs::new();
 
-    initfs.get(b"console")
+    initfs
+        .get(b"console")
         .map(|e| {
             naive::process::ProcessBuilder::new(e)
                 .stdin(listen_ep.clone())
@@ -141,7 +137,8 @@ async fn main() {
         })
         .expect("console binary not found");
 
-    initfs.get(b"shell")
+    initfs
+        .get(b"shell")
         .map(|e| {
             naive::process::ProcessBuilder::new(e)
                 .stdin(listen_ep.clone())
@@ -153,7 +150,8 @@ async fn main() {
         })
         .expect("shell binary not found");
 
-    initfs.get(b"timer")
+    initfs
+        .get(b"timer")
         .map(|e| {
             naive::process::ProcessBuilder::new(e)
                 .stdin(listen_ep.clone())

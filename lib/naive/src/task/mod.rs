@@ -6,8 +6,8 @@ use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::task::Wake;
 
-use crossbeam_queue::SegQueue;
 use conquer_once::spin::OnceCell;
+use crossbeam_queue::SegQueue;
 
 pub mod executor;
 
@@ -81,7 +81,7 @@ pub fn global_executor() -> &'static Executor {
 
 pub fn spawn<F>(future: F)
 where
-    F: Future<Output = ()> + 'static
+    F: Future<Output = ()> + 'static,
 {
     let task = Task::new(future);
     global_executor().spawn(task);
