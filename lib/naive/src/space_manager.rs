@@ -2,7 +2,7 @@ use core::ptr::NonNull;
 
 use rustyl4api::object::KernelObject;
 use rustyl4api::object::{CNodeObj, Capability, RamObj, VTableObj};
-use spaceman::SpaceManager;
+use crate::spaceman::SpaceManager;
 
 pub static mut GLOBAL_SPACEMAN: Option<SpaceManager> = None;
 

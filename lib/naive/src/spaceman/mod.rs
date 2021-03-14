@@ -1,5 +1,3 @@
-#![feature(linked_list_cursors)]
-#![no_std]
 
 extern crate alloc;
 
@@ -14,20 +12,6 @@ mod utils {
 
     pub const fn align_up(addr: usize, align: usize) -> usize {
         align_down(addr.saturating_add(align - 1), align)
-    }
-
-    #[macro_export]
-    macro_rules! MASK {
-        ($x:expr) => {
-            BIT!($x) - 1
-        };
-    }
-
-    #[macro_export]
-    macro_rules! BIT {
-        ($x:expr) => {
-            1 << $x
-        };
     }
 }
 pub mod cspace_man;

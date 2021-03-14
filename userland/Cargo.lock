@@ -220,7 +220,6 @@ dependencies = [
  "rustyl4api",
  "serde",
  "serde_json",
- "spaceman",
  "spin",
  "volatile",
 ]
@@ -359,15 +358,6 @@ version = "0.1.0"
 dependencies = [
  "conquer-once",
  "naive",
- "rustyl4api",
- "spin",
-]
-
-[[package]]
-name = "spaceman"
-version = "0.1.0"
-dependencies = [
- "hashbrown",
  "rustyl4api",
  "spin",
 ]

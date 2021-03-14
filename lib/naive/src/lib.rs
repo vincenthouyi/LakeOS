@@ -45,6 +45,7 @@ pub mod task;
 pub mod thread;
 pub mod time;
 mod vm_allocator;
+mod spaceman;
 
 pub use naive_attributes::main;
 
