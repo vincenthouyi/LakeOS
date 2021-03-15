@@ -4,16 +4,6 @@ extern crate alloc;
 use rustyl4api::object::KernelObject;
 use rustyl4api::vspace::Permission;
 
-#[macro_use]
-mod utils {
-    pub const fn align_down(addr: usize, align: usize) -> usize {
-        addr & !(align - 1)
-    }
-
-    pub const fn align_up(addr: usize, align: usize) -> usize {
-        align_down(addr.saturating_add(align - 1), align)
-    }
-}
 pub mod cspace_man;
 pub mod utspace_man;
 pub mod vmspace_man;
@@ -128,7 +118,7 @@ impl SpaceManager {
             return Err(());
         }
 
-        let mut rem_size = utils::align_up(size, 4096);
+        let mut rem_size = crate::utils::align_up(size, 4096);
         let base_vaddr = if vaddr == 0 {
             let layout = Layout::from_size_align(rem_size, 4096).unwrap();
             self.vspace_alloc(layout).unwrap()
