@@ -1,6 +1,6 @@
 use rustyl4api::object::{CNodeObj, EpCap, RamObj, TcbCap, TcbObj, UntypedObj, VTableObj};
 use rustyl4api::vspace::Permission;
-use crate::spaceman::vspace_man::VSpaceMan;
+use crate::spaceman::vspace_man::{VSpaceMan, VSpaceEntry};
 
 #[derive(Debug)]
 pub struct ProcessBuilder<'a> {
@@ -72,11 +72,14 @@ impl<'a> ProcessBuilder<'a> {
             let vaddr = vrange.start as usize;
             let perm = Permission::new(flags & 0b100 != 0, flags & 0b010 != 0, flags & 0b001 != 0);
             let frame_cap = gsm!().alloc_object::<RamObj>(FRAME_BIT_SIZE).unwrap();
+            let frame_cap_slot = frame_cap.slot;
             let frame_parent_slot = gsm!().cspace_alloc().unwrap();
             frame_cap.derive(frame_parent_slot).unwrap();
             let frame_parent_cap = RamCap::new(frame_parent_slot);
 
-            while let Err(e) = vspace.map_frame(frame_cap.clone(), vaddr, perm, 4) {
+            let mut frame_entry = VSpaceEntry::new_frame(frame_cap, vaddr, perm, 4);
+            while let Err((e, ent)) = vspace.install_entry(frame_entry, true) {
+                frame_entry = ent;
                 match e {
                     // VSpaceManError::SlotOccupied{level} => {
                     //     panic!("slot occupied at level {} vaddr {:x}", level, vaddr);
@@ -85,15 +88,14 @@ impl<'a> ProcessBuilder<'a> {
                     //     panic!("wrong slot type at level {} vaddr {:x}", level, vaddr);
                     // }
                     // VSpaceManError::PageTableMiss{level} => {
-                    rustyl4api::error::SysError::VSpaceTableMiss { level } => {
+                    crate::spaceman::vspace_man::VSpaceManError::PageTableMiss { level } => {
                         let vtable_cap = gsm!().alloc_object::<VTableObj>(12).unwrap();
-                        // kprintln!("miss table level {} addr {:x}", level, vaddr);
-                        vspace
-                            .map_table(vtable_cap.clone(), vaddr, level as usize)
+                        let vtable_entry = VSpaceEntry::new_table(vtable_cap, vaddr, level + 1);
+                        let vtable_cap_slot = vtable_entry.cap_slot();
+                        vspace.install_entry(vtable_entry, true)
                             .unwrap();
                         child_root_cn
-                            .cap_copy(cur_free, vtable_cap.slot)
-                            .map_err(|_| ())
+                            .cap_copy(cur_free, vtable_cap_slot)
                             .unwrap();
                         cur_free += 1;
                     }
@@ -103,14 +105,13 @@ impl<'a> ProcessBuilder<'a> {
                 }
             }
 
+            let frame_addr =
+                gsm!().insert_ram_at(frame_parent_cap, 0, Permission::writable());
+            let frame = unsafe { core::slice::from_raw_parts_mut(frame_addr, FRAME_SIZE) };
             child_root_cn
-                .cap_copy(cur_free, frame_cap.slot)
-                .map_err(|_| ())
+                .cap_copy(cur_free, frame_cap_slot)
                 .unwrap();
             cur_free += 1;
-            let frame_addr =
-                gsm!().insert_ram_at(frame_parent_cap.clone(), 0, Permission::writable());
-            let frame = unsafe { core::slice::from_raw_parts_mut(frame_addr, FRAME_SIZE) };
             frame
         })
         .map_err(|_| ())?;

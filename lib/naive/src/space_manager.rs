@@ -18,7 +18,7 @@ pub fn gsm_init(
 
 pub macro gsm() {
     unsafe {
-        if crate::vm_allocator::GLOBAL_VM_ALLOC.cur_pool_remain() < 512 {
+        if crate::vm_allocator::GLOBAL_VM_ALLOC.cur_pool_remain() < 1024 {
             use rustyl4api::vspace::{Permission, FRAME_SIZE};
 
             let addr = GLOBAL_SPACEMAN

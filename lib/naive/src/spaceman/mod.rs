@@ -14,6 +14,8 @@ use core::alloc::Layout;
 use rustyl4api::object::identify::IdentifyResult;
 use rustyl4api::object::{CNodeObj, Capability, RamCap, RamObj, VTableObj};
 
+use vspace_man::{VSpaceManError, VSpaceEntry};
+
 #[derive(Debug)]
 pub struct SpaceManager {
     vspace_man: vspace_man::VSpaceMan,
@@ -74,20 +76,21 @@ impl SpaceManager {
                 is_device: _,
             } => {
                 let cap = RamCap::new(slot);
-                self.install_ram(cap, mapped_vaddr);
+                self.vspace_man.map_frame(cap, mapped_vaddr, Permission::writable(), 4, false).unwrap();
             }
             IdentifyResult::VTable {
                 mapped_vaddr,
                 mapped_asid: _,
                 level,
-            } => {
-                let table = Capability::<VTableObj>::new(slot);
-                self.insert_vtable(table, mapped_vaddr, level - 1);
+            } if level > 1 => {
+                let cap= Capability::<VTableObj>::new(slot);
+                self.vspace_man.map_table(cap, mapped_vaddr, level - 1, false).unwrap();
             }
             IdentifyResult::Endpoint => {}
             IdentifyResult::Reply => {}
             IdentifyResult::Monitor => {}
             IdentifyResult::Interrupt => {}
+            _ => {}
         }
     }
 
@@ -139,7 +142,6 @@ impl SpaceManager {
 
     /// Insert an RamCap to vspace to manage and handle backed page table
     pub fn insert_ram_at(&self, ram: RamCap, vaddr: usize, perm: Permission) -> *mut u8 {
-        use rustyl4api::error::SysError;
         // TODO: support large page
         let layout = Layout::from_size_align(4096, 4096).unwrap();
         let vaddr = if vaddr == 0 {
@@ -147,36 +149,44 @@ impl SpaceManager {
         } else {
             vaddr
         };
-        while let Err(e) = self.vspace_man.map_frame(ram.clone(), vaddr, perm, 4) {
-            match e {
-                // VSpaceManError::SlotOccupied{level} => {
-                //     panic!("slot occupied at level {} vaddr {:x}", level, vaddr);
-                // }
-                // VSpaceManError::SlotTypeError{level} => {
-                //     panic!("wrong slot type at level {} vaddr {:x}", level, vaddr);
-                // }
-                SysError::VSpaceTableMiss { level } => {
-                    let vtable_cap = self.alloc_object::<VTableObj>(12).unwrap();
-                    self.vspace_man
-                        .map_table(vtable_cap, vaddr, level as usize)
-                        .unwrap();
+        let mut frame_entry = VSpaceEntry::new_frame(ram, vaddr, perm, 4);
+        loop {
+            let res = self.vspace_man.install_entry(frame_entry, true);
+            if let Err((e, ent)) = res {
+                frame_entry = ent;
+                match e {
+                    // VSpaceManError::SlotOccupied{level} => {
+                    //     panic!("slot occupied at level {} vaddr {:x}", level, vaddr);
+                    // }
+                    // VSpaceManError::SlotTypeError{level} => {
+                    //     panic!("wrong slot type at level {} vaddr {:x}", level, vaddr);
+                    // }
+                    VSpaceManError::PageTableMiss { level } => {
+                        let vtable_cap = self.alloc_object::<VTableObj>(12).unwrap();
+                        self.vspace_man
+                            .map_table(vtable_cap, vaddr, level + 1, true)
+                            .unwrap();
+                    }
+                    e => {
+                        panic!("unexpected error {:?}", e);
+                    }
                 }
-                e => {
-                    panic!("unexpected error {:?}", e);
-                }
+
+            } else {
+                break;
             }
         }
         vaddr as *mut u8
     }
 
-    pub fn insert_vtable(&self, table: Capability<VTableObj>, vaddr: usize, level: usize) {
-        let entry = vspace_man::VSpaceEntry::new_table(table);
-        self.vspace_man.install_entry(entry, vaddr, level).unwrap();
+    pub fn insert_vtable(&self, table: Capability<VTableObj>, vaddr: usize, level: usize, do_map: bool) {
+        let entry = vspace_man::VSpaceEntry::new_table(table, vaddr, level);
+        self.vspace_man.install_entry(entry, do_map).unwrap();
     }
 
-    pub fn install_ram(&self, ram: RamCap, vaddr: usize) {
-        let entry = vspace_man::VSpaceEntry::new_frame(ram);
-        self.vspace_man.install_entry(entry, vaddr, 4).unwrap();
+    pub fn install_ram(&self, ram: RamCap, vaddr: usize, perm: Permission, level: usize, do_map:bool) {
+        let entry = vspace_man::VSpaceEntry::new_frame(ram, vaddr, perm, level);
+        self.vspace_man.install_entry(entry, do_map).unwrap();
     }
 
     pub fn alloc_object<T: KernelObject>(&self, size: usize) -> Option<Capability<T>> {
