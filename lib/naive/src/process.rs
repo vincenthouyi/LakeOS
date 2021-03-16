@@ -155,7 +155,7 @@ impl<'a> ProcessBuilder<'a> {
                 self.name_server.as_ref().unwrap().slot,
             )
             .map_err(|_| ())?;
-        let init_untyped = gsm!().alloc_object::<UntypedObj>(16).ok_or(())?;
+        let init_untyped = gsm!().alloc_object::<UntypedObj>(18).ok_or(())?;
         child_root_cn
             .cap_copy(ProcessCSpace::InitUntyped as usize, init_untyped.slot)
             .map_err(|_| ())?;
