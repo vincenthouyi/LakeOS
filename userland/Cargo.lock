@@ -216,6 +216,7 @@ dependencies = [
  "futures-util",
  "hashbrown",
  "naive-attributes",
+ "num-traits",
  "r0",
  "rustyl4api",
  "serde",

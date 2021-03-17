@@ -1,5 +1,5 @@
 use naive::path::{Path, PathBuf};
-use rustyl4api::object::EpCap;
+use naive::objects::EpCap;
 
 use alloc::sync::Arc;
 use alloc::vec::Vec;

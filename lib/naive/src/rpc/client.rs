@@ -6,7 +6,7 @@ use core::{
 
 use alloc::vec::Vec;
 
-use rustyl4api::object::EpCap;
+use crate::objects::EpCap;
 
 use crate::{
     lmp::{LmpChannelHandle, LmpMessage},
@@ -28,6 +28,7 @@ impl RpcClient {
     }
 
     pub fn connect(server_ep: EpCap, ntf_ep: EpCap, ntf_badge: usize) -> Result<Self, ()> {
+        kprintln!("hack");
         let channel = LmpChannelHandle::connect(server_ep, ntf_ep, ntf_badge)?;
         let client = Self::new(channel);
         Ok(client)

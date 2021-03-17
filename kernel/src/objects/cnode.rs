@@ -1,7 +1,7 @@
 use core::cell::Cell;
 use core::convert::TryFrom;
 use core::mem::size_of;
-use sysapi::object::CNODE_DEPTH;
+use sysapi::objects::CNODE_DEPTH;
 
 use super::*;
 
@@ -41,7 +41,7 @@ pub const CNODE_ENTRY_SZ: usize = size_of::<CNodeEntry>().next_power_of_two();
 pub const CNODE_ENTRY_BIT_SZ: usize = CNODE_ENTRY_SZ.trailing_zeros() as usize;
 const_assert_eq!(
     CNODE_ENTRY_BIT_SZ,
-    sysapi::object::cnode::CNODE_ENTRY_BIT_SZ
+    crate::objects::cnode::CNODE_ENTRY_BIT_SZ
 );
 
 pub type CNodeCap<'a> = CapRef<'a, CNodeObj>;

@@ -40,6 +40,10 @@ impl<T: RpcRequestHandlers + Sync> RpcServer<T> {
             })
             .await;
     }
+
+    // pub fn derive_connector_ep(&self) -> Option<EpCap> {
+    //     self.listener.derive_connector_ep()
+    // }
 }
 
 #[async_trait]

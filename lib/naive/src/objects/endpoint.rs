@@ -1,7 +1,7 @@
-use crate::error::SysResult;
-use crate::ipc::{IpcMessage, IpcMessageType, IPC_MAX_ARGS};
-use crate::object::ObjType;
-use crate::syscall::{syscall, MsgInfo, RespInfo, SyscallOp};
+use rustyl4api::error::SysResult;
+use rustyl4api::ipc::{IpcMessage, IpcMessageType, IPC_MAX_ARGS};
+use rustyl4api::syscall::{syscall, MsgInfo, RespInfo, SyscallOp};
+use crate::objects::ObjType;
 
 use super::{Capability, KernelObject};
 

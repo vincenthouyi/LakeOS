@@ -12,12 +12,12 @@ use futures_util::stream::Stream;
 
 use rustyl4api::{
     ipc::IpcMessage,
-    object::{EpCap, RamCap},
 };
 
 use crate::{
     ep_server::{EpMsgHandler, EpServer},
-    space_manager::gsm,
+    space_manager::{gsm, copy_cap},
+    objects::{EpCap, RamCap},
 };
 
 use super::{ArgumentBuffer, LmpChannel, LmpChannelHandle, Role};
@@ -25,14 +25,14 @@ use super::{ArgumentBuffer, LmpChannel, LmpChannelHandle, Role};
 #[allow(dead_code)]
 pub struct LmpListener {
     badge: usize,
-    listen_ep: EpCap,
+    listen_ep: Arc<EpCap>,
 }
 
 impl LmpListener {
     pub fn new(listen_ep: EpCap, badge: usize) -> Self {
         Self {
             badge: badge,
-            listen_ep: listen_ep,
+            listen_ep: Arc::new(listen_ep),
         }
     }
 
@@ -50,7 +50,7 @@ impl LmpListener {
             .unwrap();
 
         let buf_cap = RamCap::new(s_ntf_ep.slot);
-        let buf_ptr = gsm!().insert_ram_at(buf_cap.clone(), 0, Permission::writable());
+        let buf_ptr = gsm!().insert_ram_at(buf_cap, 0, Permission::writable());
 
         let argbuf = unsafe { ArgumentBuffer::new(buf_ptr as *mut usize, 4096) };
 
@@ -61,6 +61,10 @@ impl LmpListener {
             argbuf,
             Role::Server,
         ))
+    }
+
+    pub fn copy_connector_ep(&self) -> Option<EpCap> {
+        copy_cap(&self.listen_ep)
     }
 }
 
@@ -91,6 +95,10 @@ impl LmpListenerHandle {
 
     pub fn incoming(&mut self) -> IncomingFuture {
         IncomingFuture(self)
+    }
+
+    pub fn derive_connector_ep(&self) -> Option<EpCap> {
+        self.inner.lock().copy_connector_ep()
     }
 }
 

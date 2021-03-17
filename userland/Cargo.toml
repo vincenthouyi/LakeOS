@@ -6,3 +6,6 @@ members = [
     "shell",
     "timer"
 ]
+
+[profile.release]
+debug = true

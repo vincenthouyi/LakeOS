@@ -49,7 +49,8 @@ async fn main() {
 
     let ep_server = EP_SERVER.try_get().unwrap();
     let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
-    let listener = LmpListenerHandle::new(listen_ep.clone(), listen_badge);
+    let listener = LmpListenerHandle::new(listen_ep, listen_badge);
+    let connector_ep = listener.derive_connector_ep().unwrap();
     ep_server.insert_event(listen_badge, listener.clone());
 
     let timer_api = TimerApi {};
@@ -57,7 +58,7 @@ async fn main() {
 
     ns_client()
         .lock()
-        .register_service("/dev/timer", listen_ep.slot)
+        .register_service("/dev/timer", connector_ep.slot)
         .await
         .unwrap();
 

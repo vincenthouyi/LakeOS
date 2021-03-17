@@ -109,7 +109,7 @@ pub async fn console_server_init() {
     use crate::gpio;
     use naive::space_manager::gsm;
     use pi::gpio::Function;
-    use rustyl4api::object::RamCap;
+    use naive::objects::RamCap;
     use rustyl4api::vspace::Permission;
 
     gpio::GPIO_SERVER

@@ -15,7 +15,7 @@ use crate::{
     path::{Path, PathBuf},
     rpc::RpcClient,
 };
-use rustyl4api::object::EpCap;
+use crate::objects::EpCap;
 
 pub struct File {
     client: RpcClient,

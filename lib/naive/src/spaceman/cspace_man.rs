@@ -1,6 +1,10 @@
-use core::sync::atomic::{AtomicUsize, Ordering};
+use core::ops::Range;
 
-use rustyl4api::object::CNodeCap;
+use alloc::collections::LinkedList;
+
+use spin::Mutex;
+
+use crate::objects::CNodeCap;
 
 // #[derive(Debug)]
 // struct SlotRange {
@@ -16,73 +20,116 @@ use rustyl4api::object::CNodeCap;
 
 #[derive(Debug)]
 struct CNodeBlock {
-    size: AtomicUsize,
-    free_watermark: AtomicUsize,
+    cap: CNodeCap,
+    range: Range<usize>,
+    free_slots: Mutex<LinkedList<Range<usize>>>,
 }
 
 impl CNodeBlock {
-    pub const fn new(size: usize) -> Self {
+    pub fn new(cap: CNodeCap, start: usize, size: usize) -> Self {
+        let mut free_slots = LinkedList::new();
+        free_slots.push_back(start .. start + size);
         Self {
-            size: AtomicUsize::new(size),
-            free_watermark: AtomicUsize::new(0),
+            cap: cap,
+            range: start .. start + size,
+            free_slots: Mutex::new(free_slots)
         }
     }
 
     pub fn alloc(&self) -> Option<usize> {
-        loop {
-            let cur_wm = self.free_watermark.load(Ordering::Relaxed);
-            let node_sz = self.size.load(Ordering::Relaxed);
-            if cur_wm < node_sz {
-                let new_wm = cur_wm + 1;
-                if let Ok(_)
-                    = self
-                        .free_watermark
-                        .compare_exchange(cur_wm, new_wm, Ordering::Relaxed, Ordering::Relaxed)
-                {
-                    return Some(new_wm);
-                }
-            } else {
-                break;
-            }
+        let mut free_slots_guard = self.free_slots.lock();
+        let mut range = free_slots_guard.front_mut()?;
+
+        let ret_slot = range.start;
+        range.start += 1;
+        let front_empty = range.is_empty();
+
+        drop(range);
+
+        if front_empty {
+            free_slots_guard.pop_front();
         }
-        None
+
+        Some(ret_slot)
     }
 
     pub fn alloc_at(&self, slot: usize) -> Option<usize> {
-        loop {
-            let cur_wm = self.free_watermark.load(Ordering::Relaxed);
-            let node_sz = self.size.load(Ordering::Relaxed);
-            if slot < node_sz && slot >= cur_wm {
-                if let Ok(_)
-                    = self
-                        .free_watermark
-                        .compare_exchange(cur_wm, slot + 1, Ordering::Relaxed, Ordering::Relaxed)
-                {
-                    return Some(slot);
+        let mut free_slots_guard = self.free_slots.lock();
+        let mut cur = free_slots_guard.cursor_front_mut();
+        let mut ret_slot = None;
+
+        while let None = ret_slot {
+            if let Some(range) = cur.current() {
+                if range.contains(&slot) {
+                    ret_slot = Some(slot);
+                    if range.start == slot {
+                        range.start += 1;
+                        if range.is_empty() {
+                            cur.remove_current();
+                        }
+                    } else if range.end == slot {
+                        range.end -= 1;
+                        if range.is_empty() {
+                            cur.remove_current();
+                        }
+                    } else {
+                        let cur_range = range.clone();
+                        cur.insert_before(cur_range.start .. slot);
+                        cur.insert_after(slot + 1 .. cur_range.end);
+                        cur.remove_current().unwrap();
+                    }
+                    break;
                 }
+                cur.move_next();
             } else {
-                break;
+                return None;
             }
         }
-        None
+
+        ret_slot
     }
 
-    pub fn free(&self, _slot: usize) {}
+    pub fn free(&self, slot: usize) {
+        let mut free_slots_guard = self.free_slots.lock();
+        let mut cur = free_slots_guard.cursor_front_mut();
+
+        loop {
+            if let Some(range) = cur.current() {
+                if slot == range.start - 1 {
+                    range.start -= 1;
+                    return;
+                } else if slot == range.end {
+                    range.end += 1;
+                    let range = range.clone();
+                    if let Some(next_range) = cur.peek_next() {
+                        if range.end == next_range.start{
+                            next_range.start = range.start;
+                            cur.move_prev();
+                            cur.remove_current();
+                            // range.end = next_range.end;
+                            // cur.move_next();
+                            // cur.remove_current();
+                        }
+                    }
+                    return;
+                }
+            } else {
+                cur.insert_after(slot..slot+1);
+                return;
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct CSpaceMan {
-    root_cnode: CNodeCap,
     root_cn_block: CNodeBlock,
-    // root_cn_size: usize,
-    // free_slots: LinkedList<SlotRange>
 }
 
 impl CSpaceMan {
     pub fn new(root_cnode: CNodeCap, root_cn_size: usize) -> Self {
         Self {
-            root_cnode: root_cnode,
-            root_cn_block: CNodeBlock::new(root_cn_size),
+            root_cn_block: CNodeBlock::new(root_cnode, 0, root_cn_size),
         }
     }
 
@@ -97,52 +144,4 @@ impl CSpaceMan {
     pub fn free_slot(&self, slot: usize) {
         self.root_cn_block.free(slot)
     }
-
-    //     let mut cur = self.free_slots.cursor_front_mut();
-    //     let mut ret = None;
-
-    //     loop {
-    //         if let Some(node) = cur.current() {
-    //             let range_start = node.start;
-    //             let range_end = node.start + node.size;
-
-    //             if slot < range_end && slot >= range_start {
-    //                 ret = Some(slot);
-
-    //                 if slot == range_end && slot == range_start {
-    //                     cur.remove_current();
-    //                 } else if slot == range_start {
-    //                     node.start += 1;
-    //                 } else if slot == range_end - 1 {
-    //                     node.size -= 1;
-    //                 } else {
-    //                     node.size = slot - range_start;
-    //                     let new_node = SlotRange::new(slot + 1, range_end - slot - 1);
-    //                     cur.insert_after(new_node);
-    //                     break;
-    //                 }
-    //             }
-
-    //             cur.move_next();
-    //         } else {
-    //             break;
-    //         }
-    //     }
-
-    //     ret
-    // }
-
-    // pub fn allocate_slot(&mut self) -> Option<usize> {
-    //     let mut cur = self.free_slots.cursor_front_mut();
-    //     let mut ret = None;
-    //     if let Some(node) = cur.current() {
-    //         ret = Some(node.start);
-    //         node.start += 1;
-    //         node.size -= 1;
-    //         if node.size == 0 {
-    //             cur.remove_current();
-    //         }
-    //     }
-    //     ret
-    // }
 }

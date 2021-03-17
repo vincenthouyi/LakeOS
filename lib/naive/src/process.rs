@@ -1,4 +1,4 @@
-use rustyl4api::object::{CNodeObj, EpCap, RamObj, TcbCap, TcbObj, UntypedObj, VTableObj};
+use crate::objects::{CNodeObj, EpCap, RamObj, TcbCap, TcbObj, UntypedObj, VTableObj};
 use rustyl4api::vspace::Permission;
 use crate::spaceman::vspace_man::{VSpaceMan, VSpaceEntry};
 
@@ -31,30 +31,30 @@ impl<'a> ProcessBuilder<'a> {
         }
     }
 
-    pub fn stdin(&mut self, ep: EpCap) -> &mut Self {
+    pub fn stdin(mut self, ep: EpCap) -> Self {
         self.stdin = Some(ep);
         self
     }
 
-    pub fn stdout(&mut self, ep: EpCap) -> &mut Self {
+    pub fn stdout(mut self, ep: EpCap) -> Self {
         self.stdout = Some(ep);
         self
     }
 
-    pub fn stderr(&mut self, ep: EpCap) -> &mut Self {
+    pub fn stderr(mut self, ep: EpCap) -> Self {
         self.stderr = Some(ep);
         self
     }
 
-    pub fn name_server(&mut self, ep: EpCap) -> &mut Self {
+    pub fn name_server(mut self, ep: EpCap) -> Self {
         self.name_server = Some(ep);
         self
     }
 
-    pub fn spawn(&mut self) -> Result<Child, ()> {
+    pub fn spawn(self) -> Result<Child, ()> {
         use crate::space_manager::gsm;
-        use rustyl4api::object::cnode::CNODE_ENTRY_SZ;
-        use rustyl4api::object::tcb::TCB_OBJ_BIT_SZ;
+        use crate::objects::cnode::CNODE_ENTRY_SZ;
+        use crate::objects::tcb::TCB_OBJ_BIT_SZ;
         use rustyl4api::process::{ProcessCSpace, PROCESS_ROOT_CNODE_SIZE};
         use rustyl4api::vspace::{FRAME_BIT_SIZE, FRAME_SIZE};
 
@@ -62,12 +62,13 @@ impl<'a> ProcessBuilder<'a> {
         let child_tcb = gsm!().alloc_object::<TcbObj>(TCB_OBJ_BIT_SZ).unwrap();
         let child_root_cn = gsm!().alloc_object::<CNodeObj>(rootcn_bitsz).unwrap();
         let child_root_vn = gsm!().alloc_object::<VTableObj>(12).unwrap();
-        let vspace = VSpaceMan::new(child_root_vn.clone());
+        let child_root_vn_slot = child_root_vn.slot;
+        let vspace = VSpaceMan::new(child_root_vn);
 
         let mut cur_free = ProcessCSpace::ProcessFixedMax as usize;
 
         let entry = elfloader::load_elf(self.elf, 0x8000000, 4096, &mut |vrange, flags| {
-            use rustyl4api::object::RamCap;
+            use crate::objects::RamCap;
 
             let vaddr = vrange.start as usize;
             let perm = Permission::new(flags & 0b100 != 0, flags & 0b010 != 0, flags & 0b001 != 0);
@@ -117,7 +118,7 @@ impl<'a> ProcessBuilder<'a> {
         .map_err(|_| ())?;
 
         child_tcb
-            .configure(Some(child_root_vn.slot), Some(child_root_cn.slot))
+            .configure(Some(child_root_vn_slot), Some(child_root_cn.slot))
             .expect("Error Configuring TCB");
         child_tcb
             .set_registers(0b1100, entry as usize, 0x8000000)
@@ -129,7 +130,7 @@ impl<'a> ProcessBuilder<'a> {
             .cap_copy(ProcessCSpace::RootCNodeCap as usize, child_root_cn.slot)
             .map_err(|_| ())?;
         child_root_cn
-            .cap_copy(ProcessCSpace::RootVNodeCap as usize, child_root_vn.slot)
+            .cap_copy(ProcessCSpace::RootVNodeCap as usize, child_root_vn_slot)
             .map_err(|_| ())?;
         child_root_cn
             .cap_copy(
@@ -165,9 +166,9 @@ impl<'a> ProcessBuilder<'a> {
         Ok(Child {
             vspace: vspace,
             tcb: child_tcb,
-            stdin: self.stdin.as_ref().unwrap().clone(),
-            stdout: self.stdout.as_ref().unwrap().clone(),
-            stderr: self.stderr.as_ref().unwrap().clone(),
+            stdin: self.stdin.unwrap(),
+            stdout: self.stdout.unwrap(),
+            stderr: self.stderr.unwrap(),
         })
     }
 }

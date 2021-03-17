@@ -1,6 +1,6 @@
-use crate::error::{SysError, SysResult};
-use crate::object::ObjType;
-use crate::syscall::{syscall, MsgInfo, SyscallOp};
+use rustyl4api::error::{SysError, SysResult};
+use crate::objects::ObjType;
+use rustyl4api::syscall::{syscall, MsgInfo, SyscallOp};
 
 #[derive(Debug, Clone, Copy)]
 pub enum IdentifyResult {
@@ -33,7 +33,7 @@ pub enum IdentifyResult {
 }
 
 pub fn cap_identify(cap_slot: usize) -> SysResult<IdentifyResult> {
-    use crate::num_traits::FromPrimitive;
+    use num_traits::FromPrimitive;
 
     let info = MsgInfo::new(SyscallOp::CapIdentify, 1);
     let mut args = [cap_slot, 0, 0, 0, 0, 0];

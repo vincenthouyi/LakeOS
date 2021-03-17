@@ -1,11 +1,9 @@
-use crate::error::SysResult;
-use crate::syscall::{syscall, MsgInfo, SyscallOp};
+use rustyl4api::error::SysResult;
+use rustyl4api::syscall::{syscall, MsgInfo, SyscallOp};
 
 use super::{Capability, KernelObject, ObjType};
 
-pub const CNODE_DEPTH: usize = core::mem::size_of::<usize>() * 8;
-pub const CNODE_ENTRY_BIT_SZ: usize = 6;
-pub const CNODE_ENTRY_SZ: usize = 1 << CNODE_ENTRY_BIT_SZ;
+pub use rustyl4api::objects::{CNODE_DEPTH, CNODE_ENTRY_BIT_SZ, CNODE_ENTRY_SZ};
 
 #[derive(Debug)]
 pub enum CNodeObj {}

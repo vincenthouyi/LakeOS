@@ -14,7 +14,7 @@ pub mod debug_printer;
 pub mod error;
 pub mod init;
 pub mod ipc;
-pub mod object;
+pub mod objects;
 pub mod process;
 pub mod syscall;
 pub mod thread;

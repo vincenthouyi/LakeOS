@@ -22,7 +22,7 @@ pub use monitor::*;
 pub use nullcap::*;
 pub use ram::*;
 pub use reply::*;
-pub use sysapi::object::ObjType;
+pub use sysapi::objects::ObjType;
 pub use tcb::*;
 pub use traits::*;
 pub use untyped::*;

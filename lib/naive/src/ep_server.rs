@@ -7,7 +7,7 @@ use spin::{Mutex, MutexGuard};
 
 use crate::space_manager::gsm;
 use rustyl4api::ipc::IpcMessage;
-use rustyl4api::object::EpCap;
+use crate::objects::EpCap;
 
 pub struct Ep {
     ep: EpCap,

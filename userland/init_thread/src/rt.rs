@@ -1,7 +1,7 @@
 use naive::space_manager::{gsm};
 
 fn run_app_cpus() {
-    use rustyl4api::object::{Capability, TcbObj, MonitorObj};
+    use naive::objects::{Capability, TcbObj, MonitorObj};
     use rustyl4api::init::InitCSpaceSlot::{InitL1PageTable,InitCSpace, Monitor};
     use rustyl4api::vspace::{Permission, FRAME_SIZE};
 

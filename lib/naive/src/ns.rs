@@ -5,6 +5,7 @@ use spin::Mutex;
 
 use crate::ep_server::EP_SERVER;
 use crate::rpc::RpcClient;
+use crate::objects::EpCap;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Error {
@@ -24,7 +25,7 @@ impl Error {
 pub type Result<T> = core::result::Result<T, Error>;
 
 pub fn ns_client() -> Arc<Mutex<RpcClient>> {
-    use rustyl4api::{object::EpCap, process::ProcessCSpace};
+    use rustyl4api::{process::ProcessCSpace};
     static NS_CLIENT: OnceCell<Arc<Mutex<RpcClient>>> = OnceCell::uninit();
 
     NS_CLIENT

@@ -11,7 +11,7 @@ use naive::ep_server::EP_SERVER;
 use naive::lmp::LmpListenerHandle;
 use naive::path::{Path, PathBuf};
 use naive::rpc::{self, ReadDirRequest, ReadDirResponse, RpcServer};
-use rustyl4api::object::EpCap;
+use naive::objects::EpCap;
 
 use crate::vfs::INode;
 
@@ -56,14 +56,15 @@ impl DirEntry {
 
         let ep_server = EP_SERVER.try_get().unwrap();
         let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
+        let listen_ep_slot = listen_ep.slot;
 
-        let listener = LmpListenerHandle::new(listen_ep.clone(), listen_badge);
+        let listener = LmpListenerHandle::new(listen_ep, listen_badge);
         ep_server.insert_event(listen_badge, listener.clone());
         let file_svr = Box::new(RpcServer::new(listener, node));
 
-        inner.cached_ep = Some(listen_ep.slot);
+        inner.cached_ep = Some(listen_ep_slot);
         naive::task::spawn(file_svr.run());
-        Ok(Some(listen_ep.slot))
+        Ok(Some(listen_ep_slot))
     }
 
     pub fn publish<P: AsRef<Path>>(&self, name: P, ep: EpCap) -> Result<(), ()> {

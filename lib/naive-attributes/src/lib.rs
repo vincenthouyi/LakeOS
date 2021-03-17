@@ -43,7 +43,7 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 loop {}
             }
 
-            use rustyl4api::object::{EndpointObj};
+            use naive::objects::{EndpointObj};
             use naive::ep_server::{EpServer, EP_SERVER};
             use naive::space_manager::gsm;
 

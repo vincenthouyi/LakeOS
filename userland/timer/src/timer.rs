@@ -2,7 +2,7 @@ use pi::timer::Timer;
 use spin::Mutex;
 
 use naive::space_manager::gsm;
-use rustyl4api::object::RamCap;
+use naive::objects::RamCap;
 use rustyl4api::vspace::Permission;
 
 pub static SYSTEM_TIMER: Mutex<Option<Timer>> = Mutex::new(None);

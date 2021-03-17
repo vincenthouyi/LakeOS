@@ -5,7 +5,8 @@ use hashbrown::HashMap;
 use spin::Mutex;
 
 use naive::path::{Path, PathBuf};
-use rustyl4api::object::EpCap;
+use naive::space_manager::copy_cap;
+use naive::objects::EpCap;
 
 use crate::vfs::{self, INode};
 
@@ -60,7 +61,7 @@ impl INode for Dir {
         let dev_guard = self.fs.nodes.lock();
         let node = dev_guard.get(&name.as_ref().to_path_buf())?;
         Some(Arc::new(DevNode {
-            ep: node.ep.clone(),
+            ep: copy_cap(&node.ep).unwrap(),
         }))
     }
 

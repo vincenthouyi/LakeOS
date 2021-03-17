@@ -11,7 +11,7 @@ use conquer_once::spin::OnceCell;
 use futures_util::io::{AsyncRead, AsyncWrite};
 use futures_util::stream::Stream;
 
-use rustyl4api::object::EpCap;
+use crate::objects::EpCap;
 use rustyl4api::process::ProcessCSpace;
 
 use crate::fs::File;

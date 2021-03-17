@@ -3,7 +3,7 @@ use spin::Mutex;
 use pi::gpio::{Gpio, Uninitialized};
 
 use naive::space_manager::gsm;
-use rustyl4api::object::RamCap;
+use naive::objects::RamCap;
 use rustyl4api::vspace::Permission;
 
 #[derive(Debug)]

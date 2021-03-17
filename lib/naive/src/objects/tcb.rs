@@ -1,15 +1,14 @@
-use crate::error::SysResult;
-use crate::object::ObjType;
-use crate::syscall::{syscall, MsgInfo, SyscallOp};
+use rustyl4api::error::SysResult;
+use rustyl4api::syscall::{syscall, MsgInfo, SyscallOp};
+use crate::objects::ObjType;
 
 use super::{Capability, KernelObject};
+
+pub use rustyl4api::objects::{TCB_OBJ_BIT_SZ, TCB_OBJ_SZ};
 
 #[derive(Debug)]
 pub struct TcbObj {}
 pub type TcbCap = Capability<TcbObj>;
-
-pub const TCB_OBJ_SZ: usize = 1024;
-pub const TCB_OBJ_BIT_SZ: usize = 10;
 
 impl KernelObject for TcbObj {
     fn obj_type() -> ObjType {

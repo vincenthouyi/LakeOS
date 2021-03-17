@@ -51,8 +51,8 @@ impl Debug for TcbObj {
 
 pub const TCB_OBJ_SZ: usize = size_of::<TcbObj>().next_power_of_two();
 pub const TCB_OBJ_BIT_SZ: usize = TCB_OBJ_SZ.trailing_zeros() as usize;
-const_assert_eq!(TCB_OBJ_SZ, sysapi::object::TCB_OBJ_SZ);
-const_assert_eq!(TCB_OBJ_BIT_SZ, sysapi::object::TCB_OBJ_BIT_SZ);
+const_assert_eq!(TCB_OBJ_SZ, crate::objects::TCB_OBJ_SZ);
+const_assert_eq!(TCB_OBJ_BIT_SZ, crate::objects::TCB_OBJ_BIT_SZ);
 
 pub type TcbCap<'a> = CapRef<'a, TcbObj>;
 

@@ -1,5 +1,8 @@
 use core::marker::PhantomData;
 
+use rustyl4api::error::SysResult;
+use rustyl4api::syscall::{MsgInfo, SyscallOp, syscall};
+
 pub mod cnode;
 pub mod endpoint;
 pub mod identify;
@@ -11,6 +14,7 @@ pub mod tcb;
 pub mod untyped;
 pub mod vtable;
 
+pub use rustyl4api::objects::{ObjType};
 pub use cnode::{CNodeCap, CNodeObj, CNODE_DEPTH};
 pub use endpoint::{EndpointObj, EpCap};
 pub use interrupt::{InterruptCap, InterruptObj};
@@ -21,27 +25,7 @@ pub use tcb::{TcbCap, TcbObj, TCB_OBJ_BIT_SZ, TCB_OBJ_SZ};
 pub use untyped::UntypedObj;
 pub use vtable::{VTableCap, VTableObj};
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, FromPrimitive, ToPrimitive)]
-pub enum ObjType {
-    NullObj = 0,
-    Untyped = 1,
-    CNode = 2,
-    Tcb = 3,
-    Ram = 4,
-    VTable = 5,
-    Endpoint = 6,
-    Reply = 7,
-    Monitor = 8,
-    Interrupt = 9,
-}
-
-impl Default for ObjType {
-    fn default() -> Self {
-        Self::NullObj
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Capability<T: KernelObject> {
     pub slot: usize,
     pub obj_type: PhantomData<T>,
@@ -53,6 +37,12 @@ impl<T: KernelObject> Capability<T> {
             slot: slot,
             obj_type: PhantomData,
         }
+    }
+
+    pub fn derive(&self, dst_cptr: usize) -> SysResult<()> {
+        let info = MsgInfo::new(SyscallOp::Derive, 1);
+        let mut args = [self.slot, dst_cptr, 0, 0, 0, 0];
+        syscall(info, &mut args).map(|_| ())
     }
 }
 

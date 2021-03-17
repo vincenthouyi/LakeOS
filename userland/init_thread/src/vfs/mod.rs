@@ -6,7 +6,8 @@ use alloc::sync::Arc;
 use hashbrown::HashMap;
 
 use naive::path::{Component, Path, PathBuf};
-use rustyl4api::object::{CNodeCap, EpCap};
+use naive::space_manager::copy_cap;
+use naive::objects::EpCap;
 
 pub use dcache::*;
 pub use inode::*;
@@ -61,16 +62,15 @@ impl Vfs {
             return Err(());
         }
         let ep = entry.open()?.ok_or(())?;
-        let copy_slot = naive::space_manager::gsm!().cspace_alloc().unwrap();
-        let cspace = CNodeCap::new(rustyl4api::init::InitCSpaceSlot::InitCSpace as usize);
-        cspace.cap_copy(copy_slot, ep).unwrap();
+        let ep = EpCap::new(ep);
         Ok(IndexNode {
-            cap: copy_slot,
+            cap: copy_cap(&ep).unwrap().slot,
             node_type: NodeType::File,
         })
     }
 
     pub fn publish<P: AsRef<Path>>(&mut self, path: P, ep: EpCap) -> Result<(), ()> {
+        kprintln!("Registering path {:?}", path.as_ref());
         let parent = path.as_ref().parent().ok_or(())?;
         let filename = path.as_ref().file_stem().ok_or(())?;
         let parent_dentry = self.lookup(parent).ok_or(())?;

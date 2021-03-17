@@ -23,7 +23,7 @@ use naive::rpc::{
     WriteRequest, WriteResponse,
 };
 use pi::interrupt::Interrupt;
-use rustyl4api::object::interrupt::InterruptCap;
+use naive::objects::InterruptCap;
 
 use futures_util::StreamExt;
 
@@ -72,7 +72,7 @@ impl naive::rpc::RpcRequestHandlers for ConsoleApi {
         &self,
         request: &RequestMemoryRequest,
     ) -> rpc::Result<(RequestMemoryResponse, Vec<usize>)> {
-        use rustyl4api::object::RamObj;
+        use naive::objects::RamObj;
 
         let cap = naive::space_manager::alloc_object_at::<RamObj>(
             request.paddr,
@@ -88,6 +88,7 @@ impl naive::rpc::RpcRequestHandlers for ConsoleApi {
 
 #[naive::main]
 async fn main() {
+    kprintln!("console app start");
     gpio::init_gpio_server().await;
     console::console_server_init().await;
 
@@ -106,7 +107,8 @@ async fn main() {
     ep_server.insert_notification(Interrupt::Aux as usize, con.clone());
 
     let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
-    let listener = LmpListenerHandle::new(listen_ep.clone(), listen_badge);
+    let listener = LmpListenerHandle::new(listen_ep, listen_badge);
+    let connector_ep = listener.derive_connector_ep().unwrap();
     ep_server.insert_event(listen_badge, listener.clone());
 
     let console_api = ConsoleApi {};
@@ -114,7 +116,7 @@ async fn main() {
 
     ns_client()
         .lock()
-        .register_service("/dev/tty", listen_ep.slot)
+        .register_service("/dev/tty", connector_ep.slot)
         .await
         .unwrap();
 

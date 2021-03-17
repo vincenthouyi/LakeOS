@@ -1,7 +1,7 @@
 
 extern crate alloc;
 
-use rustyl4api::object::KernelObject;
+use crate::objects::KernelObject;
 use rustyl4api::vspace::Permission;
 
 pub mod cspace_man;
@@ -11,8 +11,8 @@ pub mod vspace_man;
 
 use core::alloc::Layout;
 
-use rustyl4api::object::identify::IdentifyResult;
-use rustyl4api::object::{CNodeObj, Capability, RamCap, RamObj, VTableObj};
+use crate::objects::identify::IdentifyResult;
+use crate::objects::{CNodeObj, Capability, RamCap, RamObj, VTableObj};
 
 use vspace_man::{VSpaceManError, VSpaceEntry};
 

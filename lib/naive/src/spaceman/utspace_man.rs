@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use rustyl4api::object::{Capability, KernelObject, UntypedObj};
+use crate::objects::{Capability, KernelObject, UntypedObj};
 use spin::Mutex;
 
 #[derive(Debug)]

@@ -1,4 +1,4 @@
-use rustyl4api::object::TcbObj;
+use crate::objects::TcbObj;
 use rustyl4api::process::ProcessCSpace::{RootCNodeCap, RootVNodeCap};
 
 use crate::space_manager::gsm;

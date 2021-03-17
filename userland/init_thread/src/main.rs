@@ -15,7 +15,7 @@ use alloc::vec::Vec;
 
 use async_trait::async_trait;
 
-use rustyl4api::object::{CNodeCap, EpCap};
+use naive::objects::{EpCap, InterruptCap};
 
 use conquer_once::spin::OnceCell;
 use naive::lmp::LmpListenerHandle;
@@ -25,6 +25,7 @@ use naive::rpc::{
     RegisterServiceResponse, RequestIrqRequest, RequestIrqResponse, RequestMemoryRequest,
     RequestMemoryResponse, RpcServer,
 };
+use naive::space_manager::copy_cap;
 use spin::Mutex;
 
 struct InitThreadApi;
@@ -35,7 +36,7 @@ impl rpc::RpcRequestHandlers for InitThreadApi {
         &self,
         request: &RequestMemoryRequest,
     ) -> rpc::Result<(RequestMemoryResponse, Vec<usize>)> {
-        use rustyl4api::object::RamObj;
+        use naive::objects::RamObj;
 
         let cap = naive::space_manager::alloc_object_at::<RamObj>(
             request.paddr,
@@ -52,16 +53,10 @@ impl rpc::RpcRequestHandlers for InitThreadApi {
         &self,
         _request: &RequestIrqRequest,
     ) -> rpc::Result<(RequestIrqResponse, Vec<usize>)> {
-        let copy_slot = naive::space_manager::gsm!().cspace_alloc().unwrap();
-        let cspace = CNodeCap::new(rustyl4api::init::InitCSpaceSlot::InitCSpace as usize);
-        cspace
-            .cap_copy(
-                copy_slot,
-                rustyl4api::init::InitCSpaceSlot::IrqController as usize,
-            )
-            .unwrap();
+        let irq_cap = InterruptCap::new(rustyl4api::init::InitCSpaceSlot::IrqController as usize);
+        let copy_cap = copy_cap(&irq_cap).unwrap();
         let resp = RequestIrqResponse { result: 0 };
-        Ok((resp, [copy_slot].to_vec()))
+        Ok((resp, [copy_cap.slot].to_vec()))
     }
 
     async fn handle_register_service(
@@ -116,7 +111,7 @@ async fn main() {
     let ep_server = EP_SERVER.try_get().unwrap();
     let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
 
-    let listener = LmpListenerHandle::new(listen_ep.clone(), listen_badge);
+    let listener = LmpListenerHandle::new(listen_ep, listen_badge);
     ep_server.insert_event(listen_badge, listener.clone());
 
     vfs().lock().mount("/", initfs::InitFs::new()).unwrap();
@@ -128,10 +123,10 @@ async fn main() {
         .get(b"console")
         .map(|e| {
             naive::process::ProcessBuilder::new(e)
-                .stdin(listen_ep.clone())
-                .stdout(listen_ep.clone())
-                .stderr(listen_ep.clone())
-                .name_server(listen_ep.clone())
+                .stdin(listener.derive_connector_ep().unwrap())
+                .stdout(listener.derive_connector_ep().unwrap())
+                .stderr(listener.derive_connector_ep().unwrap())
+                .name_server(listener.derive_connector_ep().unwrap())
                 .spawn()
                 .expect("spawn process failed");
         })
@@ -141,10 +136,10 @@ async fn main() {
         .get(b"shell")
         .map(|e| {
             naive::process::ProcessBuilder::new(e)
-                .stdin(listen_ep.clone())
-                .stdout(listen_ep.clone())
-                .stderr(listen_ep.clone())
-                .name_server(listen_ep.clone())
+                .stdin(listener.derive_connector_ep().unwrap())
+                .stdout(listener.derive_connector_ep().unwrap())
+                .stderr(listener.derive_connector_ep().unwrap())
+                .name_server(listener.derive_connector_ep().unwrap())
                 .spawn()
                 .expect("spawn process failed");
         })
@@ -154,10 +149,10 @@ async fn main() {
         .get(b"timer")
         .map(|e| {
             naive::process::ProcessBuilder::new(e)
-                .stdin(listen_ep.clone())
-                .stdout(listen_ep.clone())
-                .stderr(listen_ep.clone())
-                .name_server(listen_ep.clone())
+                .stdin(listener.derive_connector_ep().unwrap())
+                .stdout(listener.derive_connector_ep().unwrap())
+                .stderr(listener.derive_connector_ep().unwrap())
+                .name_server(listener.derive_connector_ep().unwrap())
                 .spawn()
                 .expect("spawn process failed");
         })

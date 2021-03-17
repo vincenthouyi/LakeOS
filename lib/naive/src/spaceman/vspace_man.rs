@@ -3,7 +3,7 @@ use alloc::collections::linked_list::LinkedList;
 use spin::Mutex;
 
 use rustyl4api::error::SysResult;
-use rustyl4api::object::{RamCap, VTableCap};
+use crate::objects::{RamCap, VTableCap};
 use rustyl4api::vspace::Permission;
 
 #[derive(Debug)]
