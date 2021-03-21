@@ -12,7 +12,7 @@ pub mod vspace_man;
 use core::alloc::Layout;
 
 use crate::objects::identify::IdentifyResult;
-use crate::objects::{CNodeObj, Capability, RamCap, RamObj, VTableObj};
+use crate::objects::{CNodeCap, Capability, RamCap, RamObj, VTableObj, VTableCap};
 
 use vspace_man::{VSpaceManError, VSpaceEntry};
 
@@ -26,9 +26,9 @@ pub struct SpaceManager {
 
 impl SpaceManager {
     pub fn new(
-        root_cnode: Capability<CNodeObj>,
+        root_cnode: CNodeCap,
         root_cnode_size: usize,
-        root_vnode: Capability<VTableObj>,
+        root_vnode: VTableCap,
     ) -> Self {
         Self {
             vspace_man: vspace_man::VSpaceMan::new(root_vnode),
@@ -55,7 +55,7 @@ impl SpaceManager {
     // }
 
     pub fn insert_identify(&self, slot: usize, result: IdentifyResult) {
-        self.cspace_alloc_at(slot);
+        let slot = self.cspace_alloc_at(slot).unwrap();
         match result {
             IdentifyResult::NullObj => {}
             IdentifyResult::Untyped {
@@ -179,7 +179,7 @@ impl SpaceManager {
         vaddr as *mut u8
     }
 
-    pub fn insert_vtable(&self, table: Capability<VTableObj>, vaddr: usize, level: usize, do_map: bool) {
+    pub fn insert_vtable(&self, table: VTableCap, vaddr: usize, level: usize, do_map: bool) {
         let entry = vspace_man::VSpaceEntry::new_table(table, vaddr, level);
         self.vspace_man.install_entry(entry, do_map).unwrap();
     }

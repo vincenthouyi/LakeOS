@@ -31,24 +31,22 @@ impl Ep {
 }
 
 pub struct EpServer {
-    event_handlers: OnceCell<Mutex<HashMap<usize, Arc<dyn EpMsgHandler>>>>,
+    event_handlers: Mutex<HashMap<usize, Arc<dyn EpMsgHandler>>>,
     ntf_handler: Mutex<[Option<Arc<dyn EpNtfHandler>>; 64]>,
     ep: Ep,
 }
 
 impl EpServer {
-    pub const fn new(ep: EpCap) -> Self {
+    pub fn new(ep: EpCap) -> Self {
         Self {
             ep: Ep::from_unbadged(ep),
-            event_handlers: OnceCell::uninit(),
+            event_handlers: Mutex::new(HashMap::new()),
             ntf_handler: Mutex::new([None; 64]),
         }
     }
 
     fn get_event_handlers(&self) -> MutexGuard<HashMap<usize, Arc<dyn EpMsgHandler>>> {
         self.event_handlers
-            .try_get_or_init(|| Mutex::new(HashMap::new()))
-            .unwrap()
             .lock()
     }
 
