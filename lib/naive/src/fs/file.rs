@@ -29,10 +29,11 @@ impl File {
             .lookup_service(path.as_ref())
             .await
             .map_err(|_| ())?;
-        Self::connect(EpCap::new(resp)).await
+        let resp_cap = EpCap::new(resp);
+        Self::connect(&resp_cap).await
     }
 
-    pub async fn connect(ep: EpCap) -> Result<Self, ()> {
+    pub async fn connect(ep: &EpCap) -> Result<Self, ()> {
         let ep_server = EP_SERVER.try_get().unwrap();
         let (ntf_badge, ntf_ep) = ep_server.derive_badged_cap().unwrap();
         let cli = RpcClient::connect(ep, ntf_ep, ntf_badge).unwrap();

@@ -27,8 +27,7 @@ impl RpcClient {
         }
     }
 
-    pub fn connect(server_ep: EpCap, ntf_ep: EpCap, ntf_badge: usize) -> Result<Self, ()> {
-        kprintln!("hack");
+    pub fn connect(server_ep: &EpCap, ntf_ep: EpCap, ntf_badge: usize) -> Result<Self, ()> {
         let channel = LmpChannelHandle::connect(server_ep, ntf_ep, ntf_badge)?;
         let client = Self::new(channel);
         Ok(client)
@@ -131,6 +130,7 @@ impl RpcClient {
         name: P,
         cap: usize,
     ) -> ns::Result<()> {
+        kprintln!("registering service {:?}", name.as_ref());
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {

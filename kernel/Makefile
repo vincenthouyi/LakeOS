@@ -29,6 +29,9 @@ $(BUILD_DIR)/initfs.cpio: $(BUILD_DIR)
 	@cd ../userland; \
 	$(CARGO) build -Z unstable-options --release --out-dir build; \
 	cd build; \
+	mkdir fs; \
+	cp ./* fs; \
+	cd fs; \
 	echo hello world > hello; \
 	ls * | xargs aarch64-none-elf-strip; \
 	ls * | cpio -H newc -ov > $(PWD)/build/initfs.cpio

@@ -1,4 +1,4 @@
-use crate::space_manager::{gsm, gsm_init};
+use crate::space_manager::{gsm};
 
 const MEMPOOL_SIZE: usize = 4096;
 
@@ -9,13 +9,7 @@ static mut INIT_ALLOC_BACKUP_MEMPOOL: InitMemPool = InitMemPool([0u8; MEMPOOL_SI
 
 pub fn populate_app_cspace() {
     use crate::objects::identify::{cap_identify, IdentifyResult};
-    use crate::objects::Capability;
     use rustyl4api::process::{ProcessCSpace, PROCESS_ROOT_CNODE_SIZE};
-
-    let root_cnode = Capability::new(ProcessCSpace::RootCNodeCap as usize);
-    let root_vnode = Capability::new(ProcessCSpace::RootVNodeCap as usize);
-
-    gsm_init(root_cnode, PROCESS_ROOT_CNODE_SIZE, root_vnode);
 
     gsm!().cspace_alloc_at(0);
 

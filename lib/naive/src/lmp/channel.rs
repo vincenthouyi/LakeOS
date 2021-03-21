@@ -48,11 +48,10 @@ impl LmpChannel {
         }
     }
 
-    pub fn connect(server_ep: EpCap, ntf_ep: EpCap, ntf_badge: usize) -> Result<Self, ()> {
+    pub fn connect(server_ep: &EpCap, ntf_ep: EpCap, ntf_badge: usize) -> Result<Self, ()> {
         use crate::objects::ReplyCap;
         use rustyl4api::vspace::Permission;
 
-        kprintln!("connecting");
         /* Connect by sending client notification ep */
         let trans_cap_slot = ntf_ep.slot;
         let _ret = server_ep.call(&[], Some(trans_cap_slot)).unwrap();
@@ -166,7 +165,7 @@ impl LmpChannelHandle {
         }
     }
 
-    pub fn connect(server_ep: EpCap, ntf_ep: EpCap, ntf_badge: usize) -> Result<Self, ()> {
+    pub fn connect(server_ep: &EpCap, ntf_ep: EpCap, ntf_badge: usize) -> Result<Self, ()> {
         let inner = LmpChannel::connect(server_ep, ntf_ep, ntf_badge)?;
         let chan = Self::from_inner(inner);
         EP_SERVER

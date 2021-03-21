@@ -1,34 +1,31 @@
 use core::ptr::NonNull;
 
+use rustyl4api::process::{ProcessCSpace, PROCESS_ROOT_CNODE_SIZE};
+
 use crate::objects::KernelObject;
-use crate::objects::{CNodeCap, Capability, RamObj, VTableCap};
+use crate::objects::{CNodeCap, Capability, RamObj, EpCap};
 use crate::spaceman::SpaceManager;
 
-pub static mut GLOBAL_SPACEMAN: Option<SpaceManager> = None;
+lazy_static! {
+    pub static ref GLOBAL_SPACEMAN: SpaceManager = {
+        let root_cnode = Capability::new(ProcessCSpace::RootCNodeCap as usize);
+        let root_vnode = Capability::new(ProcessCSpace::RootVNodeCap as usize);
 
-pub fn gsm_init(
-    root_cnode: CNodeCap,
-    root_cnode_size: usize,
-    root_vnode: VTableCap,
-) {
-    unsafe {
-        GLOBAL_SPACEMAN = Some(SpaceManager::new(root_cnode, root_cnode_size, root_vnode));
-    }
+        SpaceManager::new(root_cnode, PROCESS_ROOT_CNODE_SIZE, root_vnode)
+    };
 }
 
 pub macro gsm() {
-    unsafe {
+    {
         if crate::vm_allocator::GLOBAL_VM_ALLOC.cur_pool_remain() < 1024 {
             use rustyl4api::vspace::{Permission, FRAME_SIZE};
 
             let addr = GLOBAL_SPACEMAN
-                .as_mut()
-                .unwrap()
                 .map_frame_at(0, 0, FRAME_SIZE, Permission::writable())
                 .unwrap();
             crate::vm_allocator::GLOBAL_VM_ALLOC.add_mempool(addr, FRAME_SIZE);
         }
-        GLOBAL_SPACEMAN.as_mut().unwrap()
+        &GLOBAL_SPACEMAN
     }
 }
 
@@ -69,4 +66,19 @@ pub fn copy_cap<T: KernelObject>(src: &Capability<T>) -> Option<Capability<T>> {
         let cspace = CNodeCap::new(rustyl4api::init::InitCSpaceSlot::InitCSpace as usize);
         cspace.cap_copy(copy_slot, src.slot).ok()?;
         Some(Capability::<T>::new(copy_slot))
+}
+
+lazy_static! {
+    pub static ref NAME_SERVICE_CAP: EpCap = {
+        EpCap::new(ProcessCSpace::NameServer as usize)
+    };
+    pub static ref STDIN_CAP: EpCap = {
+        EpCap::new(ProcessCSpace::Stdin as usize)
+    };
+    pub static ref STDOUT_CAP: EpCap = {
+        EpCap::new(ProcessCSpace::Stdout as usize)
+    };
+    pub static ref STDERR_CAP: EpCap = {
+        EpCap::new(ProcessCSpace::Stderr as usize)
+    };
 }
