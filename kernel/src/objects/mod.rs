@@ -14,6 +14,7 @@ mod vtable;
 use core::cell::Cell;
 use core::marker::PhantomData;
 use core::ptr::NonNull;
+use core::num::NonZeroUsize;
 
 pub use cnode::*;
 pub use endpoint::*;
@@ -39,7 +40,7 @@ pub use vtable::*;
  */
 #[derive(Debug, Clone, Copy)]
 pub struct CapRef<'a, T: KernelObject + ?Sized> {
-    raw: &'a CNodeEntry,
+    pub raw: &'a CNodeEntry,
     cap_type: PhantomData<T>,
 }
 
@@ -75,21 +76,26 @@ impl<'a, T: KernelObject + ?Sized> CapRef<'a, T> {
     }
 
     pub fn append_next(&self, cap: &CNodeEntry) {
-        let mut self_raw = self.raw();
-        let mut cap_raw = cap.get();
-        let orig_next = self_raw.get_next();
+        cnode_entry_append_next(&self.raw, cap)
+    }
+}
+
+pub fn cnode_entry_append_next(src: &CNodeEntry, dst: &CNodeEntry) {
+        let mut src_raw = src.get();
+        let mut dst_raw = dst.get();
+        let orig_next = src_raw.get_next();
         orig_next.map(|next_ptr| {
             let next_cap = unsafe { next_ptr.as_ref() };
             let mut next_raw = next_cap.get();
-            next_raw.set_prev(Some(NonNull::from(cap)));
+            next_raw.set_prev(Some(NonNull::from(dst)));
             next_cap.set(next_raw);
         });
-        cap_raw.set_next(orig_next);
-        cap_raw.set_prev(Some(NonNull::from(self.raw)));
-        cap.set(cap_raw);
-        self_raw.set_next(Some(NonNull::from(cap)));
-        self.raw.set(self_raw);
-    }
+        dst_raw.set_next(orig_next);
+        dst_raw.set_prev(Some(NonNull::from(src)));
+        dst.set(dst_raw);
+        src_raw.set_next(Some(NonNull::from(dst)));
+        src.set(src_raw);
+
 }
 
 impl<'a, T: KernelObject + Sized> CapRef<'a, T> {
@@ -208,5 +214,17 @@ impl core::fmt::Debug for CapRaw {
         formatter.field("prev", &self.get_prev());
         formatter.field("next", &self.get_next());
         formatter.finish()
+    }
+}
+
+pub fn cap_derive(cap_slot: &CNodeEntry, badge: Option<NonZeroUsize>) -> SysResult<CapRaw> {
+    match cap_slot.get().cap_type() {
+        ObjType::Endpoint => {
+            let cap = EndpointCap::try_from(cap_slot).unwrap();
+            Ok(cap.derive_badged(badge))
+            // let raw = cap_slot.get();
+            
+        }
+        _ => { Ok(cap_slot.get()) }
     }
 }

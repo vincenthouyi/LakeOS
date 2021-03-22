@@ -9,7 +9,7 @@ use crate::utils::percore::PerCore;
 use crate::vspace::*;
 use crate::NCPU;
 use sysapi::init::InitCSpaceSlot::*;
-use sysapi::init::INIT_CSPACE_SIZE;
+use sysapi::process::{ProcessCSpace, PROCESS_ROOT_CNODE_SIZE};
 use sysapi::vspace::Permission;
 
 use align_data::{include_aligned, Align64};
@@ -25,7 +25,7 @@ static mut KERNEL_PGD: Table = Table::zero();
 static mut KERNEL_PUD: Table = Table::zero();
 static mut KERNEL_PD: Table = Table::zero();
 
-static mut INIT_CNODE: MaybeUninit<[CNodeEntry; INIT_CSPACE_SIZE]> = MaybeUninit::uninit();
+static mut INIT_CNODE: MaybeUninit<[CNodeEntry; PROCESS_ROOT_CNODE_SIZE]> = MaybeUninit::uninit();
 static INIT_FS: &[u8] = include_aligned!(Align64, "../../../build/initfs.cpio");
 
 pub static IDLE_THREADS: PerCore<TcbObj, NCPU> = PerCore([UnsafeCell::new(TcbObj::new()); NCPU]);
@@ -341,7 +341,7 @@ fn initialize_init_cspace(cnode: &CNodeObj, cur_free_slot: &mut usize) {
         64 - cnode.len().trailing_zeros() as usize,
         0,
     );
-    cnode[InitCSpace as usize].set(cnode_cap);
+    cnode[ProcessCSpace::RootCNodeCap as usize].set(cnode_cap);
 
     /* Insert monitor cap for super user to control kernel */
     cnode[Monitor as usize].set(MonitorCap::mint());
@@ -352,12 +352,12 @@ fn initialize_init_cspace(cnode: &CNodeObj, cur_free_slot: &mut usize) {
     alloc_obj::<TcbObj>(
         &cnode,
         crate::objects::TCB_OBJ_BIT_SZ,
-        &cnode[InitTCB as usize],
+        &cnode[ProcessCSpace::TcbCap as usize],
     )
     .expect("Allocating Init Thread TCB failed");
 
     /* allocate PGD for init thread*/
-    alloc_obj::<VTableObj>(&cnode, 12, &cnode[InitL1PageTable as usize])
+    alloc_obj::<VTableObj>(&cnode, 12, &cnode[ProcessCSpace::RootVNodeCap as usize])
         .expect("Allocating PGD for Init Thread failed");
 }
 
@@ -438,7 +438,7 @@ fn load_init_thread(tcb: &mut TcbObj, elf_file: &[u8], cur_free_slot: &mut usize
 
     let cspace = tcb.cspace().expect("Init CSpace not installed");
     let pgd_cap =
-        VTableCap::try_from(&cspace[InitL1PageTable as usize]).expect("Init PGD cap not installed");
+        VTableCap::try_from(&cspace[ProcessCSpace::RootVNodeCap as usize]).expect("Init PGD cap not installed");
     tcb.install_vspace(pgd_cap);
 
     let entry = elfloader::load_elf(
@@ -510,9 +510,9 @@ fn init_bsp_cpu() {
 
     initialize_init_cspace(init_cnode_obj, &mut cur_free_slot);
     let mut init_tcb_cap =
-        TcbCap::try_from(&init_cnode_obj[InitTCB as usize]).expect("Init TCB cap not installed");
+        TcbCap::try_from(&init_cnode_obj[ProcessCSpace::TcbCap as usize]).expect("Init TCB cap not installed");
 
-    let init_cnode_cap = CNodeCap::try_from(&init_cnode_obj[InitCSpace as usize]).unwrap();
+    let init_cnode_cap = CNodeCap::try_from(&init_cnode_obj[ProcessCSpace::RootCNodeCap as usize]).unwrap();
     init_tcb_cap.install_cspace(&init_cnode_cap).unwrap();
 
     let init_thread_elf =

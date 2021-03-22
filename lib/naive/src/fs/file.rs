@@ -14,8 +14,8 @@ use crate::{
     ns::ns_client,
     path::{Path, PathBuf},
     rpc::RpcClient,
+    objects::EpCap,
 };
-use crate::objects::EpCap;
 
 pub struct File {
     client: RpcClient,
@@ -24,13 +24,13 @@ pub struct File {
 
 impl File {
     pub async fn open<P: AsRef<Path>>(path: P) -> Result<Self, ()> {
-        let resp = ns_client()
+        let resp_cap = ns_client()
             .lock()
             .lookup_service(path.as_ref())
             .await
             .map_err(|_| ())?;
-        let resp_cap = EpCap::new(resp);
-        Self::connect(&resp_cap).await
+        let ret = Self::connect(&resp_cap).await;
+        ret
     }
 
     pub async fn connect(ep: &EpCap) -> Result<Self, ()> {

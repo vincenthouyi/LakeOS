@@ -23,7 +23,7 @@ impl<'a> CapRef<'a, NullObj> {
         }
     }
 
-    pub fn insert_raw(self, raw: CapRaw) {
+    pub fn insert_raw(&self, raw: CapRaw) {
         self.raw.set(raw);
     }
 

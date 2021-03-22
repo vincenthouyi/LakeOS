@@ -109,7 +109,6 @@ pub async fn console_server_init() {
     use crate::gpio;
     use naive::space_manager::gsm;
     use pi::gpio::Function;
-    use naive::objects::RamCap;
     use rustyl4api::vspace::Permission;
 
     gpio::GPIO_SERVER
@@ -128,7 +127,6 @@ pub async fn console_server_init() {
         .into_alt(Function::Alt5);
 
     let uart_ram_cap = crate::request_memory(0x3f215000, 4096, true).await.unwrap();
-    let uart_ram_cap = RamCap::new(uart_ram_cap);
     let uart_base = gsm!().insert_ram_at(uart_ram_cap, 0, Permission::writable());
 
     let mut uart = MiniUart::new(uart_base as usize);

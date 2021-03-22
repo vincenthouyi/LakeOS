@@ -1,8 +1,7 @@
 use rustyl4api::error::SysResult;
 use rustyl4api::syscall::{syscall, MsgInfo, SyscallOp};
-use crate::objects::ObjType;
 
-use super::{Capability, KernelObject};
+use super::{Capability, ObjType, KernelObject};
 
 #[derive(Debug, Clone)]
 pub struct VTableObj {}
@@ -16,9 +15,9 @@ impl KernelObject for VTableObj {
 }
 
 impl Capability<VTableObj> {
-    pub fn map(&self, vspace: usize, vaddr: usize, level: usize) -> SysResult<()> {
+    pub fn map(&self, vspace: &VTableCap, vaddr: usize, level: usize) -> SysResult<()> {
         let info = MsgInfo::new(SyscallOp::VTableMap, 3);
-        let mut args = [self.slot, vspace, vaddr, level, 0, 0];
+        let mut args = [self.slot(), vspace.slot(), vaddr, level, 0, 0];
         syscall(info, &mut args).map(|_| ())
     }
 

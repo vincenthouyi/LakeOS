@@ -6,22 +6,17 @@ use core::task::{Context, Poll, Waker};
 use futures_util::stream::Stream;
 use spin::Mutex;
 
-use rustyl4api::{
-    ipc::IpcMessage,
-};
-
 use crate::{
     ep_server::{EpMsgHandler, EpServer, EP_SERVER},
-    space_manager::gsm,
-    objects::{EpCap, RamObj},
+    space_manager::{gsm, copy_cap},
+    objects::{EpCap, RamObj, CapSlot},
+    ipc,
 };
 
 use super::{ArgumentBuffer, LmpMessage};
 
 pub struct LmpChannel {
-    pub remote_ntf_ep: EpCap,
-    pub local_ntf_ep: EpCap,
-    pub local_ntf_badge: usize,
+    remote_ntf_ep: EpCap,
     argbuf: ArgumentBuffer,
     role: Role,
 }
@@ -34,46 +29,39 @@ pub enum Role {
 impl LmpChannel {
     pub fn new(
         remote_ntf_ep: EpCap,
-        local_ntf_ep: EpCap,
-        local_ntf_badge: usize,
         argbuf: ArgumentBuffer,
         role: Role,
     ) -> Self {
         Self {
             remote_ntf_ep,
-            local_ntf_ep,
-            local_ntf_badge,
             argbuf,
             role,
         }
     }
 
-    pub fn connect(server_ep: &EpCap, ntf_ep: EpCap, ntf_badge: usize) -> Result<Self, ()> {
+    pub fn connect(server_ep: &EpCap, ntf_ep: EpCap, _ntf_badge: usize) -> Result<Self, ()> {
         use crate::objects::ReplyCap;
         use rustyl4api::vspace::Permission;
 
         /* Connect by sending client notification ep */
-        let trans_cap_slot = ntf_ep.slot;
-        let _ret = server_ep.call(&[], Some(trans_cap_slot)).unwrap();
-        let svr_ntf_ep = EpCap::new(trans_cap_slot);
+        let ret = server_ep.call(&[], Some(ntf_ep.into_slot())).unwrap();
+        let msg = ret.into_message().unwrap();
+        let svr_ntf_ep = EpCap::new(msg.cap_transfer.unwrap());
 
         /* Generate buffer cap and Derive a copy of buffer cap */
         let buf_cap = gsm!().alloc_object::<RamObj>(12).unwrap();
-        let copied_buf_cap_slot = gsm!().cspace_alloc().unwrap();
-        buf_cap.derive(copied_buf_cap_slot).unwrap();
+        let copied_cap = copy_cap(&buf_cap).unwrap();
 
         /* service event notification */
         let buf_ptr = gsm!().insert_ram_at(buf_cap, 0, Permission::writable());
         let argbuf = unsafe { ArgumentBuffer::new(buf_ptr as *mut usize, 4096) };
 
         /* send buffer cap to server */
-        let reply_cap = ReplyCap::new(0);
-        reply_cap.reply(&[], Some(copied_buf_cap_slot)).unwrap();
+        let reply_cap = ReplyCap::new(CapSlot::new(0));
+        reply_cap.reply(&[], Some(copied_cap.into_slot())).unwrap();
 
         Ok(Self::new(
             svr_ntf_ep,
-            ntf_ep,
-            ntf_badge,
             argbuf,
             Role::Client,
         ))
@@ -97,7 +85,7 @@ impl LmpChannel {
         }
     }
 
-    fn send_message(&mut self, msg: &LmpMessage) {
+    fn send_message(&mut self, msg: &mut LmpMessage) {
         //TODO: handle msg > 2048. now panics.
         let chan = self.send_channel();
         chan[0] = 1;
@@ -105,8 +93,9 @@ impl LmpChannel {
         chan[2] = msg.msg.len() as u8;
         chan[3] = (msg.msg.len() >> 8) as u8;
         chan[4..4 + msg.msg.len()].copy_from_slice(&msg.msg);
+        let cap_slot = msg.caps.pop();
         self.remote_ntf_ep
-            .send(&[], msg.caps.get(0).map(|c| *c))
+            .send(&[], cap_slot)
             .unwrap();
     }
 
@@ -133,9 +122,9 @@ impl LmpChannel {
         self.recv_channel()[0] == 0
     }
 
-    pub fn notification_badge(&self) -> usize {
-        self.local_ntf_badge
-    }
+    // pub fn notification_badge(&self) -> usize {
+    //     self.local_ntf_badge
+    // }
 }
 
 #[derive(Clone)]
@@ -148,12 +137,10 @@ pub struct LmpChannelHandle {
 impl LmpChannelHandle {
     pub fn new(
         remote_ntf_ep: EpCap,
-        local_ntf_ep: EpCap,
-        local_ntf_badge: usize,
         argbuf: ArgumentBuffer,
         role: Role,
     ) -> Self {
-        let inner = LmpChannel::new(remote_ntf_ep, local_ntf_ep, local_ntf_badge, argbuf, role);
+        let inner = LmpChannel::new(remote_ntf_ep, argbuf, role);
         Self::from_inner(inner)
     }
 
@@ -175,11 +162,11 @@ impl LmpChannelHandle {
         Ok(chan)
     }
 
-    pub fn send_message(&self, msg: &LmpMessage) {
+    pub fn send_message(&self, msg: &mut LmpMessage) {
         self.inner.lock().send_message(msg)
     }
 
-    pub fn poll_send<'a>(&'a self, msg: &'a LmpMessage) -> SendFuture<'a> {
+    pub fn poll_send<'a>(&'a self, msg: &'a mut LmpMessage) -> SendFuture<'a> {
         SendFuture::new(self, msg)
     }
 
@@ -193,18 +180,18 @@ impl LmpChannelHandle {
 }
 
 impl EpMsgHandler for LmpChannelHandle {
-    fn handle_ipc(&self, _ep_server: &EpServer, msg: IpcMessage, cap_transfer_slot: Option<usize>) {
-        if let IpcMessage::Message {
+    fn handle_ipc(&self, _ep_server: &EpServer, msg: ipc::Message) {
+        let ipc::Message {
             payload: _,
             payload_len: _,
             need_reply: _,
-            cap_transfer: _,
+            cap_transfer,
             badge: _,
-        } = msg
+        } = msg;
         {
             let mut chan = self.inner.lock();
             if let Some(mut msg) = chan.recv_message() {
-                if let Some(cap) = cap_transfer_slot {
+                if let Some(cap) = cap_transfer {
                     msg.caps.push(cap);
                 }
                 self.rx_queue.lock().push(msg);
@@ -218,11 +205,11 @@ impl EpMsgHandler for LmpChannelHandle {
 
 pub struct SendFuture<'a> {
     channel: &'a LmpChannelHandle,
-    message: &'a LmpMessage,
+    message: &'a mut LmpMessage,
 }
 
 impl<'a> SendFuture<'a> {
-    pub fn new(channel: &'a LmpChannelHandle, message: &'a LmpMessage) -> Self {
+    pub fn new(channel: &'a LmpChannelHandle, message: &'a mut LmpMessage) -> Self {
         Self { channel, message }
     }
 }
@@ -230,10 +217,10 @@ impl<'a> SendFuture<'a> {
 impl<'a> Future for SendFuture<'a> {
     type Output = Result<(), ()>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut chan = self.channel.inner.lock();
         if chan.can_send() {
-            chan.send_message(self.message);
+            chan.send_message(&mut self.message);
             Poll::Ready(Ok(()))
         } else {
             self.channel.waker.lock().push(cx.waker().clone());

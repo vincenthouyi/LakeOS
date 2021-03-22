@@ -5,8 +5,7 @@ use hashbrown::HashMap;
 use spin::Mutex;
 
 use naive::path::{Path, PathBuf};
-use naive::space_manager::copy_cap;
-use naive::objects::EpCap;
+use naive::objects::EpRef;
 
 use crate::vfs::{self, INode};
 
@@ -28,7 +27,7 @@ impl vfs::FileSystem for DevFs {
         Arc::new(Dir::new(self.clone()))
     }
 
-    fn publish(&self, path: &Path, ep: EpCap) -> Result<(), ()> {
+    fn publish(&self, path: &Path, ep: EpRef) -> Result<(), ()> {
         self.nodes.lock().insert(path.to_path_buf(), DevNode { ep });
         Ok(())
     }
@@ -36,12 +35,12 @@ impl vfs::FileSystem for DevFs {
 
 #[derive(Debug)]
 pub struct DevNode {
-    ep: EpCap,
+    ep: EpRef,
 }
 
 impl INode for DevNode {
-    fn open(&self) -> Result<Option<usize>, ()> {
-        Ok(Some(self.ep.slot))
+    fn open(&self) -> Result<Option<EpRef>, ()> {
+        Ok(Some(self.ep.clone()))
     }
 }
 
@@ -61,11 +60,11 @@ impl INode for Dir {
         let dev_guard = self.fs.nodes.lock();
         let node = dev_guard.get(&name.as_ref().to_path_buf())?;
         Some(Arc::new(DevNode {
-            ep: copy_cap(&node.ep).unwrap(),
+            ep: node.ep.clone(),
         }))
     }
 
-    fn publish(&self, name: &dyn AsRef<Path>, ep: EpCap) -> Result<(), ()> {
+    fn publish(&self, name: &dyn AsRef<Path>, ep: EpRef) -> Result<(), ()> {
         self.fs
             .nodes
             .lock()

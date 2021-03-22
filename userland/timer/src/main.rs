@@ -13,10 +13,11 @@ use async_trait::async_trait;
 use naive::lmp::LmpListenerHandle;
 use naive::ns::ns_client;
 use naive::rpc::{self, ReadRequest, ReadResponse, RpcServer};
+use naive::objects::{CapSlot, RamCap};
 
 mod timer;
 
-pub async fn request_memory(paddr: usize, size: usize, maybe_device: bool) -> Result<usize, ()> {
+pub async fn request_memory(paddr: usize, size: usize, maybe_device: bool) -> Result<RamCap, ()> {
     let client = ns_client();
     let cap = client
         .lock()
@@ -29,14 +30,14 @@ struct TimerApi;
 
 #[async_trait]
 impl naive::rpc::RpcRequestHandlers for TimerApi {
-    async fn handle_read(&self, _request: &ReadRequest) -> rpc::Result<(ReadResponse, Vec<usize>)> {
+    async fn handle_read(&self, _request: &ReadRequest) -> rpc::Result<(ReadResponse, Vec<CapSlot>)> {
         let time = timer::current_time();
         let time_buf: [u8; 8] = unsafe { core::mem::transmute(time) };
         Ok((
             ReadResponse {
                 buf: time_buf.to_vec(),
             },
-            [].to_vec(),
+            alloc::vec![],
         ))
     }
 }
@@ -49,7 +50,7 @@ async fn main() {
 
     let ep_server = EP_SERVER.try_get().unwrap();
     let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
-    let listener = LmpListenerHandle::new(listen_ep, listen_badge);
+    let listener = LmpListenerHandle::new(listen_ep.into(), listen_badge);
     let connector_ep = listener.derive_connector_ep().unwrap();
     ep_server.insert_event(listen_badge, listener.clone());
 
@@ -58,7 +59,7 @@ async fn main() {
 
     ns_client()
         .lock()
-        .register_service("/dev/timer", connector_ep.slot)
+        .register_service("/dev/timer", connector_ep)
         .await
         .unwrap();
 

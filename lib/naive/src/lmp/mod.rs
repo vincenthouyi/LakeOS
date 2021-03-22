@@ -1,5 +1,7 @@
 use alloc::vec::Vec;
 
+use crate::objects::CapSlot;
+
 mod listener;
 pub use listener::{LmpListener, LmpListenerHandle};
 
@@ -10,11 +12,11 @@ pub trait LmpHandler: Send + Sync {
     fn handle_message(&self, msg: LmpMessage);
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug)]
 pub struct LmpMessage {
     pub opcode: usize,
     pub msg: Vec<u8>,
-    pub caps: Vec<usize>,
+    pub caps: Vec<CapSlot>,
 }
 
 #[derive(Clone)]

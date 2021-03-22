@@ -1,3 +1,4 @@
+use core::num::NonZeroUsize;
 use super::*;
 use crate::objects::tcb::ThreadState;
 use crate::syscall::{MsgInfo, RespInfo};
@@ -148,6 +149,7 @@ impl<'a> EndpointCap<'a> {
                 Ok(())
             }
             _ => {
+                // TODO: check if send slot is legit if info.cap_transfer is set
                 tcb.detach();
                 tcb.set_state(ThreadState::Sending);
                 let badge = self.badge();
@@ -167,6 +169,7 @@ impl<'a> EndpointCap<'a> {
                 tcb.set_state(ThreadState::Receiving);
                 self.queue.enqueue(tcb);
 
+                // TODO: check if recv slot is legit if info.cap_transfer is set
                 if self.irq.get() != 0 {
                     unsafe {
                         crate::interrupt::INTERRUPT_CONTROLLER
@@ -178,6 +181,7 @@ impl<'a> EndpointCap<'a> {
                 Ok(())
             }
             EpState::Receiving => {
+                // TODO: check if recv slot is legit if info.cap_transfer is set
                 tcb.detach();
                 tcb.set_state(ThreadState::Receiving);
                 self.queue.enqueue(tcb);
@@ -250,8 +254,12 @@ impl<'a> EndpointCap<'a> {
         self.raw().arg2 = badge;
     }
 
-    pub fn derive_badged(&self, badge: usize) -> CapRaw {
-        EndpointCap::mint(self.paddr(), badge)
+    pub fn derive_badged(&self, badge: Option<NonZeroUsize>) -> CapRaw {
+        if badge.is_some() {
+            EndpointCap::mint(self.paddr(), badge.map(|b| b.get()).unwrap_or(0))
+        } else {
+            self.raw()
+        }
     }
 
     pub fn identify(&self, tcb: &mut TcbObj) -> usize {
@@ -292,7 +300,7 @@ pub fn do_ipc(
         let send_idx = send.get_mr(5);
         let send_slot = send_cspace.lookup_slot(send_idx)?;
 
-        let recv_cap = NullCap::try_from(recv_slot).unwrap();
+        let recv_cap = NullCap::try_from(recv_slot)?;
         recv_cap.insert_raw(send_slot.get());
         send_slot.set(NullCap::mint());
         has_cap_trans = true;

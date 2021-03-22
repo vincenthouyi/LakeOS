@@ -3,6 +3,7 @@ use alloc::{boxed::Box, vec::Vec};
 use futures_util::StreamExt;
 
 use crate::lmp::{LmpChannelHandle, LmpListenerHandle, LmpMessage};
+use crate::objects::CapSlot;
 
 use super::message::*;
 use super::{Error, Result};
@@ -48,51 +49,51 @@ impl<T: RpcRequestHandlers + Sync> RpcServer<T> {
 
 #[async_trait]
 pub trait RpcRequestHandlers {
-    async fn handle_write(&self, _request: &WriteRequest) -> Result<(WriteResponse, Vec<usize>)> {
+    async fn handle_write(&self, _request: &WriteRequest) -> Result<(WriteResponse, Vec<CapSlot>)> {
         Err(Error::CallNotSupported)
     }
 
-    async fn handle_read(&self, _request: &ReadRequest) -> Result<(ReadResponse, Vec<usize>)> {
+    async fn handle_read(&self, _request: &ReadRequest) -> Result<(ReadResponse, Vec<CapSlot>)> {
         Err(Error::CallNotSupported)
     }
 
     async fn handle_request_memory(
         &self,
         _request: &RequestMemoryRequest,
-    ) -> Result<(RequestMemoryResponse, Vec<usize>)> {
+    ) -> Result<(RequestMemoryResponse, Vec<CapSlot>)> {
         Err(Error::CallNotSupported)
     }
 
     async fn handle_request_irq(
         &self,
         _request: &RequestIrqRequest,
-    ) -> Result<(RequestIrqResponse, Vec<usize>)> {
+    ) -> Result<(RequestIrqResponse, Vec<CapSlot>)> {
         Err(Error::CallNotSupported)
     }
 
     async fn handle_register_service(
         &self,
         _request: &RegisterServiceRequest,
-        _cap: Vec<usize>,
-    ) -> Result<(RegisterServiceResponse, Vec<usize>)> {
+        _cap: Vec<CapSlot>,
+    ) -> Result<(RegisterServiceResponse, Vec<CapSlot>)> {
         Err(Error::CallNotSupported)
     }
 
     async fn handle_lookup_service(
         &self,
         _request: &LookupServiceRequest,
-    ) -> Result<(LookupServiceResponse, Vec<usize>)> {
+    ) -> Result<(LookupServiceResponse, Vec<CapSlot>)> {
         Err(Error::CallNotSupported)
     }
 
     async fn handle_read_dir(
         &self,
         _request: &ReadDirRequest,
-    ) -> Result<(ReadDirResponse, Vec<usize>)> {
+    ) -> Result<(ReadDirResponse, Vec<CapSlot>)> {
         Err(Error::CallNotSupported)
     }
 
-    async fn _handle_request(&self, request: LmpMessage) -> Result<(Vec<u8>, Vec<usize>)> {
+    async fn _handle_request(&self, request: LmpMessage) -> Result<(Vec<u8>, Vec<CapSlot>)> {
         let opcode = request.opcode;
         let r = match opcode {
             0 => {
@@ -149,11 +150,11 @@ pub trait RpcRequestHandlers {
     async fn handle_request(&self, channel: LmpChannelHandle, request: LmpMessage) {
         let opcode = request.opcode;
         let (resp_payload, cap) = self._handle_request(request).await.unwrap();
-        let resp = LmpMessage {
+        let mut resp = LmpMessage {
             opcode: opcode,
             msg: resp_payload,
             caps: cap,
         };
-        channel.poll_send(&resp).await.unwrap();
+        channel.poll_send(&mut resp).await.unwrap();
     }
 }

@@ -1,11 +1,11 @@
 use naive::path::{Path, PathBuf};
-use naive::objects::EpCap;
+use naive::objects::EpRef;
 
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 
 pub trait INode: Send + Sync + core::fmt::Debug {
-    fn open(&self) -> Result<Option<usize>, ()> {
+    fn open(&self) -> Result<Option<EpRef>, ()> {
         Ok(None)
     }
 
@@ -13,7 +13,7 @@ pub trait INode: Send + Sync + core::fmt::Debug {
         None
     }
 
-    fn publish(&self, _name: &dyn AsRef<Path>, _ep: EpCap) -> Result<(), ()> {
+    fn publish(&self, _name: &dyn AsRef<Path>, _ep: EpRef) -> Result<(), ()> {
         Err(())
     }
 

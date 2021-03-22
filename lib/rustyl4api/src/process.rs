@@ -1,4 +1,4 @@
-pub const PROCESS_ROOT_CNODE_SIZE: usize = 1024;
+pub const PROCESS_ROOT_CNODE_SIZE: usize = 2048;
 
 #[repr(usize)]
 pub enum ProcessCSpace {
@@ -11,5 +11,5 @@ pub enum ProcessCSpace {
     Stdout,
     Stderr,
     NameServer,
-    ProcessFixedMax,
+    WellKnownMax,
 }

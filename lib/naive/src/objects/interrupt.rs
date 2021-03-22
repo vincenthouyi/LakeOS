@@ -18,7 +18,7 @@ impl Capability<InterruptObj> {
     pub fn attach_ep_to_irq(&self, ep_slot: usize, irq: usize) -> SysResult<()> {
         let info = MsgInfo::new(SyscallOp::InterruptAttachIrq, 2);
 
-        let mut args = [self.slot, ep_slot, irq, 0, 0, 0];
+        let mut args = [self.slot(), ep_slot, irq, 0, 0, 0];
         syscall(info, &mut args).map(|_| ())
     }
 }

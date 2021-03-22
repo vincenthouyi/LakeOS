@@ -1,3 +1,5 @@
+use core::num::NonZeroUsize;
+
 use crate::objects::*;
 use crate::prelude::*;
 
@@ -46,22 +48,6 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
 
             Ok(())
         }
-        SyscallOp::Derive => {
-            let cap_idx = tcb.get_mr(0);
-            let cspace = tcb.cspace()?;
-            let cap_slot = cspace.lookup_slot(cap_idx)?;
-            let cap = RamCap::try_from(cap_slot)?;
-
-            let dst_cptr = tcb.get_mr(1);
-            let dst_slot = cspace.lookup_slot(dst_cptr)?;
-            let dst_cap = NullCap::try_from(dst_slot)?;
-            let dst_cap = dst_cap.insert::<RamObj>(cap.raw());
-
-            dst_cap.set_mapped_vaddr_asid(0, 0);
-
-            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
-            Ok(())
-        }
         SyscallOp::CapCopy => {
             let cspace = tcb.cspace()?;
 
@@ -75,11 +61,29 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
 
             let cap_idx = tcb.get_mr(2);
             let cap_slot = cspace.lookup_slot(cap_idx)?;
-            let cap_raw = cap_slot.get();
 
-            dst_cap.insert_raw(cap_raw);
+            let badge = tcb.get_mr(3);
+            let badge = NonZeroUsize::new(badge);
+
+            let derived_raw = cap_derive(&cap_slot, badge)?;
+            dst_cap.insert_raw(derived_raw);
+            cnode_entry_append_next(&cap_slot, dst_cap.raw);
 
             tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
+            Ok(())
+        }
+        SyscallOp::CNodeDelete => {
+            let cspace = tcb.cspace()?;
+
+            let cptr = tcb.get_mr(0);
+            let cap_slot = cspace.lookup_slot(cptr)?;
+            if cap_slot.get().cap_type() == ObjType::NullObj {
+                return Err(SysError::CapabilityTypeError);
+            }
+
+            //TODO: check children etc.
+            //TODO: changing next and prev cap ptr. 
+            cap_slot.set(NullCap::mint());
             Ok(())
         }
         SyscallOp::Retype => {
@@ -166,27 +170,6 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             crate::SCHEDULER.get_mut().push(&cap);
 
             tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
-            Ok(())
-        }
-        SyscallOp::EndpointMint => {
-            let cap_idx = tcb.get_mr(0);
-            let cspace = tcb.cspace()?;
-            let cap_slot = cspace.lookup_slot(cap_idx)?;
-            let cap = EndpointCap::try_from(cap_slot)?;
-
-            if cap.badge().is_some() {
-                return Err(SysError::InvalidValue);
-            }
-
-            let dst_idx = tcb.get_mr(1);
-            let dst_slot = cspace.lookup_slot(dst_idx)?;
-            let dst_cap = NullCap::try_from(dst_slot)?;
-
-            let badge = tcb.get_mr(2);
-            dst_cap.insert_raw(cap.derive_badged(badge));
-
-            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
-
             Ok(())
         }
         SyscallOp::EndpointSend => {

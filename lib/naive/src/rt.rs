@@ -1,4 +1,5 @@
 use crate::space_manager::{gsm};
+use crate::objects::CapSlot;
 
 const MEMPOOL_SIZE: usize = 4096;
 
@@ -11,22 +12,21 @@ pub fn populate_app_cspace() {
     use crate::objects::identify::{cap_identify, IdentifyResult};
     use rustyl4api::process::{ProcessCSpace, PROCESS_ROOT_CNODE_SIZE};
 
-    gsm!().cspace_alloc_at(0);
-
     let mut cap_max = 1;
-    for i in ProcessCSpace::ProcessFixedMax as usize..PROCESS_ROOT_CNODE_SIZE {
+    for i in ProcessCSpace::WellKnownMax as usize..PROCESS_ROOT_CNODE_SIZE {
         let res = cap_identify(i).unwrap();
         if let IdentifyResult::NullObj = res {
             cap_max = i;
             break;
         }
-        gsm!().cspace_alloc_at(i);
+        let slot = gsm!().cspace_alloc_at(i);
+        core::mem::forget(slot);
     }
 
     for i in 1..cap_max {
         let res = cap_identify(i).unwrap();
-
-        gsm!().insert_identify(i, res);
+        let slot = CapSlot::new(i);
+        gsm!().insert_identify(slot, res);
     }
 }
 

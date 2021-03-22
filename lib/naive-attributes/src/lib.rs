@@ -51,9 +51,11 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
             let ep_server = EP_SERVER.try_get_or_init(|| EpServer::new(ep)).unwrap();
 
-            naive::thread::spawn(worker_thread);
+            let worker_thread_handle = naive::thread::spawn(worker_thread);
 
             ep_server.run();
+
+            core::mem::forget(worker_thread_handle);
 
             loop {}
             // async_std::task::block_on(async {

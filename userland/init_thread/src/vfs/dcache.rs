@@ -11,7 +11,7 @@ use naive::ep_server::EP_SERVER;
 use naive::lmp::LmpListenerHandle;
 use naive::path::{Path, PathBuf};
 use naive::rpc::{self, ReadDirRequest, ReadDirResponse, RpcServer};
-use naive::objects::EpCap;
+use naive::objects::{CapSlot, EpRef};
 
 use crate::vfs::INode;
 
@@ -39,14 +39,14 @@ impl DirEntry {
         self.0.lock().set_inode(inode)
     }
 
-    pub fn open(&self) -> Result<Option<usize>, ()> {
+    pub fn open(&self) -> Result<Option<EpRef>, ()> {
         let mut inner = self.0.lock();
-        if let Some(ep) = inner.cached_ep {
-            return Ok(Some(ep));
+        if let Some(ep) = &inner.cached_ep {
+            return Ok(Some(ep.clone()));
         }
         let ep = inner.open()?;
         if let Some(ep) = ep {
-            inner.cached_ep = Some(ep);
+            inner.cached_ep = Some(ep.clone());
             return Ok(Some(ep));
         }
 
@@ -56,18 +56,19 @@ impl DirEntry {
 
         let ep_server = EP_SERVER.try_get().unwrap();
         let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
-        let listen_ep_slot = listen_ep.slot;
+        let listen_ep: EpRef = listen_ep.into();
+        // let listen_ep_slot = listen_ep.slot.slot();
 
-        let listener = LmpListenerHandle::new(listen_ep, listen_badge);
+        let listener = LmpListenerHandle::new(listen_ep.clone(), listen_badge);
         ep_server.insert_event(listen_badge, listener.clone());
         let file_svr = Box::new(RpcServer::new(listener, node));
 
-        inner.cached_ep = Some(listen_ep_slot);
+        inner.cached_ep = Some(listen_ep.clone());
         naive::task::spawn(file_svr.run());
-        Ok(Some(listen_ep_slot))
+        Ok(Some(listen_ep))
     }
 
-    pub fn publish<P: AsRef<Path>>(&self, name: P, ep: EpCap) -> Result<(), ()> {
+    pub fn publish<P: AsRef<Path>>(&self, name: P, ep: EpRef) -> Result<(), ()> {
         self.0.lock().publish(name, ep)
     }
 
@@ -96,7 +97,7 @@ impl DirEntry {
 pub struct DirEntryImp {
     pub children: HashMap<PathBuf, DirEntry>,
     pub inode: Option<Arc<dyn INode>>,
-    cached_ep: Option<usize>,
+    cached_ep: Option<EpRef>,
 }
 
 fn lookup_inode<P: AsRef<Path>>(inode: &Arc<dyn INode>, name: P) -> Option<DirEntry> {
@@ -137,11 +138,11 @@ impl DirEntryImp {
         )
     }
 
-    pub fn publish<P: AsRef<Path>>(&mut self, name: P, ep: EpCap) -> Result<(), ()> {
+    pub fn publish<P: AsRef<Path>>(&mut self, name: P, ep: EpRef) -> Result<(), ()> {
         self.inode.as_ref().ok_or(())?.publish(&name, ep)
     }
 
-    pub fn open(&self) -> Result<Option<usize>, ()> {
+    pub fn open(&self) -> Result<Option<EpRef>, ()> {
         self.inode.as_ref().ok_or(())?.open()
     }
 
@@ -167,7 +168,7 @@ impl rpc::RpcRequestHandlers for DentryNode {
     async fn handle_read_dir(
         &self,
         _request: &ReadDirRequest,
-    ) -> rpc::Result<(ReadDirResponse, Vec<usize>)> {
+    ) -> rpc::Result<(ReadDirResponse, Vec<CapSlot>)> {
         let cached_entries = self.dentry.cached_entries();
         let inode_entries = self
             .dentry
@@ -182,14 +183,14 @@ impl rpc::RpcRequestHandlers for DentryNode {
             ReadDirResponse {
                 filename: ret.into_iter().collect(),
             },
-            [].to_vec(),
+            alloc::vec![],
         ))
     }
 
     async fn handle_read(
         &self,
         request: &rpc::ReadRequest,
-    ) -> rpc::Result<(rpc::ReadResponse, Vec<usize>)> {
+    ) -> rpc::Result<(rpc::ReadResponse, Vec<CapSlot>)> {
         let mut buf = Vec::with_capacity(request.len);
 
         unsafe {
@@ -198,7 +199,7 @@ impl rpc::RpcRequestHandlers for DentryNode {
                 .read(buf_slice, request.offset)
                 .map(|read_len| {
                     buf.set_len(read_len);
-                    (rpc::ReadResponse { buf }, [].to_vec())
+                    (rpc::ReadResponse { buf }, alloc::vec![])
                 })
                 .map_err(|_| rpc::Error::CallNotSupported)
         }

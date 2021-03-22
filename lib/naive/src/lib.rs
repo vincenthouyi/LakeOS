@@ -13,6 +13,7 @@
 #![feature(str_internals)]
 #![feature(shrink_to)]
 #![feature(exact_size_is_empty)]
+#![feature(bool_to_option)]
 #![no_std]
 
 extern crate alloc;
@@ -49,6 +50,7 @@ pub mod time;
 mod vm_allocator;
 mod spaceman;
 pub mod objects;
+pub mod ipc;
 
 pub use naive_attributes::main;
 

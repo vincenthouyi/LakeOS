@@ -180,6 +180,7 @@ dependencies = [
  "crossbeam-queue",
  "futures-util",
  "hashbrown",
+ "lazy_static",
  "naive",
  "pi",
  "r0",

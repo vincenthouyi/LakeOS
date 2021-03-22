@@ -4,29 +4,69 @@
 extern crate alloc;
 #[macro_use]
 extern crate rustyl4api;
+#[macro_use]
+extern crate lazy_static;
 
 // mod rt;
 mod devfs;
 mod initfs;
 mod vfs;
 
+use core::ptr::NonNull;
+
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 
 use async_trait::async_trait;
 
-use naive::objects::{EpCap, InterruptCap};
 
 use conquer_once::spin::OnceCell;
 use naive::lmp::LmpListenerHandle;
 use naive::ns;
+use naive::objects::{EpCap, CapSlot, IrqRef, MonitorRef, RamObj, KernelObject, RamCap};
 use naive::rpc::{
     self, LookupServiceRequest, LookupServiceResponse, RegisterServiceRequest,
     RegisterServiceResponse, RequestIrqRequest, RequestIrqResponse, RequestMemoryRequest,
     RequestMemoryResponse, RpcServer,
 };
-use naive::space_manager::copy_cap;
+use naive::space_manager::{gsm, copy_cap};
+use rustyl4api::init::InitCSpaceSlot;
 use spin::Mutex;
+
+lazy_static! {
+    pub static ref IRQ_CAP: IrqRef = {
+        IrqRef::from_slot_num(InitCSpaceSlot::IrqController as usize)
+    };
+    pub static ref MONITOR_CAP: MonitorRef = {
+        MonitorRef::from_slot_num(InitCSpaceSlot::Monitor as usize)
+    };
+}
+
+pub fn allocate_frame_at(paddr: usize, _size: usize) -> Option<NonNull<u8>> {
+    use rustyl4api::vspace::{Permission, FRAME_BIT_SIZE};
+
+    let ram_obj = alloc_object_at::<RamObj>(paddr, FRAME_BIT_SIZE, true).unwrap();
+    let vaddr = gsm!().insert_ram_at(ram_obj, 0, Permission::writable());
+
+    NonNull::new(vaddr)
+}
+
+pub fn alloc_object_at<T: KernelObject>(
+    paddr: usize,
+    bit_sz: usize,
+    maybe_device: bool,
+) -> Option<RamCap> {
+    // let monitor_cap = Capability::<MonitorObj>::new(CapSlot::new(Monitor as usize));
+    let ut_slot = gsm!().cspace_alloc()?;
+    let ut_cap = MONITOR_CAP 
+        .mint_untyped(ut_slot, paddr, bit_sz, maybe_device)
+        .ok()?;
+    let obj_slot = gsm!().cspace_alloc()?;
+    let ret = ut_cap.retype_one(bit_sz, obj_slot).ok();
+    core::mem::forget(ut_cap);
+    ret
+}
+
 
 struct InitThreadApi;
 
@@ -35,36 +75,35 @@ impl rpc::RpcRequestHandlers for InitThreadApi {
     async fn handle_request_memory(
         &self,
         request: &RequestMemoryRequest,
-    ) -> rpc::Result<(RequestMemoryResponse, Vec<usize>)> {
+    ) -> rpc::Result<(RequestMemoryResponse, Vec<CapSlot>)> {
         use naive::objects::RamObj;
 
-        let cap = naive::space_manager::alloc_object_at::<RamObj>(
+        let cap = alloc_object_at::<RamObj>(
             request.paddr,
             request.size.trailing_zeros() as usize,
             request.maybe_device,
         )
-        .unwrap()
-        .slot;
+        .unwrap();
         let resp = RequestMemoryResponse { result: 0 };
-        Ok((resp, [cap].to_vec()))
+        Ok((resp, alloc::vec![cap.into_slot()]))
     }
 
     async fn handle_request_irq(
         &self,
         _request: &RequestIrqRequest,
-    ) -> rpc::Result<(RequestIrqResponse, Vec<usize>)> {
-        let irq_cap = InterruptCap::new(rustyl4api::init::InitCSpaceSlot::IrqController as usize);
-        let copy_cap = copy_cap(&irq_cap).unwrap();
+    ) -> rpc::Result<(RequestIrqResponse, Vec<CapSlot>)> {
+        let copy_cap = copy_cap(&IRQ_CAP).unwrap();
         let resp = RequestIrqResponse { result: 0 };
-        Ok((resp, [copy_cap.slot].to_vec()))
+        Ok((resp, alloc::vec![copy_cap.into_slot()]))
     }
 
     async fn handle_register_service(
         &self,
         request: &RegisterServiceRequest,
-        cap: Vec<usize>,
-    ) -> rpc::Result<(RegisterServiceResponse, Vec<usize>)> {
-        let ret = vfs().lock().publish(&request.name, EpCap::new(cap[0]));
+        mut cap: Vec<CapSlot>,
+    ) -> rpc::Result<(RegisterServiceResponse, Vec<CapSlot>)> {
+        let slot = cap.pop().unwrap();
+        let ret = vfs().lock().publish(&request.name, EpCap::new(slot).into());
         let resp = RegisterServiceResponse {
             result: {
                 if ret.is_ok() {
@@ -74,25 +113,26 @@ impl rpc::RpcRequestHandlers for InitThreadApi {
                 }
             },
         };
-        Ok((resp, [].to_vec()))
+        Ok((resp, alloc::vec![]))
     }
 
     async fn handle_lookup_service(
         &self,
         request: &LookupServiceRequest,
-    ) -> rpc::Result<(LookupServiceResponse, Vec<usize>)> {
+    ) -> rpc::Result<(LookupServiceResponse, Vec<CapSlot>)> {
         let mut vfs_guard = vfs().lock();
         let res = vfs_guard.open(&request.name);
         if let Ok(node) = res {
             let resp = LookupServiceResponse {
                 result: ns::Error::Success,
             };
-            Ok((resp, [node.cap].to_vec()))
+            let ep = naive::space_manager::copy_cap(&node.cap).unwrap();
+            Ok((resp, alloc::vec![ep.into_slot()]))
         } else {
             let resp = LookupServiceResponse {
                 result: ns::Error::ServiceNotFound,
             };
-            Ok((resp, [].to_vec()))
+            Ok((resp, alloc::vec![]))
         }
     }
 }
@@ -111,7 +151,7 @@ async fn main() {
     let ep_server = EP_SERVER.try_get().unwrap();
     let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
 
-    let listener = LmpListenerHandle::new(listen_ep, listen_badge);
+    let listener = LmpListenerHandle::new(listen_ep.into(), listen_badge);
     ep_server.insert_event(listen_badge, listener.clone());
 
     vfs().lock().mount("/", initfs::InitFs::new()).unwrap();
@@ -119,7 +159,7 @@ async fn main() {
 
     let initfs = initfs::InitFs::new();
 
-    initfs
+    let console_proc = initfs
         .get(b"console")
         .map(|e| {
             naive::process::ProcessBuilder::new(e)
@@ -128,11 +168,12 @@ async fn main() {
                 .stderr(listener.derive_connector_ep().unwrap())
                 .name_server(listener.derive_connector_ep().unwrap())
                 .spawn()
-                .expect("spawn process failed");
+                .expect("spawn process failed")
         })
         .expect("console binary not found");
+    core::mem::forget(console_proc);
 
-    initfs
+    let shell_proc = initfs
         .get(b"shell")
         .map(|e| {
             naive::process::ProcessBuilder::new(e)
@@ -141,11 +182,12 @@ async fn main() {
                 .stderr(listener.derive_connector_ep().unwrap())
                 .name_server(listener.derive_connector_ep().unwrap())
                 .spawn()
-                .expect("spawn process failed");
+                .expect("spawn process failed")
         })
         .expect("shell binary not found");
+    core::mem::forget(shell_proc);
 
-    initfs
+    let timer_proc = initfs
         .get(b"timer")
         .map(|e| {
             naive::process::ProcessBuilder::new(e)
@@ -154,9 +196,10 @@ async fn main() {
                 .stderr(listener.derive_connector_ep().unwrap())
                 .name_server(listener.derive_connector_ep().unwrap())
                 .spawn()
-                .expect("spawn process failed");
+                .expect("spawn process failed")
         })
         .expect("timer binary not found");
+    core::mem::forget(timer_proc);
 
     let rpc_api = InitThreadApi {};
     let rpc_server = RpcServer::new(listener, rpc_api);

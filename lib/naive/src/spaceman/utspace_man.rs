@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use crate::objects::{Capability, KernelObject, UntypedObj};
+use crate::objects::{Capability, CapSlot, KernelObject, UntypedObj, UntypedCap};
 use spin::Mutex;
 
 #[derive(Debug)]
@@ -39,7 +39,7 @@ impl UntypedSpaceMan {
 
     pub fn insert_untyped(
         &self,
-        slot: usize,
+        cap: UntypedCap,
         paddr: usize,
         bit_sz: u8,
         is_device: bool,
@@ -47,15 +47,18 @@ impl UntypedSpaceMan {
     ) {
         // TODO: support device untypeds
         if is_device {
+            core::mem::forget(cap);
             return;
         }
 
         // TODO: support inserting non-empty untypeds
         if free_offset != 0 {
+            core::mem::forget(cap);
             return;
         }
 
         if bit_sz < 4 {
+            core::mem::forget(cap);
             return;
         }
 
@@ -65,18 +68,17 @@ impl UntypedSpaceMan {
         //     self.empty_ut.resize_with(sz_offset as usize + 1, || Vec::new());
         // }
 
-        let cap = Capability::new(slot);
         self.ut_list.lock().push(UntypedNode::new_empty(cap, paddr));
         // self.empty_ut[sz_offset as usize].push(UntypedNode::new_empty(cap, paddr));
     }
 
     pub fn alloc_object<T: KernelObject>(
         &self,
-        dest_slot: usize,
+        dest_slot: CapSlot,
         size: usize,
     ) -> Option<Capability<T>> {
         for node in self.ut_list.lock().iter() {
-            if let Ok(_) = node.cap.retype(T::obj_type(), size, dest_slot, 1) {
+            if let Ok(_) = node.cap.retype(T::obj_type(), size, dest_slot.slot(), 1) {
                 return Some(Capability::<T>::new(dest_slot));
             }
         }

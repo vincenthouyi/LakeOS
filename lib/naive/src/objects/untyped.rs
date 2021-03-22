@@ -1,11 +1,11 @@
 use rustyl4api::error::SysResult;
 use rustyl4api::syscall::{syscall, MsgInfo, SyscallOp};
-use crate::objects::ObjType;
 
-use super::{Capability, KernelObject};
+use super::{Capability, KernelObject, ObjType, CapSlot};
 
 #[derive(Debug)]
 pub struct UntypedObj {}
+pub type UntypedCap = Capability<UntypedObj>;
 
 impl KernelObject for UntypedObj {
     fn obj_type() -> ObjType {
@@ -23,7 +23,7 @@ impl Capability<UntypedObj> {
     ) -> SysResult<()> {
         let info = MsgInfo::new(SyscallOp::Retype, 4);
         let mut args = [
-            self.slot,
+            self.slot(),
             objtype as usize,
             bit_size,
             slot_start,
@@ -36,9 +36,9 @@ impl Capability<UntypedObj> {
     pub fn retype_one<T: KernelObject>(
         &self,
         bit_sz: usize,
-        slot: usize,
+        slot: CapSlot,
     ) -> SysResult<Capability<T>> {
-        self.retype(T::obj_type(), bit_sz, slot, 1)
+        self.retype(T::obj_type(), bit_sz, slot.slot(), 1)
             .map(|_| Capability::new(slot))
     }
 }

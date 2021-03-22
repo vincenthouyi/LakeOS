@@ -6,8 +6,7 @@ use alloc::sync::Arc;
 use hashbrown::HashMap;
 
 use naive::path::{Component, Path, PathBuf};
-use naive::space_manager::copy_cap;
-use naive::objects::EpCap;
+use naive::objects::EpRef;
 
 pub use dcache::*;
 pub use inode::*;
@@ -61,15 +60,17 @@ impl Vfs {
         if entry.is_negative() {
             return Err(());
         }
-        let ep = entry.open()?.ok_or(())?;
-        let ep = EpCap::new(ep);
-        Ok(IndexNode {
-            cap: copy_cap(&ep).unwrap().slot,
+        let ep = entry
+            .open()?
+            .ok_or(())?;
+        let ret = Ok(IndexNode {
+            cap: ep.clone(),
             node_type: NodeType::File,
-        })
+        });
+        ret
     }
 
-    pub fn publish<P: AsRef<Path>>(&mut self, path: P, ep: EpCap) -> Result<(), ()> {
+    pub fn publish<P: AsRef<Path>>(&mut self, path: P, ep: EpRef) -> Result<(), ()> {
         kprintln!("Registering path {:?}", path.as_ref());
         let parent = path.as_ref().parent().ok_or(())?;
         let filename = path.as_ref().file_stem().ok_or(())?;
@@ -86,14 +87,14 @@ pub enum NodeType {
 }
 
 pub struct IndexNode {
-    pub cap: usize,
+    pub cap: EpRef,
     pub node_type: NodeType,
 }
 
 pub trait FileSystem: Send + Sync + core::fmt::Debug {
     fn root(&self) -> Arc<dyn INode>;
 
-    fn publish(&self, _path: &Path, _ep: EpCap) -> Result<(), ()> {
+    fn publish(&self, _path: &Path, _ep: EpRef) -> Result<(), ()> {
         Err(())
     }
 }

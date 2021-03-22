@@ -2,14 +2,12 @@ use pi::timer::Timer;
 use spin::Mutex;
 
 use naive::space_manager::gsm;
-use naive::objects::RamCap;
 use rustyl4api::vspace::Permission;
 
 pub static SYSTEM_TIMER: Mutex<Option<Timer>> = Mutex::new(None);
 
 pub async fn init_timer_server() {
-    let timer_ram_slot = crate::request_memory(0x3F003000, 4096, true).await.unwrap();
-    let timer_ram_cap = RamCap::new(timer_ram_slot);
+    let timer_ram_cap = crate::request_memory(0x3F003000, 4096, true).await.unwrap();
     let timer_base = gsm!().insert_ram_at(timer_ram_cap, 0, Permission::writable());
 
     *SYSTEM_TIMER.lock() = Some(Timer::new(timer_base as usize));

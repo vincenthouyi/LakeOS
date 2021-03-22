@@ -6,7 +6,7 @@ use core::{
 
 use alloc::vec::Vec;
 
-use crate::objects::EpCap;
+use crate::objects::{EpCap, InterruptCap, RamCap};
 
 use crate::{
     lmp::{LmpChannelHandle, LmpMessage},
@@ -79,7 +79,7 @@ impl RpcClient {
         paddr: usize,
         size: usize,
         maybe_device: bool,
-    ) -> Result<usize, ()> {
+    ) -> Result<RamCap, ()> {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
@@ -95,16 +95,17 @@ impl RpcClient {
             };
             RpcCallFuture::new(channel.clone(), request)
         });
-        let resp_msg = rpc.await;
+        let mut resp_msg = rpc.await;
         let resp: super::RequestMemoryResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
         self.rpc_state.take();
+        let cap_slot = resp_msg.caps.pop().unwrap();
         match resp.result {
-            0 => Ok(*resp_msg.caps.get(0).unwrap()),
+            0 => Ok(RamCap::new(cap_slot)),
             _ => Err(()),
         }
     }
 
-    pub async fn request_irq(&mut self, irq: usize) -> Result<usize, ()> {
+    pub async fn request_irq(&mut self, irq: usize) -> Result<InterruptCap, ()> {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
@@ -112,15 +113,16 @@ impl RpcClient {
             let request = LmpMessage {
                 opcode: 3,
                 msg: serde_json::to_vec(&payload).unwrap(),
-                caps: [].to_vec(),
+                caps: alloc::vec![],
             };
             RpcCallFuture::new(channel.clone(), request)
         });
-        let resp_msg = rpc.await;
+        let mut resp_msg = rpc.await;
         let resp: super::RequestIrqResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
         self.rpc_state.take();
+        let cap_slot = resp_msg.caps.pop().unwrap();
         match resp.result {
-            0 => Ok(*resp_msg.caps.get(0).unwrap()),
+            0 => Ok(InterruptCap::new(cap_slot)),
             _ => Err(()),
         }
     }
@@ -128,7 +130,7 @@ impl RpcClient {
     pub async fn register_service<P: AsRef<Path>>(
         &mut self,
         name: P,
-        cap: usize,
+        cap: EpCap,
     ) -> ns::Result<()> {
         kprintln!("registering service {:?}", name.as_ref());
         let Self { channel, rpc_state } = self;
@@ -140,7 +142,7 @@ impl RpcClient {
             let request = LmpMessage {
                 opcode: 4,
                 msg: serde_json::to_vec(&payload).unwrap(),
-                caps: [cap].to_vec(),
+                caps: alloc::vec![cap.into_slot()],
             };
             RpcCallFuture::new(channel.clone(), request)
         });
@@ -150,7 +152,7 @@ impl RpcClient {
         resp.result.into_result()
     }
 
-    pub async fn lookup_service<P: AsRef<Path>>(&mut self, name: P) -> ns::Result<usize> {
+    pub async fn lookup_service<P: AsRef<Path>>(&mut self, name: P) -> ns::Result<EpCap> {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
@@ -160,16 +162,19 @@ impl RpcClient {
             let request = LmpMessage {
                 opcode: 5,
                 msg: serde_json::to_vec(&payload).unwrap(),
-                caps: [].to_vec(),
+                caps: alloc::vec![],
             };
             RpcCallFuture::new(channel.clone(), request)
         });
-        let resp_msg = rpc.await;
+        let mut resp_msg = rpc.await;
         let resp: super::LookupServiceResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
         self.rpc_state.take();
         resp.result
             .into_result()
-            .map(|_| *resp_msg.caps.get(0).unwrap())
+            .map(|_| {
+                let cap = resp_msg.caps.pop().unwrap();
+                EpCap::new(cap)
+            })
     }
 
     pub async fn read_dir(&mut self) -> ns::Result<Vec<PathBuf>> {
@@ -180,7 +185,7 @@ impl RpcClient {
             let request = LmpMessage {
                 opcode: 6,
                 msg: serde_json::to_vec(&payload).unwrap(),
-                caps: [].to_vec(),
+                caps: alloc::vec![],
             };
             RpcCallFuture::new(channel.clone(), request)
         });

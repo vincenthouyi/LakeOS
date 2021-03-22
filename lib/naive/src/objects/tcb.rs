@@ -2,7 +2,7 @@ use rustyl4api::error::SysResult;
 use rustyl4api::syscall::{syscall, MsgInfo, SyscallOp};
 use crate::objects::ObjType;
 
-use super::{Capability, KernelObject};
+use super::{Capability, KernelObject, VTableCap, CNodeCap};
 
 pub use rustyl4api::objects::{TCB_OBJ_BIT_SZ, TCB_OBJ_SZ};
 
@@ -17,12 +17,12 @@ impl KernelObject for TcbObj {
 }
 
 impl Capability<TcbObj> {
-    pub fn configure(&self, vspace_cap: Option<usize>, cspace_cap: Option<usize>) -> SysResult<()> {
+    pub fn configure(&self, vspace_cap: Option<&VTableCap>, cspace_cap: Option<&CNodeCap>) -> SysResult<()> {
         let info = MsgInfo::new(SyscallOp::TcbConfigure, 2);
         let mut args = [
-            self.slot,
-            vspace_cap.unwrap_or(0),
-            cspace_cap.unwrap_or(0),
+            self.slot(),
+            vspace_cap.map(|c| c.slot() ).unwrap_or(0),
+            cspace_cap.map(|c| c.slot() ).unwrap_or(0),
             0,
             0,
             0,
@@ -32,13 +32,13 @@ impl Capability<TcbObj> {
 
     pub fn set_registers(&self, flags: usize, elr: usize, sp: usize) -> SysResult<()> {
         let info = MsgInfo::new(SyscallOp::TcbSetRegisters, 3);
-        let mut args = [self.slot, flags, elr, sp, 0, 0];
+        let mut args = [self.slot(), flags, elr, sp, 0, 0];
         syscall(info, &mut args).map(|_| ())
     }
 
     pub fn resume(&self) -> SysResult<()> {
         let info = MsgInfo::new(SyscallOp::TcbResume, 0);
-        let mut args = [self.slot, 0, 0, 0, 0, 0];
+        let mut args = [self.slot(), 0, 0, 0, 0, 0];
         syscall(info, &mut args).map(|_| ())
     }
 }

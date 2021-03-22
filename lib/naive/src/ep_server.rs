@@ -1,12 +1,13 @@
 use alloc::sync::Arc;
 use core::sync::atomic::{AtomicUsize, Ordering};
+use core::num::NonZeroUsize;
 
 use conquer_once::spin::OnceCell;
 use hashbrown::HashMap;
 use spin::{Mutex, MutexGuard};
 
-use crate::space_manager::gsm;
-use rustyl4api::ipc::IpcMessage;
+use crate::space_manager::{gsm, copy_cap_badged};
+use crate::ipc::{self, IpcMessage};
 use crate::objects::EpCap;
 
 pub struct Ep {
@@ -23,10 +24,9 @@ impl Ep {
     }
 
     pub fn derive_badged_cap(&self) -> Option<(usize, EpCap)> {
-        let slot = gsm!().cspace_alloc().unwrap();
         let badge = self.cur_badge.fetch_add(1, Ordering::Relaxed);
-        self.ep.mint(slot, badge).unwrap();
-        Some((badge, EpCap::new(slot)))
+        let badged_ep = copy_cap_badged(&self.ep, NonZeroUsize::new(badge)).unwrap();
+        Some((badge, badged_ep))
     }
 }
 
@@ -66,48 +66,44 @@ impl EpServer {
         self.ntf_handler.lock()[ntf] = Some(Arc::new(cb));
     }
 
-    pub fn run(&self) {
-        let mut recv_slot = gsm!().cspace_alloc().unwrap();
-        loop {
-            let ret = self.ep.ep.receive(Some(recv_slot));
-            match ret {
-                Ok(IpcMessage::Message {
-                    payload: _,
-                    payload_len: _,
-                    need_reply: _,
-                    cap_transfer,
-                    badge,
-                }) => {
-                    if let Some(b) = badge {
-                        let cb = self.get_event_handlers().get(&b).map(|cb| cb.clone());
-                        if let Some(cb) = cb {
-                            let cap_trans = if cap_transfer { Some(recv_slot) } else { None };
-                            cb.handle_ipc(self, ret.unwrap(), cap_trans);
-                        } else {
-                            kprintln!("warning: receive message from unhandled badge {}", b);
-                        }
+    fn handle_ipc(&self, ipc_msg: IpcMessage) {
+        match ipc_msg {
+            IpcMessage::Message(msg) => {
+                if let Some(b) = msg.badge {
+                    let cb = self.get_event_handlers().get(&b).map(|cb| cb.clone());
+                    if let Some(cb) = cb {
+                        cb.handle_ipc(self, msg);
                     } else {
-                        kprintln!("warning: receive unbadged message");
+                        kprintln!("warning: receive message from unhandled badge {}", b);
                     }
-                    //TOO: leak previous alloced slot now. should find some other way...
-                    if cap_transfer {
-                        recv_slot = gsm!().cspace_alloc().unwrap();
+                } else {
+                    kprintln!("warning: receive unbadged message");
+                }
+            }
+            IpcMessage::Notification(ntf_mask) => {
+                let mut ntf_mask = ntf_mask;
+                while ntf_mask.trailing_zeros() != 64 {
+                    let ntf = ntf_mask.trailing_zeros() as usize;
+                    let cb = &self.ntf_handler.lock()[ntf];
+                    if let Some(c) = cb {
+                        c.handle_notification(self, ntf);
                     }
+                    ntf_mask &= !(1 << ntf);
                 }
-                Ok(IpcMessage::Notification(ntf_mask)) => {
-                    let mut ntf_mask = ntf_mask;
-                    while ntf_mask.trailing_zeros() != 64 {
-                        let ntf = ntf_mask.trailing_zeros() as usize;
-                        let cb = &self.ntf_handler.lock()[ntf];
-                        if let Some(c) = cb {
-                            c.handle_notification(self, ntf);
-                        }
-                        ntf_mask &= !(1 << ntf);
-                    }
-                }
-                e => {
-                    kprintln!("e {:?}", e);
-                }
+            }
+            e => {
+                kprintln!("e {:?}", e);
+            }
+        }
+
+    }
+
+    pub fn run(&self) {
+        loop {
+            let recv_slot = gsm!().cspace_alloc().unwrap();
+            let ret = self.ep.ep.receive(Some(recv_slot));
+            if let Ok(r) = ret {
+                self.handle_ipc(r);
             }
         }
     }
@@ -117,8 +113,7 @@ pub trait EpMsgHandler: Send + Sync {
     fn handle_ipc(
         &self,
         _ep_server: &EpServer,
-        _msg: IpcMessage,
-        _cap_transfer_slot: Option<usize>,
+        _msg: ipc::Message,
     ) {
     }
 
