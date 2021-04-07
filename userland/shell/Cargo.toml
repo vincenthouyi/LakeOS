@@ -11,3 +11,4 @@ rustyl4api = { path = "../../lib/rustyl4api" }
 naive = { path = "../../lib/naive" }
 conquer-once = { version = "0.2.0", default-features = false }
 spin = "0.5.2"
+futures-util = { git = "https://github.com/vincenthouyi/futures-rs.git", branch = "lakeos", default-features = false, features = ["alloc", "async-await", "async-await-macro", "io"] }

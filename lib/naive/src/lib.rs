@@ -43,7 +43,6 @@ pub mod process;
 pub mod rpc;
 pub mod rt;
 pub mod space_manager;
-pub mod stream;
 pub mod task;
 pub mod thread;
 pub mod time;

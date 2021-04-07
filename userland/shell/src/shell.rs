@@ -5,7 +5,8 @@ use naive::fs::{current_dir, read_dir, set_current_dir, File};
 use naive::io::AsyncReadExt;
 use naive::os_str::OsStr;
 use naive::path::Path;
-use naive::stream::StreamExt;
+
+use futures_util::stream::StreamExt;
 
 use crate::naive::os_str::OsStrExt;
 

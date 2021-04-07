@@ -368,6 +368,7 @@ name = "shell"
 version = "0.1.0"
 dependencies = [
  "conquer-once",
+ "futures-util",
  "naive",
  "rustyl4api",
  "spin",
