@@ -54,13 +54,12 @@ impl DirEntry {
             dentry: self.clone(),
         };
 
-        let ep_server = EP_SERVER.try_get().unwrap();
-        let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
+        let (listen_badge, listen_ep) = EP_SERVER.derive_badged_cap().unwrap();
         let listen_ep: EpRef = listen_ep.into();
         // let listen_ep_slot = listen_ep.slot.slot();
 
         let listener = LmpListenerHandle::new(listen_ep.clone(), listen_badge);
-        ep_server.insert_event(listen_badge, listener.clone());
+        EP_SERVER.insert_event(listen_badge, listener.clone());
         let file_svr = Box::new(RpcServer::new(listener, node));
 
         inner.cached_ep = Some(listen_ep.clone());

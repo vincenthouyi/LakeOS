@@ -34,8 +34,7 @@ impl File {
     }
 
     pub async fn connect(ep: &EpCap) -> Result<Self, ()> {
-        let ep_server = EP_SERVER.try_get().unwrap();
-        let (ntf_badge, ntf_ep) = ep_server.derive_badged_cap().unwrap();
+        let (ntf_badge, ntf_ep) = EP_SERVER.derive_badged_cap().unwrap();
         let cli = RpcClient::connect(ep, ntf_ep, ntf_badge).unwrap();
         Ok(Self {
             client: cli,

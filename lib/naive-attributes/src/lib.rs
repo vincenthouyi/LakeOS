@@ -47,13 +47,9 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
             use naive::ep_server::{EpServer, EP_SERVER};
             use naive::space_manager::gsm;
 
-            let ep = gsm!().alloc_object::<EndpointObj>(12).unwrap();
-
-            let ep_server = EP_SERVER.try_get_or_init(|| EpServer::new(ep)).unwrap();
-
             let worker_thread_handle = naive::thread::spawn(worker_thread);
 
-            ep_server.run();
+            EP_SERVER.run();
 
             core::mem::forget(worker_thread_handle);
 

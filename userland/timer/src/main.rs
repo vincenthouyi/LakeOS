@@ -48,11 +48,10 @@ async fn main() {
 
     timer::init_timer_server().await;
 
-    let ep_server = EP_SERVER.try_get().unwrap();
-    let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
+    let (listen_badge, listen_ep) = EP_SERVER.derive_badged_cap().unwrap();
     let listener = LmpListenerHandle::new(listen_ep.into(), listen_badge);
     let connector_ep = listener.derive_connector_ep().unwrap();
-    ep_server.insert_event(listen_badge, listener.clone());
+    EP_SERVER.insert_event(listen_badge, listener.clone());
 
     let timer_api = TimerApi {};
     let timer_server = RpcServer::new(listener, timer_api);

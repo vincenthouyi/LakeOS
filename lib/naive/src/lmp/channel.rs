@@ -155,10 +155,7 @@ impl LmpChannelHandle {
     pub fn connect(server_ep: &EpCap, ntf_ep: EpCap, ntf_badge: usize) -> Result<Self, ()> {
         let inner = LmpChannel::connect(server_ep, ntf_ep, ntf_badge)?;
         let chan = Self::from_inner(inner);
-        EP_SERVER
-            .try_get()
-            .unwrap()
-            .insert_event(ntf_badge, chan.clone());
+        EP_SERVER.insert_event(ntf_badge, chan.clone());
         Ok(chan)
     }
 

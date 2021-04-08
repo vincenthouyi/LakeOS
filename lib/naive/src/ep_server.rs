@@ -2,13 +2,12 @@ use alloc::sync::Arc;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use core::num::NonZeroUsize;
 
-use conquer_once::spin::OnceCell;
 use hashbrown::HashMap;
 use spin::{Mutex, MutexGuard};
 
 use crate::space_manager::{gsm, copy_cap_badged};
 use crate::ipc::{self, IpcMessage};
-use crate::objects::EpCap;
+use crate::objects::{EpCap, EndpointObj};
 
 pub struct Ep {
     ep: EpCap,
@@ -124,7 +123,9 @@ pub trait EpNtfHandler: Send + Sync {
     fn handle_notification(&self, _ep_server: &EpServer, _ntf: usize) {}
 }
 
-pub static EP_SERVER: OnceCell<EpServer> = OnceCell::uninit();
-pub fn ep_server() -> &'static EpServer {
-    EP_SERVER.get().unwrap()
+lazy_static! {
+    pub static ref EP_SERVER: EpServer = {
+        let ep = gsm!().alloc_object::<EndpointObj>(12).unwrap();
+        EpServer::new(ep)
+    };
 }

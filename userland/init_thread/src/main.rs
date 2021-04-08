@@ -148,11 +148,10 @@ pub fn vfs() -> &'static Mutex<Vfs> {
 async fn main() {
     kprintln!("Init thread started");
 
-    let ep_server = EP_SERVER.try_get().unwrap();
-    let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
+    let (listen_badge, listen_ep) = EP_SERVER.derive_badged_cap().unwrap();
 
     let listener = LmpListenerHandle::new(listen_ep.into(), listen_badge);
-    ep_server.insert_event(listen_badge, listener.clone());
+    EP_SERVER.insert_event(listen_badge, listener.clone());
 
     vfs().lock().mount("/", initfs::InitFs::new()).unwrap();
     vfs().lock().mount("/dev", devfs::DevFs::new()).unwrap();

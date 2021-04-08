@@ -75,7 +75,7 @@ async fn main() {
     gpio::init_gpio_server().await;
     console::console_server_init().await;
 
-    let ep_server = EP_SERVER.try_get().unwrap();
+    let ep_server = &*EP_SERVER;
     let con = console::console();
     let (_irq_badge, irq_ep) = ep_server.derive_badged_cap().unwrap();
     let irq_cap = ns_client()
