@@ -44,7 +44,7 @@ impl VmAllocator {
     pub fn vm_alloc(&self, layout: Layout) -> Result<NonNull<u8>, AllocError> {
         // TODO: support object larger than a page
         let obj_bitsz = layout.size().trailing_zeros();
-        if obj_bitsz > SLAB_ALLOC_BITSZ as u32 {
+        if obj_bitsz >= SLAB_ALLOC_BITSZ as u32 {
             let ret = gsm!()
                 .map_frame_at(0, 0, layout.size(), Permission::writable())
                 .map(|vaddr| NonNull::new(vaddr).unwrap())
