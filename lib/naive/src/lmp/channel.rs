@@ -17,6 +17,7 @@ use super::{ArgumentBuffer, LmpMessage};
 
 pub struct LmpChannel {
     remote_ntf_ep: EpCap,
+    local_ntf_badge: usize,
     argbuf: ArgumentBuffer,
     role: Role,
 }
@@ -29,17 +30,19 @@ pub enum Role {
 impl LmpChannel {
     pub fn new(
         remote_ntf_ep: EpCap,
+        local_ntf_badge: usize,
         argbuf: ArgumentBuffer,
         role: Role,
     ) -> Self {
         Self {
             remote_ntf_ep,
+            local_ntf_badge,
             argbuf,
             role,
         }
     }
 
-    pub fn connect(server_ep: &EpCap, ntf_ep: EpCap, _ntf_badge: usize) -> Result<Self, ()> {
+    pub fn connect(server_ep: &EpCap, ntf_ep: EpCap, local_ntf_badge: usize) -> Result<Self, ()> {
         use crate::objects::ReplyCap;
         use rustyl4api::vspace::Permission;
 
@@ -62,6 +65,7 @@ impl LmpChannel {
 
         Ok(Self::new(
             svr_ntf_ep,
+            local_ntf_badge,
             argbuf,
             Role::Client,
         ))
@@ -122,9 +126,9 @@ impl LmpChannel {
         self.recv_channel()[0] == 0
     }
 
-    // pub fn notification_badge(&self) -> usize {
-    //     self.local_ntf_badge
-    // }
+    pub fn notification_badge(&self) -> usize {
+        self.local_ntf_badge
+    }
 }
 
 #[derive(Clone)]
@@ -137,10 +141,11 @@ pub struct LmpChannelHandle {
 impl LmpChannelHandle {
     pub fn new(
         remote_ntf_ep: EpCap,
+        local_ntf_badge: usize,
         argbuf: ArgumentBuffer,
         role: Role,
     ) -> Self {
-        let inner = LmpChannel::new(remote_ntf_ep, argbuf, role);
+        let inner = LmpChannel::new(remote_ntf_ep, local_ntf_badge, argbuf, role);
         Self::from_inner(inner)
     }
 
@@ -157,6 +162,11 @@ impl LmpChannelHandle {
         let chan = Self::from_inner(inner);
         EP_SERVER.insert_event(ntf_badge, chan.clone());
         Ok(chan)
+    }
+
+    pub fn disconnect(&self) {
+        let badge = self.inner.lock().notification_badge();
+        EP_SERVER.remove_event(badge);
     }
 
     pub fn send_message(&self, msg: &mut LmpMessage) {

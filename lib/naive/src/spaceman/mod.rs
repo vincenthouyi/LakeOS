@@ -179,6 +179,10 @@ impl SpaceManager {
         vaddr as *mut u8
     }
 
+    pub fn memory_unmap(&self, base_ptr: *mut u8, len: usize) {
+        self.vspace_man.memory_unmap(base_ptr, len)
+    }
+
     pub fn insert_vtable(&self, table: VTableCap, vaddr: usize, level: usize, do_map: bool) {
         let entry = vspace_man::VSpaceEntry::new_table(table.into(), vaddr, level);
         self.vspace_man.install_entry(entry, do_map).unwrap();

@@ -37,6 +37,7 @@ impl LmpListener {
         &self,
         c_ntf_ep: EpCap,
         s_ntf_ep: EpCap,
+        s_ntf_badge: usize,
     ) -> Result<LmpChannel, ()> {
         use rustyl4api::vspace::Permission;
 
@@ -54,6 +55,7 @@ impl LmpListener {
 
         Ok(LmpChannel::new(
             c_ntf_ep,
+            s_ntf_badge,
             argbuf,
             Role::Server,
         ))
@@ -111,7 +113,7 @@ impl EpMsgHandler for LmpListenerHandle {
             let c_ntf_cap = EpCap::new(cap_transfer.unwrap());
             let (conn_badge, s_ntf_cap) = ep_server.derive_badged_cap().unwrap();
             let inner = self.inner.lock();
-            let chan = inner.accept_with(c_ntf_cap, s_ntf_cap).unwrap();
+            let chan = inner.accept_with(c_ntf_cap, s_ntf_cap, conn_badge).unwrap();
             let chan = LmpChannelHandle::from_inner(chan);
             ep_server.insert_event(conn_badge, chan.clone());
             self.backlog.lock().push_back(chan.clone());

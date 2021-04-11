@@ -2,6 +2,7 @@ use core::{
     future::Future,
     pin::Pin,
     task::{Context, Poll},
+    ops::Drop,
 };
 
 use alloc::vec::Vec;
@@ -193,6 +194,12 @@ impl RpcClient {
         let resp: super::ReadDirResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
         self.rpc_state.take();
         Ok(resp.filename)
+    }
+}
+
+impl Drop for RpcClient {
+    fn drop(&mut self) {
+        self.channel.disconnect();   
     }
 }
 

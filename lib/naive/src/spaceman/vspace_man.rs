@@ -251,4 +251,8 @@ impl VSpaceMan {
         self.install_entry(entry, do_map)
             .map_err(|(e, ent)| (e, ent.into_vtablecap().unwrap()))
     }
+
+    pub fn memory_unmap(&self, base_ptr: *mut u8, len: usize) {
+        //TODO
+    }
 }

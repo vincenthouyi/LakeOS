@@ -1,6 +1,7 @@
 use alloc::vec::Vec;
 
 use crate::objects::CapSlot;
+use crate::space_manager::gsm;
 
 mod listener;
 pub use listener::{LmpListener, LmpListenerHandle};
@@ -49,5 +50,11 @@ impl core::ops::DerefMut for ArgumentBuffer {
         use core::slice::from_raw_parts_mut;
 
         unsafe { from_raw_parts_mut(self.base_ptr as *mut u8, self.buf_len) }
+    }
+}
+
+impl core::ops::Drop for ArgumentBuffer {
+    fn drop(&mut self) {
+        gsm!().memory_unmap(self.base_ptr as *mut u8, self.buf_len)
     }
 }
