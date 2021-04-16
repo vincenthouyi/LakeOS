@@ -300,14 +300,14 @@ fn initialize_init_cspace(cnode: &CNodeObj, cur_free_slot: &mut usize) {
             let sz = 1 << bit_sz;
 
             if sz > 1 << 4 {
-                //                kprintln!("inserting memory 0x{:x}-0x{:x} with bit size {} @cptr {} is_device {}",
-                //                           cur, cur + sz, bit_sz, cptr, is_device);
+                kprintln!("inserting memory 0x{:x}-0x{:x} with bit size {} @cptr {} is_device {}",
+                            cur, cur + sz, bit_sz, cptr, is_device);
                 assert!(cur % sz == 0);
                 cnode[*cptr].set(UntypedCap::mint(cur, bit_sz as usize, is_device));
                 *cptr += 1;
             } else {
-                //                kprintln!("skipping memory 0x{:x}-0x{:x} with bit size {}",
-                //                          cur, cur + sz, bit_sz);
+                kprintln!("skipping memory 0x{:x}-0x{:x} with bit size {}",
+                            cur, cur + sz, bit_sz);
             }
             cur += sz;
         }
@@ -315,10 +315,11 @@ fn initialize_init_cspace(cnode: &CNodeObj, cur_free_slot: &mut usize) {
 
     let kernel_base = PHYS_BASE;
     let kernel_top = (SYMBOL!(crate::_end) - KERNEL_OFFSET).next_power_of_two();
+    kprintln!("Kernel memory is in range 0x{:x}-0x{:x}", kernel_base, kernel_top);
     /* Insert Physical memory to CSpace */
     for atag in atags::Atags::get(KERNEL_OFFSET) {
-        //        kprintln!("atag {:x?}", atag);
         if let atags::Atag::Mem(mem) = atag {
+            kprintln!("Reading Atag Mem {:x?}, range 0x{:x}-0x{:x}", mem, mem.start, mem.start + mem.size);
             let mem_start = mem.start.max(0x1000) as usize; // skip first 4k for safety
             let mem_end = (mem.start + mem.size) as usize;
 
@@ -486,7 +487,7 @@ fn run_secondary_cpus(entry: usize) {
 fn init_app_cpu() {
     use crate::scheduler::SCHEDULER;
 
-    kprintln!("application cpu start");
+    kprintln!("Initializing Application CPU");
     IDLE_THREADS.get_mut().configure_idle_thread();
     SCHEDULER.get_mut().push(IDLE_THREADS.get());
 }
@@ -495,13 +496,13 @@ fn init_bsp_cpu() {
     use crate::scheduler::SCHEDULER;
 
     crate::plat::uart::init_uart();
+    kprintln!("Initializing Bootstrapping CPU");
 
     let mut cur_free_slot = UntypedStart as usize;
 
-    kprintln!("PRAISE THE SUN!");
-
     let init_cnode_obj = unsafe {
         let cnode = INIT_CNODE.assume_init_mut();
+        kprintln!("Allocating init CNode object@{:p} size: {}", cnode, cnode.len());
         for slot in cnode.iter_mut() {
             *slot = Cell::new(CapRef::<NullObj>::mint());
         }
@@ -515,8 +516,13 @@ fn init_bsp_cpu() {
     let init_cnode_cap = CNodeCap::try_from(&init_cnode_obj[ProcessCSpace::RootCNodeCap as usize]).unwrap();
     init_tcb_cap.install_cspace(&init_cnode_cap).unwrap();
 
+    kprintln!("initfs@0x{:x}-0x{:x}", INIT_FS.as_ptr() as usize, INIT_FS.as_ptr() as usize + INIT_FS.len());
+    let initfs = cpio::NewcReader::from_bytes(INIT_FS);
+    for (i, ent) in initfs.entries().enumerate() {
+        kprintln!("Init fs entry[{}]: {:?}", i, core::str::from_utf8(ent.name()).unwrap());
+    }
     let init_thread_elf =
-        cpio::NewcReader::from_bytes(INIT_FS)
+            initfs
             .entries()
             .find(|entry| entry.name() == b"init_thread")
             .map(|entry| entry.content())
@@ -525,7 +531,6 @@ fn init_bsp_cpu() {
 
     run_secondary_cpus(crate::_start as usize);
 
-    //    kprintln!("Init Thread Info: {:x?}", *init_tcb_cap);
     kprintln!("Jumping to User Space!");
 
     IDLE_THREADS.get_mut().configure_idle_thread();
