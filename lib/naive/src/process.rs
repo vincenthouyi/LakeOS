@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use crate::objects::{CNodeObj, EpCap, RamObj, TcbCap, TcbObj, UntypedObj, VTableObj, CNodeRef, VTableRef, RamRef, UntypedCap};
 use rustyl4api::vspace::Permission;
 use crate::spaceman::vspace_man::{VSpaceMan, VSpaceEntry};
@@ -68,6 +70,7 @@ impl<'a> ProcessBuilder<'a> {
         let child_root_vn: VTableRef = gsm!().alloc_object::<VTableObj>(12).unwrap().into();
         // let child_root_vn_slot = child_root_vn.slot;
         let vspace = VSpaceMan::new(child_root_vn.clone());
+        let mut mapped_vaddrs = Vec::new();
 
         let mut cur_free = ProcessCSpace::WellKnownMax as usize;
 
@@ -108,6 +111,7 @@ impl<'a> ProcessBuilder<'a> {
 
             let frame_addr =
                 gsm!().insert_ram_at(frame_parent_cap, 0, Permission::writable());
+            mapped_vaddrs.push(frame_addr);
             let frame = unsafe { core::slice::from_raw_parts_mut(frame_addr, FRAME_SIZE) };
             child_root_cn
                 .cap_copy(cur_free, frame_cap.slot.slot())
@@ -116,6 +120,9 @@ impl<'a> ProcessBuilder<'a> {
             frame
         })
         .map_err(|_| ())?;
+        for vaddr in mapped_vaddrs.into_iter() {
+            gsm!().memory_unmap(vaddr, 4096);
+        }
 
         child_tcb
             .configure(Some(&child_root_vn), Some(&child_root_cn))

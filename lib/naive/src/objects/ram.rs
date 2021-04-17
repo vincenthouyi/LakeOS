@@ -24,6 +24,8 @@ impl Capability<RamObj> {
     }
 
     pub fn unmap(&self) -> SysResult<()> {
-        unimplemented!()
+        let info = MsgInfo::new(SyscallOp::RamUnmap, 0);
+        let mut args = [self.slot(), 0, 0, 0, 0, 0];
+        syscall(info, &mut args).map(|_| ())
     }
 }

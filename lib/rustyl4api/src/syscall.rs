@@ -22,6 +22,7 @@ pub enum SyscallOp {
     EndpointReply,
     EndpointReplyRecv,
     RamMap,
+    RamUnmap,
     VTableMap,
     MonitorMintUntyped,
     MonitorInsertTcbToCpu,
@@ -220,6 +221,7 @@ pub fn syscall(
         SysErrno::UnableToDerive => Err(SysError::UnableToDerive),
         SysErrno::SlotNotEmpty => Err(SysError::SlotNotEmpty),
         SysErrno::VSpaceCapMapped => Err(SysError::VSpaceCapMapped),
+        SysErrno::VSpaceCapNotMapped => Err(SysError::VSpaceCapNotMapped),
         SysErrno::UnsupportedSyscallOp => Err(SysError::UnsupportedSyscallOp),
         SysErrno::VSpaceTableMiss => Err(SysError::VSpaceTableMiss {
             level: args[0] as u8,

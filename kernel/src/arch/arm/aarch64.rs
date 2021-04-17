@@ -17,6 +17,11 @@ pub fn dsb() {
 }
 
 #[inline(always)]
+pub fn dmb() {
+    unsafe { llvm_asm!("dmb sy" ::: "memory": "volatile"); }
+}
+
+#[inline(always)]
 pub fn get_elr() -> usize {
     let elr;
     unsafe {

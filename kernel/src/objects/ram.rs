@@ -139,6 +139,20 @@ impl<'a> CapRef<'a, RamObj> {
         Ok(())
     }
 
+    pub fn unmap_page(&self) -> SysResult<()> {
+        let asid = self.mapped_asid();
+        let vspace = VSpace::from_asid(asid);
+        let mapped_vaddr = self.mapped_vaddr();
+
+        let slot = vspace.lookup_pt_slot(mapped_vaddr)?;
+        *slot = Entry::zero();
+
+        crate::arch::dc_clean_by_va_PoU(slot as *const _ as usize);
+        crate::arch::dmb();
+
+        Ok(())
+    }
+
     pub fn identify(&self, tcb: &mut TcbObj) -> usize {
         tcb.set_mr(1, self.cap_type() as usize);
         tcb.set_mr(2, self.size());

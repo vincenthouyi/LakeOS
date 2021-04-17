@@ -45,6 +45,22 @@ impl VSpaceEntry {
         }
     }
 
+    pub fn as_frame_node(&self) -> Option<&FrameNode> {
+        if let VSpaceEntry::Frame(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_frame_node_mut(&mut self) -> Option<&mut FrameNode> {
+        if let VSpaceEntry::Frame(node) = self {
+            Some(node)
+        } else {
+            None
+        }
+    }
+
     pub fn into_vtablecap(self) -> Result<VTableRef, Self> {
         if let VSpaceEntry::Table(node) = self {
             Ok(node.cap)
@@ -213,6 +229,24 @@ impl VSpace {
         }
         Ok(())
     }
+
+    pub fn memory_unmap(&mut self, base_ptr: *mut u8, len: usize) {
+        let range = base_ptr as usize .. base_ptr as usize + len;
+        'outer: for vaddr in range.step_by(4096) {
+            let table_entry = self.lookup_entry(vaddr, 3).unwrap().as_vtable_node_mut().unwrap();
+            let mut cur = table_entry.entry.cursor_front_mut();
+            cur.move_next();
+            while cur.current().is_some() {
+                if cur.current().unwrap().as_frame_node().unwrap().vaddr == vaddr as usize {
+                    let entry = cur.remove_current().unwrap();
+                    let frame_cap = entry.into_ramcap().unwrap();
+                    frame_cap.unmap().unwrap();
+                    continue 'outer;
+                }
+                cur.move_next();
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -253,6 +287,6 @@ impl VSpaceMan {
     }
 
     pub fn memory_unmap(&self, base_ptr: *mut u8, len: usize) {
-        //TODO
+        self.root.lock().memory_unmap(base_ptr, len)
     }
 }

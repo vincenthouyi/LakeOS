@@ -251,6 +251,22 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
             Ok(())
         }
+        SyscallOp::RamUnmap => {
+            let cap_idx = tcb.get_mr(0);
+            let cspace = tcb.cspace()?;
+            let cap_slot = cspace.lookup_slot(cap_idx)?;
+
+            let cap = RamCap::try_from(cap_slot)?;
+
+            if cap.mapped_vaddr() == 0 {
+                return Err(SysError::VSpaceCapNotMapped);
+            }
+
+            cap.unmap_page()?;
+
+            tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
+            Ok(())
+        }
         SyscallOp::VTableMap => {
             use crate::vspace::VSpace;
 

@@ -283,6 +283,11 @@ impl VSpace {
     pub fn asid(&self) -> usize {
         ((self.as_addr() - crate::prelude::KERNEL_OFFSET) >> 12) & MASK!(16)
     }
+
+    pub fn from_asid(asid: usize) -> Self {
+        let addr = (asid << 12) + crate::prelude::KERNEL_OFFSET;
+        Self { root: addr as *mut Table }
+    }
 }
 
 use super::{dsb, isb};
