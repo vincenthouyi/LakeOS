@@ -161,6 +161,10 @@ impl<'a> CapRef<'a, RamObj> {
         tcb.set_mr(5, self.is_device() as usize);
         5
     }
+
+    pub fn derive(&self) -> CapRaw {
+        Self::mint(self.paddr(), self.is_writable(), self.is_readable(), self.size(), self.is_device())
+    }
 }
 
 impl<'a> core::fmt::Debug for CapRef<'a, RamObj> {

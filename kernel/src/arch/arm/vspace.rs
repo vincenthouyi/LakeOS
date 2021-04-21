@@ -25,7 +25,7 @@ macro_rules! pt_index {
 
 pub use sysapi::vspace::{FRAME_BIT_SIZE, FRAME_SIZE as PAGE_SIZE};
 
-pub const PADDR_MASK: usize = MASK!(48) | (!MASK!(12));
+pub const PADDR_MASK: usize = MASK!(48) & (!MASK!(12));
 const VALID_OFFSET: usize = 0;
 const TABLE_OFFSET: usize = 1;
 const UXN_OFFSET: usize = 54;
@@ -142,6 +142,10 @@ impl Entry {
 
     pub fn into_table(&self) -> &mut Table {
         unsafe { &mut *((((self.0 & PADDR_MASK) & !MASK!(2)) + KERNEL_OFFSET) as *mut Table) }
+    }
+
+    pub fn paddr(&self) -> u64 {
+        (self.0 & PADDR_MASK) as u64
     }
 }
 

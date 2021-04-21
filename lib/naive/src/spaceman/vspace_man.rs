@@ -6,7 +6,7 @@ use rustyl4api::error::SysResult;
 use crate::objects::{RamRef, VTableRef};
 use rustyl4api::vspace::Permission;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum VSpaceEntry {
     Table(VTableNode),
     Frame(FrameNode),
@@ -114,10 +114,10 @@ pub enum VSpaceManError {
     PageTableMiss { level: usize },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FrameNode {
     vaddr: usize,
-    cap: RamRef,
+    pub cap: RamRef,
     perm: Permission,
     level: usize,
 }
@@ -133,7 +133,7 @@ impl FrameNode {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VTableNode {
     vaddr: usize,
     cap: VTableRef,
@@ -288,5 +288,9 @@ impl VSpaceMan {
 
     pub fn memory_unmap(&self, base_ptr: *mut u8, len: usize) {
         self.root.lock().memory_unmap(base_ptr, len)
+    }
+
+    pub fn lookup_entry(&self, vaddr: usize, level: u8) -> Result<VSpaceEntry, VSpaceManError> {
+        self.root.lock().lookup_entry(vaddr, level as usize).map(|e| e.clone())
     }
 }

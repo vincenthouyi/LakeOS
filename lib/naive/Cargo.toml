@@ -17,7 +17,7 @@ futures-util = { git = "https://github.com/vincenthouyi/futures-rs.git", branch 
 naive-attributes = { path = "../naive-attributes" }
 volatile = "0.4"
 r0 = "1.0.0"
-elfloader = { path = "../elfloader" }
+elfloader = "0.12.0"
 serde = { version = "1.0.118", default-features = false, features = ["alloc", "derive"] }
 serde_json = { version = "1.0.60", default-features = false, features = ["alloc"] } 
 async-trait = "0.1.42"

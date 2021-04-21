@@ -7,6 +7,3 @@ pub enum InitCSpaceSlot {
 
     UntypedStart,
 }
-
-pub const INIT_STACK_PAGES: usize = 4;
-pub const INIT_STACK_TOP: usize = 0x600000;

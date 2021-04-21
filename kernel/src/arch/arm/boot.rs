@@ -9,17 +9,18 @@ use crate::utils::percore::PerCore;
 use crate::vspace::*;
 use crate::NCPU;
 use sysapi::init::InitCSpaceSlot::*;
-use sysapi::process::{ProcessCSpace, PROCESS_ROOT_CNODE_SIZE};
-use sysapi::vspace::Permission;
+use sysapi::process::{ProcessCSpace, PROCESS_ROOT_CNODE_SIZE, PROCESS_MAIN_THREAD_STACK_TOP, PROCESS_MAIN_THREAD_STACK_PAGES};
+use sysapi::vspace::{Permission, FRAME_SIZE, FRAME_BIT_SIZE};
 
 use align_data::{include_aligned, Align64};
+use elfloader::{ElfLoader, ElfBinary, LoadableHeaders, Rela, P64, Flags, VAddr};
 
 #[derive(Copy, Clone)]
 #[repr(align(4096))]
-struct Frame([usize; 4096]);
+struct Frame([usize; FRAME_SIZE]);
 
 #[no_mangle]
-static mut kernel_stack: [Frame; NCPU] = [Frame([0; 4096]); NCPU];
+static mut kernel_stack: [Frame; NCPU] = [Frame([0; FRAME_SIZE]); NCPU];
 
 static mut KERNEL_PGD: Table = Table::zero();
 static mut KERNEL_PUD: Table = Table::zero();
@@ -425,7 +426,7 @@ fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut u
         .expect("Looking up PT slot failed");
 
     let frame_cap =
-        alloc_obj::<RamObj>(&cspace, 12, &cspace[*cur_free_slot]).expect("Allocating Frame failed");
+        alloc_obj::<RamObj>(&cspace, FRAME_BIT_SIZE, &cspace[*cur_free_slot]).expect("Allocating Frame failed");
     *cur_free_slot += 1;
     frame_cap
         .map_page(&vspace, vaddr, perm)
@@ -433,45 +434,89 @@ fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut u
     frame_cap.vaddr()
 }
 
+pub const fn align_down(addr: usize, align: usize) -> usize {
+    addr & !(align - 1)
+}
+
+struct InitThreadLoader<'a> {
+    init_tcb: &'a TcbObj,
+    cur_free_slot: &'a mut usize,
+}
+
+impl<'a> ElfLoader for InitThreadLoader<'a> {
+    fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), &'static str> {
+        for header in load_headers {
+            let flags = header.flags();
+            let perm = Permission::new(flags.is_read(), flags.is_write(), flags.is_execute());
+            let base = align_down(header.virtual_addr() as usize, FRAME_SIZE);
+            let top = (header.virtual_addr() + header.mem_size()) as usize;
+            for page_base in (base .. top).step_by(FRAME_SIZE) {
+                map_frame(self.init_tcb, page_base as usize, perm, &mut self.cur_free_slot);
+            }
+        }
+        Ok(())
+    }
+
+    fn relocate(&mut self, _entry: &Rela<P64>) -> Result<(), &'static str> {
+        unimplemented!()
+    }
+
+    fn load(&mut self, _flags: Flags, base: VAddr, region: &[u8]) -> Result<(), &'static str> {
+        let vspace = self.init_tcb.vspace().unwrap();
+        let mut vaddr = align_down(base as usize, FRAME_SIZE);
+
+        let mut region_offset = 0;
+        let mut frame_offset= (base as usize) % FRAME_SIZE;
+
+        while region_offset < region.len() {
+            let frame_kvaddr = vspace.lookup_pt_slot(vaddr).unwrap().paddr() as usize + KERNEL_OFFSET;
+            let frame = unsafe {
+                core::slice::from_raw_parts_mut(frame_kvaddr as *mut u8, FRAME_SIZE)
+            };
+            let copy_len = (region.len() - region_offset).min(FRAME_SIZE) - frame_offset;
+            frame[frame_offset .. frame_offset + copy_len].copy_from_slice(&region[region_offset .. region_offset + copy_len]);
+
+            region_offset += copy_len;
+            frame_offset = (frame_offset + copy_len) % FRAME_SIZE;
+            vaddr += FRAME_SIZE;
+        }
+
+        Ok(())
+    }
+}
+
 #[link_section = ".boot.text"]
 fn load_init_thread(tcb: &mut TcbObj, elf_file: &[u8], cur_free_slot: &mut usize) {
-    use sysapi::init::{INIT_STACK_PAGES, INIT_STACK_TOP};
 
     let cspace = tcb.cspace().expect("Init CSpace not installed");
     let pgd_cap =
         VTableCap::try_from(&cspace[ProcessCSpace::RootVNodeCap as usize]).expect("Init PGD cap not installed");
     tcb.install_vspace(pgd_cap);
 
-    let entry = elfloader::load_elf(
-        elf_file,
-        INIT_STACK_TOP as u64,
-        INIT_STACK_PAGES * 4096,
-        &mut |vrange, flags| {
-            use core::slice::from_raw_parts_mut;
-            let perm = Permission::new(flags & 0b100 != 0, flags & 0b010 != 0, flags & 0b001 != 0);
+    let init_binary = ElfBinary::new("init", elf_file).expect("Invalid ELF file");
+    let mut init_loader = InitThreadLoader { init_tcb: tcb, cur_free_slot };
+    init_binary.load(&mut init_loader).expect("load init elf failed");
 
-            let vaddr = vrange.start;
-            let size = vrange.end - vrange.start;
-            let frame_kvaddr = map_frame(tcb, vaddr as usize, perm, cur_free_slot);
-            unsafe { from_raw_parts_mut(frame_kvaddr as *mut u8, size as usize) }
-        },
-    )
-    .expect("load init elf failed");
+    for i in 1 .. PROCESS_MAIN_THREAD_STACK_PAGES + 1{
+        map_frame(tcb, PROCESS_MAIN_THREAD_STACK_TOP - i * FRAME_SIZE, Permission::writable(), cur_free_slot);
+    }
+
+    let entry = init_binary.entry_point();
 
     let mut initfs_base = 0x40000000;
-    for frame in INIT_FS.chunks(4096) {
+    for frame in INIT_FS.chunks(FRAME_SIZE) {
         let perm = Permission::readonly();
         let frame_kvaddr = map_frame(tcb, initfs_base, perm, cur_free_slot);
         unsafe {
-            core::slice::from_raw_parts_mut(frame_kvaddr as *mut u8, 4096)
+            core::slice::from_raw_parts_mut(frame_kvaddr as *mut u8, FRAME_SIZE)
                 [..frame.len()]
                 .copy_from_slice(frame)
         }
-        initfs_base += 4096;
+        initfs_base += FRAME_SIZE;
     }
 
     tcb.tf.set_elr(entry as usize);
-    tcb.tf.set_sp(INIT_STACK_TOP);
+    tcb.tf.set_sp(PROCESS_MAIN_THREAD_STACK_TOP);
     tcb.tf.init_user_thread();
 }
 

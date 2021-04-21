@@ -222,8 +222,10 @@ pub fn cap_derive(cap_slot: &CNodeEntry, badge: Option<NonZeroUsize>) -> SysResu
         ObjType::Endpoint => {
             let cap = EndpointCap::try_from(cap_slot).unwrap();
             Ok(cap.derive_badged(badge))
-            // let raw = cap_slot.get();
-            
+        }
+        ObjType::Ram => {
+            let cap = RamCap::try_from(cap_slot).unwrap();
+            Ok(cap.derive())
         }
         _ => { Ok(cap_slot.get()) }
     }

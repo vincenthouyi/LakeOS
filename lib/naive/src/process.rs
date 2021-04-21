@@ -1,9 +1,83 @@
-use alloc::vec::Vec;
+use elfloader::{ElfLoader, ElfBinary, LoadableHeaders, Rela, P64, Flags, VAddr};
 
-use crate::objects::{CNodeObj, EpCap, RamObj, TcbCap, TcbObj, UntypedObj, VTableObj, CNodeRef, VTableRef, RamRef, UntypedCap};
 use rustyl4api::vspace::Permission;
-use crate::spaceman::vspace_man::{VSpaceMan, VSpaceEntry};
+use rustyl4api::process::{ProcessCSpace, PROCESS_ROOT_CNODE_SIZE, PROCESS_MAIN_THREAD_STACK_TOP, PROCESS_MAIN_THREAD_STACK_PAGES};
+use rustyl4api::vspace::{FRAME_BIT_SIZE, FRAME_SIZE};
+
+use crate::objects::{CNodeObj, EpCap, RamObj, TcbCap, TcbObj, UntypedObj, VTableObj, CNodeRef, VTableRef, UntypedCap};
+use crate::spaceman::vspace_man::{VSpaceMan, VSpaceEntry, VSpaceManError};
 use crate::space_manager::copy_cap;
+use crate::space_manager::gsm;
+use crate::objects::cnode::CNODE_ENTRY_SZ;
+use crate::objects::tcb::TCB_OBJ_BIT_SZ;
+use crate::utils::align_down;
+
+struct ProcessElfLoader<'a> {
+    vspace: &'a VSpaceMan,
+    child_root_cn: &'a CNodeRef,
+    cur_free: &'a mut usize,
+}
+
+impl<'a> ElfLoader for ProcessElfLoader<'a> {
+    fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), &'static str> {
+        for header in load_headers {
+            let flags = header.flags();
+            let perm = Permission::new(flags.is_read(), flags.is_write(), flags.is_execute());
+            let base = align_down(header.virtual_addr() as usize, FRAME_SIZE);
+            let top = (header.virtual_addr() + header.mem_size()) as usize;
+            for page_base in (base .. top).step_by(FRAME_SIZE) {
+                let frame_cap = gsm!().alloc_object::<RamObj>(FRAME_BIT_SIZE).unwrap().into();
+                let mut frame_entry = VSpaceEntry::new_frame(frame_cap, page_base, perm, 4);
+                while let Err((e, ent)) = self.vspace.install_entry(frame_entry, true) {
+                    frame_entry = ent;
+                    match e {
+                        VSpaceManError::PageTableMiss { level } => {
+                            let vtable_cap: VTableRef = gsm!().alloc_object::<VTableObj>(12).unwrap().into();
+                            let vtable_entry = VSpaceEntry::new_table(vtable_cap.clone(), page_base, level + 1);
+                            self.vspace.install_entry(vtable_entry, true)
+                                .unwrap();
+                            self.child_root_cn
+                                .cap_copy(*self.cur_free, vtable_cap.slot.slot())
+                                .unwrap();
+                            *self.cur_free += 1;
+                        }
+                        e => {
+                            panic!("vaddr {:x} perm {:?} error: {:?}", page_base, perm, e);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn relocate(&mut self, _entry: &Rela<P64>) -> Result<(), &'static str> {
+        unimplemented!()
+    }
+
+    fn load(&mut self, _flags: Flags, base: VAddr, region: &[u8]) -> Result<(), &'static str> {
+        let mut vaddr = align_down(base as usize, FRAME_SIZE);
+        let mut region_offset = 0;
+        let mut frame_offset = (base as usize) % FRAME_SIZE;
+
+        while region_offset < region.len() {
+            let frame = self.vspace.lookup_entry(vaddr, 4).unwrap();
+            let frame_parent_cap = copy_cap(&frame.as_frame_node().unwrap().cap).unwrap();
+            let frame_addr = gsm!().insert_ram_at(frame_parent_cap, 0, Permission::writable());
+            let frame = unsafe {
+                core::slice::from_raw_parts_mut(frame_addr, FRAME_SIZE)
+            };
+            let copy_len = (region.len() - region_offset).min(FRAME_SIZE) - frame_offset;
+            frame[frame_offset .. frame_offset + copy_len].copy_from_slice(&region[region_offset .. region_offset + copy_len]);
+            gsm!().memory_unmap(frame_addr, FRAME_SIZE);
+
+            region_offset += copy_len;
+            frame_offset = (frame_offset + copy_len) % FRAME_SIZE;
+            vaddr += FRAME_SIZE;
+        }
+        Ok(())
+    }
+}
 
 #[derive(Debug)]
 pub struct ProcessBuilder<'a> {
@@ -58,44 +132,35 @@ impl<'a> ProcessBuilder<'a> {
     }
 
     pub fn spawn(self) -> Result<Child, ()> {
-        use crate::space_manager::gsm;
-        use crate::objects::cnode::CNODE_ENTRY_SZ;
-        use crate::objects::tcb::TCB_OBJ_BIT_SZ;
-        use rustyl4api::process::{ProcessCSpace, PROCESS_ROOT_CNODE_SIZE};
-        use rustyl4api::vspace::{FRAME_BIT_SIZE, FRAME_SIZE};
 
         let rootcn_bitsz = (PROCESS_ROOT_CNODE_SIZE * CNODE_ENTRY_SZ).trailing_zeros() as usize;
         let child_tcb = gsm!().alloc_object::<TcbObj>(TCB_OBJ_BIT_SZ).unwrap();
         let child_root_cn: CNodeRef = gsm!().alloc_object::<CNodeObj>(rootcn_bitsz).unwrap().into();
         let child_root_vn: VTableRef = gsm!().alloc_object::<VTableObj>(12).unwrap().into();
-        // let child_root_vn_slot = child_root_vn.slot;
         let vspace = VSpaceMan::new(child_root_vn.clone());
-        let mut mapped_vaddrs = Vec::new();
 
         let mut cur_free = ProcessCSpace::WellKnownMax as usize;
 
-        let entry = elfloader::load_elf(self.elf, 0x8000000, 4096, &mut |vrange, flags| {
+        let mut process_elf_loader = ProcessElfLoader {
+            vspace: &vspace,
+            child_root_cn: &child_root_cn,
+            cur_free: &mut cur_free,
+        };
 
-            let vaddr = vrange.start as usize;
-            let perm = Permission::new(flags & 0b100 != 0, flags & 0b010 != 0, flags & 0b001 != 0);
-            let frame_cap: RamRef = gsm!().alloc_object::<RamObj>(FRAME_BIT_SIZE).unwrap().into();
-            let frame_parent_cap = copy_cap(&frame_cap).unwrap();
+        let child_elf = ElfBinary::new("process", self.elf).unwrap();
 
-            let mut frame_entry = VSpaceEntry::new_frame(frame_cap.clone(), vaddr, perm, 4);
+        child_elf.load(&mut process_elf_loader).unwrap();
+        for i in 1 .. PROCESS_MAIN_THREAD_STACK_PAGES + 1 {
+            let page_base = PROCESS_MAIN_THREAD_STACK_TOP - i * FRAME_SIZE;
+            let perm = Permission::writable();
+            let frame_cap = gsm!().alloc_object::<RamObj>(FRAME_BIT_SIZE).unwrap().into();
+            let mut frame_entry = VSpaceEntry::new_frame(frame_cap, page_base, perm, 4);
             while let Err((e, ent)) = vspace.install_entry(frame_entry, true) {
                 frame_entry = ent;
                 match e {
-                    // VSpaceManError::SlotOccupied{level} => {
-                    //     panic!("slot occupied at level {} vaddr {:x}", level, vaddr);
-                    // }
-                    // VSpaceManError::SlotTypeError{level} => {
-                    //     panic!("wrong slot type at level {} vaddr {:x}", level, vaddr);
-                    // }
-                    // VSpaceManError::PageTableMiss{level} => {
-                    crate::spaceman::vspace_man::VSpaceManError::PageTableMiss { level } => {
+                    VSpaceManError::PageTableMiss { level } => {
                         let vtable_cap: VTableRef = gsm!().alloc_object::<VTableObj>(12).unwrap().into();
-                        let vtable_entry = VSpaceEntry::new_table(vtable_cap.clone(), vaddr, level + 1);
-                        // let vtable_cap_slot = vtable_entry.cap_slot();
+                        let vtable_entry = VSpaceEntry::new_table(vtable_cap.clone(), page_base, level + 1);
                         vspace.install_entry(vtable_entry, true)
                             .unwrap();
                         child_root_cn
@@ -104,31 +169,18 @@ impl<'a> ProcessBuilder<'a> {
                         cur_free += 1;
                     }
                     e => {
-                        panic!("vaddr {:x} perm {:?} error: {:?}", vaddr, perm, e);
+                        panic!("vaddr {:x} perm {:?} error: {:?}", page_base, perm, e);
                     }
                 }
             }
-
-            let frame_addr =
-                gsm!().insert_ram_at(frame_parent_cap, 0, Permission::writable());
-            mapped_vaddrs.push(frame_addr);
-            let frame = unsafe { core::slice::from_raw_parts_mut(frame_addr, FRAME_SIZE) };
-            child_root_cn
-                .cap_copy(cur_free, frame_cap.slot.slot())
-                .unwrap();
-            cur_free += 1;
-            frame
-        })
-        .map_err(|_| ())?;
-        for vaddr in mapped_vaddrs.into_iter() {
-            gsm!().memory_unmap(vaddr, 4096);
         }
+        let entry = child_elf.entry_point() as usize;
 
         child_tcb
             .configure(Some(&child_root_vn), Some(&child_root_cn))
             .expect("Error Configuring TCB");
         child_tcb
-            .set_registers(0b1100, entry as usize, 0x8000000)
+            .set_registers(0b1100, entry as usize, PROCESS_MAIN_THREAD_STACK_TOP)
             .expect("Error Setting Registers");
         child_root_cn
             .cap_copy(ProcessCSpace::TcbCap as usize, child_tcb.slot.slot())
