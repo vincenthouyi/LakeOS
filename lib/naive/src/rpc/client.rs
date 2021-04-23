@@ -133,7 +133,6 @@ impl RpcClient {
         name: P,
         cap: EpCap,
     ) -> ns::Result<()> {
-        kprintln!("registering service {:?}", name.as_ref());
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
