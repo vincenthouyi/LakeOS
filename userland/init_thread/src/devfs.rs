@@ -26,11 +26,6 @@ impl vfs::FileSystem for DevFs {
     fn root(&self) -> Arc<dyn vfs::INode> {
         Arc::new(Dir::new(self.clone()))
     }
-
-    fn publish(&self, path: &Path, ep: EpRef) -> Result<(), ()> {
-        self.nodes.lock().insert(path.to_path_buf(), DevNode { ep });
-        Ok(())
-    }
 }
 
 #[derive(Debug)]

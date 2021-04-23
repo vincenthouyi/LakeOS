@@ -11,6 +11,7 @@ extern crate lazy_static;
 mod devfs;
 mod initfs;
 mod vfs;
+mod rootfs;
 
 use core::ptr::NonNull;
 
@@ -19,8 +20,6 @@ use alloc::vec::Vec;
 
 use async_trait::async_trait;
 
-
-use conquer_once::spin::OnceCell;
 use naive::lmp::LmpListenerHandle;
 use naive::ns;
 use naive::objects::{EpCap, CapSlot, IrqRef, MonitorRef, RamObj, KernelObject, RamCap};
@@ -32,6 +31,8 @@ use naive::rpc::{
 use naive::space_manager::{gsm, copy_cap};
 use rustyl4api::init::InitCSpaceSlot;
 use spin::Mutex;
+
+use vfs::Vfs;
 
 lazy_static! {
     pub static ref IRQ_CAP: IrqRef = {
@@ -66,7 +67,6 @@ pub fn alloc_object_at<T: KernelObject>(
     core::mem::forget(ut_cap);
     ret
 }
-
 
 struct InitThreadApi;
 
@@ -103,7 +103,7 @@ impl rpc::RpcRequestHandlers for InitThreadApi {
         mut cap: Vec<CapSlot>,
     ) -> rpc::Result<(RegisterServiceResponse, Vec<CapSlot>)> {
         let slot = cap.pop().unwrap();
-        let ret = vfs().lock().publish(&request.name, EpCap::new(slot).into());
+        let ret = VFS.lock().publish(&request.name, EpCap::new(slot).into());
         let resp = RegisterServiceResponse {
             result: {
                 if ret.is_ok() {
@@ -120,7 +120,7 @@ impl rpc::RpcRequestHandlers for InitThreadApi {
         &self,
         request: &LookupServiceRequest,
     ) -> rpc::Result<(LookupServiceResponse, Vec<CapSlot>)> {
-        let mut vfs_guard = vfs().lock();
+        let mut vfs_guard = VFS.lock();
         let res = vfs_guard.open(&request.name);
         if let Ok(node) = res {
             let resp = LookupServiceResponse {
@@ -137,11 +137,10 @@ impl rpc::RpcRequestHandlers for InitThreadApi {
     }
 }
 
-use vfs::Vfs;
-pub fn vfs() -> &'static Mutex<Vfs> {
-    static VFS: OnceCell<Mutex<Vfs>> = OnceCell::uninit();
-
-    VFS.try_get_or_init(|| Mutex::new(Vfs::new())).unwrap()
+lazy_static! {
+    static ref VFS: Mutex<Vfs> = {
+        Mutex::new(Vfs::new())
+    };
 }
 
 #[naive::main]
@@ -153,8 +152,9 @@ async fn main() {
     let listener = LmpListenerHandle::new(listen_ep.into(), listen_badge);
     EP_SERVER.insert_event(listen_badge, listener.clone());
 
-    vfs().lock().mount("/", initfs::InitFs::new()).unwrap();
-    vfs().lock().mount("/dev", devfs::DevFs::new()).unwrap();
+    VFS.lock().mount("/", rootfs::RootFs::new()).unwrap();
+    VFS.lock().mount("/dev", devfs::DevFs::new()).unwrap();
+    VFS.lock().mount("/boot", initfs::InitFs::new()).unwrap();
 
     let initfs = initfs::InitFs::new();
 

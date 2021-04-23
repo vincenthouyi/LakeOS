@@ -93,8 +93,4 @@ pub struct IndexNode {
 
 pub trait FileSystem: Send + Sync + core::fmt::Debug {
     fn root(&self) -> Arc<dyn INode>;
-
-    fn publish(&self, _path: &Path, _ep: EpRef) -> Result<(), ()> {
-        Err(())
-    }
 }

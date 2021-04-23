@@ -175,7 +175,6 @@ name = "init_thread"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "conquer-once",
  "cpio",
  "crossbeam-queue",
  "futures-util",
