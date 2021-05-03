@@ -194,8 +194,8 @@ jump_to_el1:
     orr     x0, x0, x2
     msr     tpidr_el1, x0
 
-    mov     x0, #3 << 20
-    msr     cpacr_el1, x0        // enable fp/simd at el1
+    // mov     x0, #3 << 20
+    // msr     cpacr_el1, x0        // enable fp/simd at el1
 
     // initialize hcr_el2
     mov     x0, #(1 << 31)

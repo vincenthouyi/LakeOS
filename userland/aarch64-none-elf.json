@@ -15,7 +15,7 @@
     "linker-is-gnu": true,
     "llvm-target": "aarch64-unknown-none",
     "no-compiler-rt": true,
-    "features": "+a53,+strict-align",
+    "features": "+a53,+strict-align,-crypto,-fp-armv8,-neon",
     "max-atomic-width": 128,
     "os": "lakeos",
     "panic": "abort",
