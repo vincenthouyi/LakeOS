@@ -71,6 +71,11 @@ impl<'a> Command<'a> {
         Ok(())
     }
 
+    pub async fn sleep(&self, sleep_second: u64) -> Result<(), ()> {
+        naive::time::sleep_ms(sleep_second * 1000).await;
+        Ok(())
+    }
+
     pub async fn exec(&self) {
         match self.args.as_slice() {
             ["echo", args @ ..] => {
@@ -92,6 +97,11 @@ impl<'a> Command<'a> {
                     if let Err(e) = res {
                         println!("Error {:?}", e).await;
                     }
+                }
+            }
+            ["sleep", sec] => {
+                if let Ok(s) = sec.parse() {
+                    self.sleep(s).await.unwrap();
                 }
             }
             [] => { /* Ignore empty command */ }
