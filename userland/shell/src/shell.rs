@@ -76,6 +76,14 @@ impl<'a> Command<'a> {
         Ok(())
     }
 
+    pub async fn readmem(&self, addr: u64) -> Result<(), ()> {
+        unsafe {
+            let ptr = &mut *(addr as *mut u8);
+            println!("mem@0x{:x}: {}", addr, *ptr).await;
+        }
+        Ok(())
+    }
+
     pub async fn exec(&self) {
         match self.args.as_slice() {
             ["echo", args @ ..] => {
@@ -102,6 +110,16 @@ impl<'a> Command<'a> {
             ["sleep", sec] => {
                 if let Ok(s) = sec.parse() {
                     self.sleep(s).await.unwrap();
+                }
+            }
+            ["readmem", addr] => {
+                match addr.parse() {
+                    Ok(addr) => {
+                        self.readmem(addr).await.unwrap();
+                    }
+                    Err(e) => {
+                        println!("error while parsing address {}: {:?}", addr, e).await;
+                    }
                 }
             }
             [] => { /* Ignore empty command */ }

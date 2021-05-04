@@ -49,7 +49,7 @@ $ make qemu
 - [x] A basic kernel brings up init thread
 - [x] Interupt
 - [x] TLB and ASID handling
-- [ ] Fault handler
+- [x] Fault handler
 - [ ] SMP
 - [ ] Guarded page table based CSpace
 - [ ] floating point register lazy store

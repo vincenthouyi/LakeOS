@@ -6,7 +6,7 @@ use hashbrown::HashMap;
 use spin::{Mutex, MutexGuard};
 
 use crate::space_manager::{gsm, copy_cap_badged};
-use crate::ipc::{self, IpcMessage};
+use crate::ipc::{self, IpcMessage, FaultMessage};
 use crate::objects::{EpCap, EndpointObj};
 
 pub struct Ep {
@@ -32,6 +32,7 @@ impl Ep {
 pub struct EpServer {
     event_handlers: Mutex<HashMap<usize, Arc<dyn EpMsgHandler>>>,
     ntf_handler: Mutex<[Option<Arc<dyn EpNtfHandler>>; 64]>,
+    fault_handlers: Mutex<HashMap<usize, Arc<dyn EpFaultHandler>>>,
     ep: Ep,
 }
 
@@ -42,6 +43,7 @@ impl EpServer {
             ep: Ep::from_unbadged(ep),
             event_handlers: Mutex::new(HashMap::new()),
             ntf_handler: Mutex::new([INIT_NTF_HANDLER; 64]),
+            fault_handlers: Mutex::new(HashMap::new()),
         }
     }
 
@@ -64,6 +66,10 @@ impl EpServer {
 
     pub fn insert_notification<T: 'static + EpNtfHandler>(&self, ntf: usize, cb: T) {
         self.ntf_handler.lock()[ntf] = Some(Arc::new(cb));
+    }
+
+    pub fn insert_fault<T: 'static + EpFaultHandler>(&self, badge: usize, cb: T) {
+        self.fault_handlers.lock().insert(badge, Arc::new(cb));
     }
 
     fn handle_ipc(&self, ipc_msg: IpcMessage) {
@@ -91,11 +97,22 @@ impl EpServer {
                     ntf_mask &= !(1 << ntf);
                 }
             }
-            e => {
-                kprintln!("e {:?}", e);
+            IpcMessage::Fault(msg) => {
+                if let Some(b) = msg.badge {
+                    let cb = self.fault_handlers.lock().get(&b).map(|cb| cb.clone());
+                    if let Some(cb) = cb {
+                        cb.handle_fault(self, msg);
+                    } else {
+                        kprintln!("warning: receive message from unhandled badge {}", b);
+                    }
+                } else {
+                    kprintln!("warning: receive unbadged fault message");
+                }
+            }
+            IpcMessage::Invalid => {
+                kprintln!("Receiving invalid message");
             }
         }
-
     }
 
     pub fn run(&self) {
@@ -116,8 +133,6 @@ pub trait EpMsgHandler: Send + Sync {
         _msg: ipc::Message,
     ) {
     }
-
-    fn handle_fault(&self) {}
 }
 
 pub trait EpNtfHandler: Send + Sync {
@@ -129,4 +144,8 @@ lazy_static! {
         let ep = gsm!().alloc_object::<EndpointObj>(12).unwrap();
         EpServer::new(ep)
     };
+}
+
+pub trait EpFaultHandler: Send + Sync {
+    fn handle_fault(&self, _ep_server: &EpServer, _msg: FaultMessage) {}
 }

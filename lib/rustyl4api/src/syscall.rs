@@ -143,6 +143,17 @@ impl RespInfo {
         }
     }
 
+    pub const fn new_fault_resp(length: usize, badge: bool) -> Self {
+        Self {
+            msgtype: IpcMessageType::Fault,
+            msglen: length,
+            cap_transfer: false,
+            need_reply: true,
+            badged: badge,
+            errno: SysErrno::OK,
+        }
+    }
+
     pub const fn get_length(&self) -> usize {
         self.msglen
     }

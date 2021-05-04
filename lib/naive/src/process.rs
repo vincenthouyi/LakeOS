@@ -177,7 +177,7 @@ impl<'a> ProcessBuilder<'a> {
         let entry = child_elf.entry_point() as usize;
 
         child_tcb
-            .configure(Some(&child_root_vn), Some(&child_root_cn))
+            .configure(Some(&child_root_vn), Some(&child_root_cn), None)
             .expect("Error Configuring TCB");
         child_tcb
             .set_registers(0b1100, entry as usize, PROCESS_MAIN_THREAD_STACK_TOP)

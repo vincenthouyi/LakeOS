@@ -1,3 +1,5 @@
+use rustyl4api::fault::{Fault as SysFault, VmFaultKind};
+
 use super::cpuid;
 use super::trapframe::TrapFrame;
 use crate::arch;
@@ -28,6 +30,20 @@ impl From<u32> for Fault {
             0b100000 => Alignment,
             0b110000 => TlbConflict,
             _ => Other((val & 0b111111) as u8),
+        }
+    }
+}
+
+impl Into<VmFaultKind> for Fault {
+    fn into(self) -> VmFaultKind {
+        match self {
+            Self::AddressSize => VmFaultKind::AddressSize,
+            Self::Translation => VmFaultKind::Translation,
+            Self::AccessFlag => VmFaultKind::AccessFlag,
+            Self::Permission => VmFaultKind::Permission,
+            Self::Alignment => VmFaultKind::Alignment,
+            Self::TlbConflict => VmFaultKind::TlbConflict,
+            _ => VmFaultKind::Other,
         }
     }
 }
@@ -118,65 +134,12 @@ impl From<u32> for Syndrome {
     }
 }
 
-//#[repr(u16)]
-//#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-//pub enum Kind {
-//    Synchronous = 0,
-//    Irq = 1,
-//    Fiq = 2,
-//    SError = 3,
-//}
-//
-//#[repr(u16)]
-//#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-//pub enum Source {
-//    CurrentSpEl0 = 0,
-//    CurrentSpElx = 1,
-//    LowerAArch64 = 2,
-//    LowerAArch32 = 3,
-//}
-//
-//#[repr(C)]
-//#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-//pub struct Info {
-//    source: Source,
-//    kind: Kind,
-//}
+pub fn handle_vfault(tcb: &mut TcbObj, fault: SysFault) -> ! {
+    let tcb2 = unsafe { &mut *(tcb as *mut TcbObj)};
+    let fault_handler_ep = tcb.fault_handler_ep().unwrap();
+    fault_handler_ep.send_fault_ipc(tcb2, fault).unwrap();
 
-//#[no_mangle]
-//pub unsafe extern "C" fn trap_handler(info: Info, tcb: &mut TcbObj) {
-//
-//    let addr = arch::get_far();
-//    let esr = arch::get_esr();
-//    let elr = arch::get_elr();
-//
-////    kprintln!("in trap! {:?} {:?} esr: {:x} elr: {:x} addr {:x}",
-////               info, Syndrome::from(esr), esr, tcb.tf.elr, addr);
-////    kprintln!("tcb {:p} sp {:?}", &tcb, arch::sp());
-////    kprintln!("tcb {:?}", &tcb);
-//
-//    if let (Kind::Synchronous, Syndrome::Brk(_)) = (info.kind, Syndrome::from(esr)) {
-//        tcb.tf.elr += 4;
-//    }
-//
-//    tcb.restore();
-//}
-
-pub fn handle_vfault(tcb: &mut TcbObj) -> ! {
-    let fault_addr = arch::get_far();
-
-    kprintln!(
-        "thread {:x} faulting addr 0x{:x} elr {:x}",
-        tcb.thread_id(),
-        fault_addr,
-        tcb.tf.get_elr()
-    );
-
-    let vspace = tcb.vspace().unwrap();
-    let slot = vspace.lookup_pt_slot(fault_addr as usize);
-    kprintln!("slot {:x?}", slot.unwrap());
-
-    unimplemented!("unable to handle vfault!");
+    crate::SCHEDULER.get().activate();
 }
 
 #[no_mangle]
@@ -221,34 +184,14 @@ pub unsafe extern "C" fn lower64_sync_handler(tf: &mut TrapFrame) -> ! {
     let _ret = match Syndrome::from(arch::get_esr()) {
         Svc(1) => crate::syscall::handle_syscall(tcb),
         InstructionAbort { kind, level } => {
-            kprintln!(
-                "Lower64 Instruction Abort tcb {:X?} kind {:?} level {} syndrome {:?}",
-                tcb,
-                kind,
-                level,
-                Syndrome::from(arch::get_esr())
-            );
-            handle_vfault(tcb)
+            let fault_addr = arch::get_far();
+            let fault = SysFault::new_prefetch_fault(fault_addr, level, kind.into());
+            handle_vfault(tcb, fault)
         }
         DataAbort { kind, level } => {
-            kprintln!(
-                "Lower64 Data Abort tcb {:X?} kind {:?} level {} syndrome {:?}",
-                tcb,
-                kind,
-                level,
-                Syndrome::from(arch::get_esr())
-            );
-            handle_vfault(tcb)
-        }
-        Brk(_) => {
-            kprintln!(
-                "tcb {:X?} syndrome {:?}",
-                tcb,
-                Syndrome::from(arch::get_esr())
-            );
-            let elr = tcb.tf.get_elr();
-            tcb.tf.set_elr(elr + 4);
-            unreachable!()
+            let fault_addr = arch::get_far();
+            let fault = SysFault::new_data_fault(fault_addr, level, kind.into());
+            handle_vfault(tcb, fault)
         }
         syn => {
             panic!(

@@ -1,10 +1,11 @@
 use core::num::NonZeroUsize;
+use sysapi::fault::Fault;
+use sysapi::syscall::SyscallOp;
 use super::*;
 use crate::objects::tcb::ThreadState;
 use crate::syscall::{MsgInfo, RespInfo};
 use crate::utils::tcb_queue::TcbQueue;
 use num_traits::FromPrimitive;
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EpState {
     Free,
@@ -193,22 +194,32 @@ impl<'a> EndpointCap<'a> {
                 Ok(())
             }
             EpState::Sending => {
-                use rustyl4api::syscall::SyscallOp;
-
                 let sender = self.queue.dequeue().unwrap();
-                let sender_info = sender.get_msginfo().unwrap();
                 let badge = sender.sending_badge();
-                let is_call = sender_info.get_label() == SyscallOp::EndpointCall;
-                do_ipc(tcb, info, sender, sender_info, badge, is_call, false)?;
-                if is_call {
-                    sender.detach();
+                if let Some(fault) = sender.fault.get() {
+                    let buf = fault.as_ipc_message_buf();
+                    tcb.set_mr(0, badge.unwrap_or(0));
+                    for (i, reg) in buf.iter().enumerate() {
+                        tcb.set_mr(i + 1, *reg);
+                    }
+                    tcb.set_respinfo(RespInfo::new_fault_resp(3, badge.is_some()));
                     tcb.set_reply(Some(sender));
-                } else {
-                    sender.set_state(ThreadState::Ready);
-                    crate::SCHEDULER.get_mut().push(sender);
-                }
 
-                Ok(())
+                    Ok(())
+                } else {
+                    let sender_info = sender.get_msginfo().unwrap();
+                    let is_call = sender_info.get_label() == SyscallOp::EndpointCall;
+                    do_ipc(tcb, info, sender, sender_info, badge, is_call, false)?;
+                    if is_call {
+                        sender.detach();
+                        tcb.set_reply(Some(sender));
+                    } else {
+                        sender.set_state(ThreadState::Ready);
+                        crate::SCHEDULER.get_mut().push(sender);
+                    }
+
+                    Ok(())
+                }
             }
         }
     }
@@ -239,6 +250,46 @@ impl<'a> EndpointCap<'a> {
                 Ok(())
             }
         }
+    }
+
+    pub fn send_fault_ipc(&self, sender: &mut TcbObj, fault: Fault) -> SysResult<()> {
+        sender.fault.set(Some(fault));
+        sender.set_state(ThreadState::Sending);
+        sender.detach();
+
+        match self.state() {
+            EpState::Receiving => {
+                let receiver = self.queue.dequeue().unwrap();
+
+                let buf = fault.as_ipc_message_buf();
+                let badge = self.badge();
+                receiver.set_mr(0, badge.unwrap_or(0));
+                for (i, reg) in buf.iter().enumerate() {
+                    receiver.set_mr(i + 1, *reg);
+                }
+
+                receiver.set_respinfo(RespInfo::new_fault_resp(3, badge.is_some()));
+                receiver.set_state(ThreadState::Ready);
+                receiver.set_reply(Some(sender));
+                crate::SCHEDULER.get_mut().push(receiver);
+
+                Ok(())
+            }
+            _ => {
+
+                let badge = self.badge();
+                if let Some(b) = badge {
+                    sender.set_sending_badge(b);
+                }
+                self.queue.enqueue(sender);
+                Ok(())
+            }
+        }
+    }
+
+    pub fn derive(&self, dst: &NullCap) -> SysResult<()> {
+        dst.raw.set(self.raw());
+        Ok(())
     }
 
     pub fn badge(&self) -> Option<usize> {

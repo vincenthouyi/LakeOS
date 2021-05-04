@@ -20,3 +20,4 @@ pub mod syscall;
 pub mod thread;
 pub(crate) mod utils;
 pub mod vspace;
+pub mod fault;

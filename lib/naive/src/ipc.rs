@@ -1,4 +1,5 @@
 pub use rustyl4api::ipc::*;
+pub use rustyl4api::fault::Fault;
 
 use crate::objects::CapSlot;
 
@@ -7,7 +8,7 @@ pub enum IpcMessage {
     Invalid,
     Message(Message),
     Notification(usize),
-    Fault,
+    Fault(FaultMessage),
 }
 
 impl IpcMessage {
@@ -27,4 +28,10 @@ pub struct Message {
     pub need_reply: bool,
     pub cap_transfer: Option<CapSlot>,
     pub badge: Option<usize>,
+}
+
+#[derive(Debug)]
+pub struct FaultMessage {
+    pub badge: Option<usize>,
+    pub info: Fault,
 }

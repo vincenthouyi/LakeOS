@@ -108,7 +108,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             Ok(())
         }
         SyscallOp::TcbConfigure => {
-            if msginfo.get_length() < 2 {
+            if msginfo.get_length() < 3 {
                 return Err(SysError::InvalidValue);
             }
             let cap_idx = tcb.get_mr(0);
@@ -132,7 +132,15 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
                 None
             };
 
-            cap.configure(cspace_cap, vspace_cap)?;
+            let fault_ep_cap_idx = tcb.get_mr(3);
+            let fault_ep_cap = if fault_ep_cap_idx != 0 {
+                let ep_slot = host_cspace.lookup_slot(fault_ep_cap_idx)?;
+                Some(EndpointCap::try_from(ep_slot)?)
+            } else {
+                None
+            };
+
+            cap.configure(cspace_cap, vspace_cap, fault_ep_cap)?;
 
             tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
             Ok(())

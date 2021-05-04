@@ -19,19 +19,26 @@ impl ReplyObj {
     ) -> SysResult<()> {
         let receiver = self.waiting_tcb();
 
-        let recv_info = receiver.get_msginfo().unwrap();
-        do_ipc(receiver, recv_info, sender, info, None, false, true)?;
-
-        receiver.set_state(ThreadState::Ready);
-        receiver.set_sending_badge(0);
-        crate::SCHEDULER.get_mut().push(receiver);
-        sender.set_reply(None);
-        if !will_recv {
+        if let Some(_) = receiver.fault.take() {
+            receiver.set_state(ThreadState::Ready);
+            crate::SCHEDULER.get_mut().push(receiver);
+            sender.set_reply(None);
             sender.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
         } else {
-            receiver.set_reply(Some(sender));
-            sender.set_state(ThreadState::Sending);
-            sender.detach();
+            let recv_info = receiver.get_msginfo().unwrap();
+            do_ipc(receiver, recv_info, sender, info, None, false, true)?;
+
+            receiver.set_state(ThreadState::Ready);
+            receiver.set_sending_badge(0);
+            crate::SCHEDULER.get_mut().push(receiver);
+            sender.set_reply(None);
+            if !will_recv {
+                sender.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
+            } else {
+                receiver.set_reply(Some(sender));
+                sender.set_state(ThreadState::Sending);
+                sender.detach();
+            }
         }
 
         Ok(())

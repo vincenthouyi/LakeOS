@@ -1,10 +1,12 @@
 use core::fmt::{Debug, Error, Formatter};
 use core::mem::size_of;
 
+use sysapi::fault::Fault;
+
 use super::*;
 use crate::arch::trapframe::TrapFrame;
 use crate::cspace::CSpace;
-use crate::objects::NullCap;
+use crate::objects::{NullCap, EndpointCap};
 use crate::syscall::{MsgInfo, RespInfo};
 use crate::utils::tcb_queue::TcbQueueNode;
 use crate::vspace::VSpace;
@@ -14,6 +16,7 @@ pub enum ThreadState {
     Ready,
     Sending,
     Receiving,
+    Fault,
 }
 
 impl core::default::Default for ThreadState {
@@ -23,13 +26,15 @@ impl core::default::Default for ThreadState {
 }
 
 #[repr(C)]
-#[repr(align(512))]
+#[repr(align(1024))]
 #[derive(Default)]
 pub struct TcbObj {
     pub tf: TrapFrame,
     cspace: CNodeEntry,
     vspace: CNodeEntry,
     reply_cap: CNodeEntry,
+    fault_handler_ep: CNodeEntry,
+    pub fault: Cell<Option<Fault>>,
     time_slice: Cell<usize>,
     state: Cell<ThreadState>,
     sending_badge: Cell<usize>,
@@ -63,6 +68,8 @@ impl TcbObj {
             cspace: Cell::new(NullCap::mint()),
             vspace: Cell::new(NullCap::mint()),
             reply_cap: Cell::new(NullCap::mint()),
+            fault_handler_ep: Cell::new(NullCap::mint()),
+            fault: Cell::new(None),
             time_slice: Cell::new(0),
             state: Cell::new(ThreadState::Ready),
             sending_badge: Cell::new(0),
@@ -93,6 +100,10 @@ impl TcbObj {
     pub fn vspace(&self) -> Option<VSpace> {
         let pgd = VTableCap::try_from(&self.vspace).ok()?;
         Some(VSpace::from_pgd(&pgd))
+    }
+
+    pub fn fault_handler_ep(&self) -> Option<EndpointCap> {
+        EndpointCap::try_from(&self.fault_handler_ep).ok()
     }
 
     pub unsafe fn switch_vspace(&self) -> SysResult<()> {
@@ -157,7 +168,7 @@ impl TcbObj {
         Ok((pgd_cap.paddr() >> 12) & MASK!(16))
     }
 
-    pub fn configure(&self, cspace: Option<CNodeCap>, vspace: Option<VTableCap>) -> SysResult<()> {
+    pub fn configure(&self, cspace: Option<CNodeCap>, vspace: Option<VTableCap>, fault_handler_ep: Option<EndpointCap>) -> SysResult<()> {
         if let Some(vs) = vspace {
             let dst_vspace = NullCap::try_from(&self.vspace)?;
             vs.derive(&dst_vspace)?;
@@ -166,6 +177,11 @@ impl TcbObj {
         if let Some(cs) = cspace {
             let dst_cspace = NullCap::try_from(&self.cspace)?;
             cs.derive(&dst_cspace)?;
+        }
+
+        if let Some(ep) = fault_handler_ep {
+            let thread_handler = NullCap::try_from(&self.fault_handler_ep)?;
+            ep.derive(&thread_handler)?;
         }
 
         Ok(())

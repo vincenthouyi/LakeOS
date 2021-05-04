@@ -1,5 +1,6 @@
 use rustyl4api::error::SysResult;
 use rustyl4api::syscall::{syscall, MsgInfo, RespInfo, SyscallOp};
+use rustyl4api::fault::Fault;
 use crate::objects::ObjType;
 use crate::ipc::{self, IpcMessage, IpcMessageType, IPC_MAX_ARGS};
 
@@ -81,11 +82,16 @@ fn handle_receive_return(
             })
         }
         IpcMessageType::Fault => {
-            unimplemented!()
+            let badge = if respinfo.badged { Some(badge) } else { None };
+            let fault_info = Fault::from_ipc_message_buf(&msgbuf[0..3]);
+            IpcMessage::Fault(ipc::FaultMessage {
+                    badge: badge,
+                    info: fault_info,
+                }
+            )
         }
         IpcMessageType::Notification => IpcMessage::Notification(msgbuf[0]),
         IpcMessageType::Invalid => {
-            // FIXME: find why panic without underlying kprintln
             kprintln!(
                 "respinfo {:?} msgbuf {:?} badge {}",
                 respinfo,
