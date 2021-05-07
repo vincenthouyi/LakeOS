@@ -11,7 +11,7 @@ RUST_BINARY := $(shell cat Cargo.toml | grep name | cut -d\" -f 2 | tr - _)
 RUST_BUILD_DIR := target/$(TARGET)
 RUST_RELEASE_BIN := $(RUST_BUILD_DIR)/release/$(RUST_BINARY)
 
-RUST_LIB_DEPS = ../lib/pi/src/* ../lib/pi/src/*/**
+# RUST_LIB_DEPS = ../lib/pi/src/* ../lib/pi/src/*/**
 
 RUST_DEPS = Cargo.toml $(LD_LAYOUT) $(RUST_LIB_DEPS) $(shell find src -type f)
 
