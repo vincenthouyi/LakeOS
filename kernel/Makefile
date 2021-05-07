@@ -45,7 +45,8 @@ $(BUILD_DIR):
 
 $(KERNEL).bin: $(RUST_RELEASE_BIN) | $(BUILD_DIR)
 	@echo "+ Building $@ [objcopy $<]"
-	@$(CARGO) objcopy --release -- -O binary $@
+	@$(CARGO) build --release
+	@$(CROSS)-objcopy target/$(CROSS)/release/$(RUST_BINARY) -O binary $@
 
 clean:
 	cd ../userland; $(CARGO) clean; rm -rf build

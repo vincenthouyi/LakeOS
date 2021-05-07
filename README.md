@@ -18,7 +18,7 @@ The project requires:
 - aarch64-none-elf binutils
 - GNU make
 - Reasonably recent Rust nightly toolchain, tested on `rustc 1.54.0-nightly (676ee1472 2021-05-06)`
-- cargo components: `llvm-tools-preview`
+- cargo components: `cargo-binutils`, `rust-src`
 - QEMU for arm64: `qemu-system-aarch64`, make sure the version you use supports Raspberry Pi 3 by checking `qemu-system-aarch64 -machine help`
 
 To build project, in kernel dir:
