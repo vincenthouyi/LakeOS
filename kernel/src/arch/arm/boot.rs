@@ -29,7 +29,8 @@ static mut KERNEL_PD: Table = Table::zero();
 static mut INIT_CNODE: MaybeUninit<[CNodeEntry; PROCESS_ROOT_CNODE_SIZE]> = MaybeUninit::uninit();
 static INIT_FS: &[u8] = include_aligned!(Align64, "../../../build/initfs.cpio");
 
-pub static IDLE_THREADS: PerCore<TcbObj, NCPU> = PerCore([UnsafeCell::new(TcbObj::new()); NCPU]);
+const DEFAULT_IDLE_THREAD: UnsafeCell<TcbObj> = UnsafeCell::new(TcbObj::new());
+pub static IDLE_THREADS: PerCore<TcbObj, NCPU> = PerCore([DEFAULT_IDLE_THREAD; NCPU]);
 
 global_asm!(r#"
 .align 11

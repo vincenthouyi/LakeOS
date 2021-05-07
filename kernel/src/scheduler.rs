@@ -5,7 +5,8 @@ use crate::utils::tcb_queue::TcbQueue;
 use crate::NCPU;
 use core::cell::UnsafeCell;
 
-pub static SCHEDULER: PerCore<Scheduler, NCPU> = PerCore([UnsafeCell::new(Scheduler::new()); NCPU]);
+const DEFAULT_SCHEDULER: UnsafeCell<Scheduler> = UnsafeCell::new(Scheduler::new());
+pub static SCHEDULER: PerCore<Scheduler, NCPU> = PerCore([DEFAULT_SCHEDULER; NCPU]);
 
 #[derive(Debug)]
 pub struct Scheduler {

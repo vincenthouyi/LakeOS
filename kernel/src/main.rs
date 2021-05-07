@@ -2,7 +2,6 @@
 #![feature(decl_macro)]
 #![feature(asm)]
 #![feature(maybe_uninit_ref)]
-#![feature(const_in_array_repeat_expressions)]
 #![feature(const_generics)]
 #![feature(llvm_asm)]
 #![allow(non_snake_case)]

@@ -37,10 +37,11 @@ pub struct EpServer {
 
 impl EpServer {
     pub fn new(ep: EpCap) -> Self {
+        const INIT_NTF_HANDLER: Option<Arc<dyn EpNtfHandler>> = None;
         Self {
             ep: Ep::from_unbadged(ep),
             event_handlers: Mutex::new(HashMap::new()),
-            ntf_handler: Mutex::new([None; 64]),
+            ntf_handler: Mutex::new([INIT_NTF_HANDLER; 64]),
         }
     }
 

@@ -1,19 +1,23 @@
-use aarch64::{
-    barrier::{dsb as dsb_impl, isb as isb_impl, SY},
-    cache::{Cache, Clean, DCache, ICache, PoU},
-    regs::{RegisterReadWrite, ESR_EL1, FAR_EL1},
-};
 
-pub use aarch64::asm::{cpuid, nop, sp, wfe, wfi};
+pub fn mpidr_el1() -> u64 {
+    let x;
+    unsafe {
+        llvm_asm!("mrs $0, mpidr_el1":"=r"(x));
+    }
+    x
+}
 
-#[inline(always)]
+pub fn cpuid() -> usize {
+    (mpidr_el1() as usize) & !0xc1000000
+}
+
 pub fn isb() {
-    unsafe { isb_impl() }
+    unsafe { llvm_asm!("isb":::"memory") }
 }
 
 #[inline(always)]
 pub fn dsb() {
-    unsafe { dsb_impl(SY) }
+    unsafe { llvm_asm!("dsb sy":::"memory") }
 }
 
 #[inline(always)]
@@ -32,16 +36,38 @@ pub fn get_elr() -> usize {
 
 #[inline(always)]
 pub fn get_esr() -> u32 {
-    ESR_EL1.get() as u32
+    let esr;
+    unsafe {
+        llvm_asm!("mrs $0, esr_el1":"=r"(esr));
+    }
+    esr
 }
 
 #[inline(always)]
 pub fn get_far() -> u64 {
-    FAR_EL1.get()
+    let far;
+    unsafe {
+        llvm_asm!("mrs $0, far_el1":"=r"(far));
+    }
+    far
+}
+
+pub fn wfe() {
+    unsafe {
+        llvm_asm!("wfe");
+    }
+}
+
+pub fn wfi() {
+    unsafe {
+        llvm_asm!("wfi");
+    }
 }
 
 pub fn dc_clean_by_va_PoU(vaddr: usize) {
-    DCache::<Clean, PoU>::flush_line_op(vaddr);
+    unsafe {
+        llvm_asm!("dc cvau, $0":: "r"(vaddr));
+    }
     dsb();
 }
 
@@ -103,6 +129,9 @@ pub fn clean_l1_cache() {
     dsb();
     clean_dcache_poc();
     dsb();
-    ICache::local_flush_all();
+    unsafe {
+        llvm_asm!("ic iallu")
+    }
+    isb();
     dsb();
 }
