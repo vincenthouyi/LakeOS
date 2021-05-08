@@ -11,6 +11,7 @@ use crate::{
     space_manager::{gsm, copy_cap},
     objects::{EpCap, RamObj, CapSlot},
     ipc,
+    Result
 };
 
 use super::{ArgumentBuffer, LmpMessage};
@@ -42,7 +43,7 @@ impl LmpChannel {
         }
     }
 
-    pub fn connect(server_ep: &EpCap, ntf_ep: EpCap, local_ntf_badge: usize) -> Result<Self, ()> {
+    pub fn connect(server_ep: &EpCap, ntf_ep: EpCap, local_ntf_badge: usize) -> Result<Self> {
         use crate::objects::ReplyCap;
         use rustyl4api::vspace::Permission;
 
@@ -93,10 +94,9 @@ impl LmpChannel {
         //TODO: handle msg > 2048. now panics.
         let chan = self.send_channel();
         chan[0] = 1;
-        chan[1] = msg.opcode as u8;
-        chan[2] = msg.msg.len() as u8;
-        chan[3] = (msg.msg.len() >> 8) as u8;
-        chan[4..4 + msg.msg.len()].copy_from_slice(&msg.msg);
+        chan[1] = msg.msg.len() as u8;
+        chan[2] = (msg.msg.len() >> 8) as u8;
+        chan[3..3 + msg.msg.len()].copy_from_slice(&msg.msg);
         let cap_slot = msg.caps.pop();
         self.remote_ntf_ep
             .send(&[], cap_slot)
@@ -108,10 +108,9 @@ impl LmpChannel {
         if chan[0] == 0 {
             return None;
         }
-        let arglen = ((chan[3] as usize) << 8) | chan[2] as usize;
+        let arglen = ((chan[2] as usize) << 8) | chan[1] as usize;
         let msg = LmpMessage {
-            opcode: chan[1] as usize,
-            msg: chan[4..4 + arglen].to_vec(),
+            msg: chan[3..3 + arglen].to_vec(),
             caps: Vec::new(),
         };
         chan[0] = 0;
@@ -157,7 +156,7 @@ impl LmpChannelHandle {
         }
     }
 
-    pub fn connect(server_ep: &EpCap, ntf_ep: EpCap, ntf_badge: usize) -> Result<Self, ()> {
+    pub fn connect(server_ep: &EpCap, ntf_ep: EpCap, ntf_badge: usize) -> Result<Self> {
         let inner = LmpChannel::connect(server_ep, ntf_ep, ntf_badge)?;
         let chan = Self::from_inner(inner);
         EP_SERVER.insert_event(ntf_badge, chan.clone());
@@ -222,7 +221,7 @@ impl<'a> SendFuture<'a> {
 }
 
 impl<'a> Future for SendFuture<'a> {
-    type Output = Result<(), ()>;
+    type Output = Result<()>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut chan = self.channel.inner.lock();
@@ -247,7 +246,7 @@ impl<'a> RecvFuture<'a> {
 }
 
 impl<'a> Future for RecvFuture<'a> {
-    type Output = Result<LmpMessage, ()>;
+    type Output = Result<LmpMessage>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(msg) = self.channel.rx_queue.lock().pop() {

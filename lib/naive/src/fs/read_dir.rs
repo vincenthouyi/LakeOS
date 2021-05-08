@@ -4,6 +4,7 @@ use core::iter::Iterator;
 use alloc::vec::Vec;
 
 use crate::path::{Path, PathBuf};
+use crate::Result;
 
 use super::File;
 
@@ -13,7 +14,7 @@ pub struct ReadDir {
     idx: usize,
 }
 
-pub async fn read_dir<P: AsRef<Path>>(path: P) -> Result<ReadDir, ()> {
+pub async fn read_dir<P: AsRef<Path>>(path: P) -> Result<ReadDir> {
     let pathbuf = path.as_ref().to_path_buf();
     let mut fd = File::open(path).await?;
     let filenames = fd.read_dir().await?;
@@ -25,7 +26,7 @@ pub async fn read_dir<P: AsRef<Path>>(path: P) -> Result<ReadDir, ()> {
 }
 
 impl Iterator for ReadDir {
-    type Item = Result<DirEntry, ()>;
+    type Item = Result<DirEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.idx >= self.filenames.len() {

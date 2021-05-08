@@ -167,12 +167,12 @@ impl rpc::RpcRequestHandlers for DentryNode {
     async fn handle_read_dir(
         &self,
         _request: &ReadDirRequest,
-    ) -> rpc::Result<(ReadDirResponse, Vec<CapSlot>)> {
+    ) -> naive::Result<(ReadDirResponse, Vec<CapSlot>)> {
         let cached_entries = self.dentry.cached_entries();
         let inode_entries = self
             .dentry
             .read_dir()
-            .map_err(|_| rpc::Error::CallNotSupported)?;
+            .map_err(|_| naive::Error::NotSupported)?;
         let mut ret = HashSet::new();
 
         for i in cached_entries.into_iter().chain(inode_entries.into_iter()) {
@@ -189,7 +189,7 @@ impl rpc::RpcRequestHandlers for DentryNode {
     async fn handle_read(
         &self,
         request: &rpc::ReadRequest,
-    ) -> rpc::Result<(rpc::ReadResponse, Vec<CapSlot>)> {
+    ) -> naive::Result<(rpc::ReadResponse, Vec<CapSlot>)> {
         let mut buf = Vec::with_capacity(request.len);
 
         unsafe {
@@ -200,7 +200,7 @@ impl rpc::RpcRequestHandlers for DentryNode {
                     buf.set_len(read_len);
                     (rpc::ReadResponse { buf }, alloc::vec![])
                 })
-                .map_err(|_| rpc::Error::CallNotSupported)
+                .map_err(|_| naive::Error::NotSupported)
         }
     }
 }

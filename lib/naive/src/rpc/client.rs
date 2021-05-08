@@ -11,9 +11,11 @@ use crate::objects::{EpCap, InterruptCap, RamCap};
 
 use crate::{
     lmp::{LmpChannelHandle, LmpMessage},
-    ns,
     path::{Path, PathBuf},
+    Result,
 };
+
+use super::message::*;
 
 pub struct RpcClient {
     channel: LmpChannelHandle,
@@ -28,51 +30,61 @@ impl RpcClient {
         }
     }
 
-    pub fn connect(server_ep: &EpCap, ntf_ep: EpCap, ntf_badge: usize) -> Result<Self, ()> {
-        let channel = LmpChannelHandle::connect(server_ep, ntf_ep, ntf_badge)?;
+    pub fn connect(server_ep: &EpCap, ntf_ep: EpCap, ntf_badge: usize) -> Result<Self> {
+        let channel = LmpChannelHandle::connect(server_ep, ntf_ep, ntf_badge).map_err(|_| crate::Error::Invalid)?;
         let client = Self::new(channel);
         Ok(client)
     }
 
-    pub async fn rpc_write(&mut self, buf: &[u8]) -> usize {
+    pub async fn rpc_write(&mut self, buf: &[u8]) -> Result<usize> {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::WriteRequest { buf: buf.to_vec() };
-            let request = LmpMessage {
+            let payload = WriteRequest { buf: buf.to_vec() };
+            let payload = RpcRequest {
                 opcode: 0,
+                payload: serde_json::to_vec(&payload).unwrap(),
+            };
+            let request = LmpMessage {
                 msg: serde_json::to_vec(&payload).unwrap(),
                 caps: Vec::new(),
             };
             RpcCallFuture::new(channel.clone(), request)
         });
         let resp_msg = rpc.await;
-        let resp: super::WriteResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
+        let rpc_resp: RpcResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
+        let rpc_resp = rpc_resp.payload?;
+        let resp: WriteResponse = serde_json::from_slice(&rpc_resp).unwrap();
         self.rpc_state.take();
-        resp.result
+        Ok(resp.result)
     }
 
-    pub async fn rpc_read(&mut self, buf: &mut [u8], offset: usize) -> usize {
+    pub async fn rpc_read(&mut self, buf: &mut [u8], offset: usize) -> Result<usize> {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::ReadRequest {
+            let payload = ReadRequest {
                 len: buf.len(),
                 offset,
             };
-            let request = LmpMessage {
+            let payload = RpcRequest {
                 opcode: 1,
+                payload: serde_json::to_vec(&payload).unwrap(),
+            };
+            let request = LmpMessage {
                 msg: serde_json::to_vec(&payload).unwrap(),
                 caps: Vec::new(),
             };
             RpcCallFuture::new(channel.clone(), request)
         });
         let resp_msg = rpc.await;
-        let resp: super::ReadResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
+        let rpc_resp: RpcResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
+        let rpc_resp = rpc_resp.payload?;
+        let resp: ReadResponse = serde_json::from_slice(&rpc_resp).unwrap();
         self.rpc_state.take();
         let read_len = buf.len().min(resp.buf.len());
         buf[..read_len].copy_from_slice(&resp.buf[..read_len]);
-        read_len
+        Ok(read_len)
     }
 
     pub async fn request_memory(
@@ -80,118 +92,128 @@ impl RpcClient {
         paddr: usize,
         size: usize,
         maybe_device: bool,
-    ) -> Result<RamCap, ()> {
+    ) -> Result<RamCap> {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::RequestMemoryRequest {
+            let payload = RequestMemoryRequest {
                 paddr,
                 size,
                 maybe_device,
             };
-            let request = LmpMessage {
+            let payload = RpcRequest {
                 opcode: 2,
+                payload: serde_json::to_vec(&payload).unwrap(),
+            };
+            let request = LmpMessage {
                 msg: serde_json::to_vec(&payload).unwrap(),
                 caps: Vec::new(),
             };
             RpcCallFuture::new(channel.clone(), request)
         });
         let mut resp_msg = rpc.await;
-        let resp: super::RequestMemoryResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
         self.rpc_state.take();
+        let rpc_resp: RpcResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
+        rpc_resp.payload?;
         let cap_slot = resp_msg.caps.pop().unwrap();
-        match resp.result {
-            0 => Ok(RamCap::new(cap_slot)),
-            _ => Err(()),
-        }
+        Ok(RamCap::new(cap_slot))
     }
 
-    pub async fn request_irq(&mut self, irq: usize) -> Result<InterruptCap, ()> {
+    pub async fn request_irq(&mut self, irq: usize) -> Result<InterruptCap> {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::RequestIrqRequest { irq };
-            let request = LmpMessage {
+            let payload = RequestIrqRequest { irq };
+            let payload = RpcRequest {
                 opcode: 3,
+                payload: serde_json::to_vec(&payload).unwrap(),
+            };
+            let request = LmpMessage {
                 msg: serde_json::to_vec(&payload).unwrap(),
                 caps: alloc::vec![],
             };
             RpcCallFuture::new(channel.clone(), request)
         });
         let mut resp_msg = rpc.await;
-        let resp: super::RequestIrqResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
         self.rpc_state.take();
+        let rpc_resp: RpcResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
+        rpc_resp.payload?;
         let cap_slot = resp_msg.caps.pop().unwrap();
-        match resp.result {
-            0 => Ok(InterruptCap::new(cap_slot)),
-            _ => Err(()),
-        }
+        Ok(InterruptCap::new(cap_slot))
     }
 
     pub async fn register_service<P: AsRef<Path>>(
         &mut self,
         name: P,
         cap: EpCap,
-    ) -> ns::Result<()> {
+    ) -> Result<()> {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::RegisterServiceRequest {
+            let payload = RegisterServiceRequest {
                 name: name.as_ref().to_path_buf(),
             };
-            let request = LmpMessage {
+            let payload = RpcRequest {
                 opcode: 4,
+                payload: serde_json::to_vec(&payload).unwrap(),
+            };
+            let request = LmpMessage {
                 msg: serde_json::to_vec(&payload).unwrap(),
                 caps: alloc::vec![cap.into_slot()],
             };
             RpcCallFuture::new(channel.clone(), request)
         });
         let resp_msg = rpc.await;
-        let resp: super::RegisterServiceResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
         self.rpc_state.take();
-        resp.result.into_result()
+        let rpc_resp: RpcResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
+        rpc_resp.payload.map(|_| ())
     }
 
-    pub async fn lookup_service<P: AsRef<Path>>(&mut self, name: P) -> ns::Result<EpCap> {
+    pub async fn lookup_service<P: AsRef<Path>>(&mut self, name: P) -> Result<EpCap> {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::LookupServiceRequest {
+            let payload = LookupServiceRequest {
                 name: name.as_ref().to_path_buf(),
             };
-            let request = LmpMessage {
+            let payload = RpcRequest {
                 opcode: 5,
+                payload: serde_json::to_vec(&payload).unwrap(),
+            };
+            let request = LmpMessage {
                 msg: serde_json::to_vec(&payload).unwrap(),
                 caps: alloc::vec![],
             };
             RpcCallFuture::new(channel.clone(), request)
         });
         let mut resp_msg = rpc.await;
-        let resp: super::LookupServiceResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
         self.rpc_state.take();
-        resp.result
-            .into_result()
-            .map(|_| {
-                let cap = resp_msg.caps.pop().unwrap();
-                EpCap::new(cap)
-            })
+        let rpc_resp: RpcResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
+        rpc_resp.payload?;
+        let cap = resp_msg.caps.pop().unwrap();
+        Ok(EpCap::new(cap))
     }
 
-    pub async fn read_dir(&mut self) -> ns::Result<Vec<PathBuf>> {
+    pub async fn read_dir(&mut self) -> Result<Vec<PathBuf>> {
         let Self { channel, rpc_state } = self;
 
         let rpc = rpc_state.get_or_insert_with(|| {
-            let payload = super::ReadDirRequest {};
-            let request = LmpMessage {
+            let payload = ReadDirRequest {};
+            let payload = RpcRequest {
                 opcode: 6,
+                payload: serde_json::to_vec(&payload).unwrap(),
+            };
+            let request = LmpMessage {
                 msg: serde_json::to_vec(&payload).unwrap(),
                 caps: alloc::vec![],
             };
             RpcCallFuture::new(channel.clone(), request)
         });
         let resp_msg = rpc.await;
-        let resp: super::ReadDirResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
         self.rpc_state.take();
+        let rpc_resp: RpcResponse = serde_json::from_slice(&resp_msg.msg).unwrap();
+        let rpc_resp = rpc_resp.payload?;
+        let resp: ReadDirResponse = serde_json::from_slice(&rpc_resp).unwrap();
         Ok(resp.filename)
     }
 }

@@ -21,7 +21,6 @@ use alloc::vec::Vec;
 use async_trait::async_trait;
 
 use naive::lmp::LmpListenerHandle;
-use naive::ns;
 use naive::objects::{EpCap, CapSlot, IrqRef, MonitorRef, RamObj, KernelObject, RamCap};
 use naive::rpc::{
     self, LookupServiceRequest, LookupServiceResponse, RegisterServiceRequest,
@@ -75,7 +74,7 @@ impl rpc::RpcRequestHandlers for InitThreadApi {
     async fn handle_request_memory(
         &self,
         request: &RequestMemoryRequest,
-    ) -> rpc::Result<(RequestMemoryResponse, Vec<CapSlot>)> {
+    ) -> naive::Result<(RequestMemoryResponse, Vec<CapSlot>)> {
         use naive::objects::RamObj;
 
         let cap = alloc_object_at::<RamObj>(
@@ -84,56 +83,36 @@ impl rpc::RpcRequestHandlers for InitThreadApi {
             request.maybe_device,
         )
         .unwrap();
-        let resp = RequestMemoryResponse { result: 0 };
-        Ok((resp, alloc::vec![cap.into_slot()]))
+        Ok((RequestMemoryResponse {}, alloc::vec![cap.into_slot()]))
     }
 
     async fn handle_request_irq(
         &self,
         _request: &RequestIrqRequest,
-    ) -> rpc::Result<(RequestIrqResponse, Vec<CapSlot>)> {
+    ) -> naive::Result<(RequestIrqResponse, Vec<CapSlot>)> {
         let copy_cap = copy_cap(&IRQ_CAP).unwrap();
-        let resp = RequestIrqResponse { result: 0 };
-        Ok((resp, alloc::vec![copy_cap.into_slot()]))
+        Ok((RequestIrqResponse {}, alloc::vec![copy_cap.into_slot()]))
     }
 
     async fn handle_register_service(
         &self,
         request: &RegisterServiceRequest,
         mut cap: Vec<CapSlot>,
-    ) -> rpc::Result<(RegisterServiceResponse, Vec<CapSlot>)> {
+    ) -> naive::Result<(RegisterServiceResponse, Vec<CapSlot>)> {
         let slot = cap.pop().unwrap();
-        let ret = VFS.lock().publish(&request.name, EpCap::new(slot).into());
-        let resp = RegisterServiceResponse {
-            result: {
-                if ret.is_ok() {
-                    ns::Error::Success
-                } else {
-                    ns::Error::ServiceNotFound
-                }
-            },
-        };
-        Ok((resp, alloc::vec![]))
+        VFS.lock().publish(&request.name, EpCap::new(slot).into()).map_err(|_| naive::Error::InternalError)?;
+        Ok((RegisterServiceResponse {}, alloc::vec![]))
     }
 
     async fn handle_lookup_service(
         &self,
         request: &LookupServiceRequest,
-    ) -> rpc::Result<(LookupServiceResponse, Vec<CapSlot>)> {
+    ) -> naive::Result<(LookupServiceResponse, Vec<CapSlot>)> {
         let mut vfs_guard = VFS.lock();
-        let res = vfs_guard.open(&request.name);
-        if let Ok(node) = res {
-            let resp = LookupServiceResponse {
-                result: ns::Error::Success,
-            };
-            let ep = naive::space_manager::copy_cap(&node.cap).unwrap();
-            Ok((resp, alloc::vec![ep.into_slot()]))
-        } else {
-            let resp = LookupServiceResponse {
-                result: ns::Error::ServiceNotFound,
-            };
-            Ok((resp, alloc::vec![]))
-        }
+        let node = vfs_guard.open(&request.name).map_err(|_| naive::Error::InternalError)?;
+
+        let ep = naive::space_manager::copy_cap(&node.cap).unwrap();
+        Ok((LookupServiceResponse {}, alloc::vec![ep.into_slot()]))
     }
 }
 

@@ -50,6 +50,9 @@ mod vm_allocator;
 mod spaceman;
 pub mod objects;
 pub mod ipc;
+pub mod error;
+
+pub use error::{Result, Error};
 
 pub use naive_attributes::main;
 

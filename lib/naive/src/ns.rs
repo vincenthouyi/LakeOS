@@ -5,23 +5,6 @@ use spin::Mutex;
 use crate::ep_server::EP_SERVER;
 use crate::rpc::RpcClient;
 
-#[derive(Serialize, Deserialize, Debug)]
-pub enum Error {
-    Success,
-    ServiceNotFound,
-}
-
-impl Error {
-    pub fn into_result(self) -> Result<()> {
-        match self {
-            Error::Success => Ok(()),
-            e => Err(e),
-        }
-    }
-}
-
-pub type Result<T> = core::result::Result<T, Error>;
-
 lazy_static! {
     static ref NS_CLIENT: Arc<Mutex<RpcClient>> = {
         let (ntf_badge, ntf_ep) = EP_SERVER.derive_badged_cap().unwrap();

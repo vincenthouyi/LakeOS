@@ -15,7 +15,6 @@ pub trait LmpHandler: Send + Sync {
 
 #[derive(Default, Debug)]
 pub struct LmpMessage {
-    pub opcode: usize,
     pub msg: Vec<u8>,
     pub caps: Vec<CapSlot>,
 }

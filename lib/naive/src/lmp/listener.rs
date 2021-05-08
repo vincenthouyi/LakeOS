@@ -15,6 +15,7 @@ use crate::{
     space_manager::{gsm, copy_cap},
     objects::{EpCap, RamCap, EpRef},
     ipc,
+    Result,
 };
 
 use super::{ArgumentBuffer, LmpChannel, LmpChannelHandle, Role};
@@ -38,7 +39,7 @@ impl LmpListener {
         c_ntf_ep: EpCap,
         s_ntf_ep: EpCap,
         s_ntf_badge: usize,
-    ) -> Result<LmpChannel, ()> {
+    ) -> Result<LmpChannel> {
         use rustyl4api::vspace::Permission;
 
         let ret = self
@@ -127,7 +128,7 @@ impl EpMsgHandler for LmpListenerHandle {
 pub struct AcceptFuture<'a>(&'a mut LmpListenerHandle);
 
 impl<'a> Future for AcceptFuture<'a> {
-    type Output = Result<LmpChannelHandle, ()>;
+    type Output = Result<LmpChannelHandle>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let income = self.0.backlog.lock().pop_front();
@@ -144,7 +145,7 @@ impl<'a> Future for AcceptFuture<'a> {
 pub struct IncomingFuture<'a>(&'a mut LmpListenerHandle);
 
 impl<'a> Stream for IncomingFuture<'a> {
-    type Item = Result<LmpChannelHandle, ()>;
+    type Item = Result<LmpChannelHandle>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         Pin::new(&mut self.0.poll_accept())

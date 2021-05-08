@@ -1,7 +1,21 @@
 use alloc::vec::Vec;
 
-use crate::ns;
+use serde::{Serialize, Deserialize};
+
 use crate::path::PathBuf;
+
+use crate::Result;
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RpcRequest {
+    pub opcode: u8,
+    pub payload: Vec<u8>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RpcResponse {
+    pub payload: Result<Vec<u8>>,
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct WriteRequest {
@@ -32,9 +46,7 @@ pub struct RequestMemoryRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct RequestMemoryResponse {
-    pub result: usize,
-}
+pub struct RequestMemoryResponse {}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RequestIrqRequest {
@@ -42,9 +54,7 @@ pub struct RequestIrqRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct RequestIrqResponse {
-    pub result: usize,
-}
+pub struct RequestIrqResponse {}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegisterServiceRequest {
@@ -52,9 +62,7 @@ pub struct RegisterServiceRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct RegisterServiceResponse {
-    pub result: ns::Error,
-}
+pub struct RegisterServiceResponse {}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LookupServiceRequest {
@@ -62,9 +70,7 @@ pub struct LookupServiceRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct LookupServiceResponse {
-    pub result: ns::Error,
-}
+pub struct LookupServiceResponse {}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReadDirRequest {}

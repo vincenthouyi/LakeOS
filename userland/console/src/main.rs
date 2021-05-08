@@ -17,7 +17,6 @@ use async_trait::async_trait;
 use naive::io::AsyncWriteExt;
 use naive::lmp::LmpListenerHandle;
 use naive::ns::ns_client;
-use naive::rpc;
 use naive::rpc::{
     ReadRequest, ReadResponse, RpcServer,
     WriteRequest, WriteResponse,
@@ -33,7 +32,7 @@ pub async fn request_memory(paddr: usize, size: usize, maybe_device: bool) -> Re
         .lock()
         .request_memory(paddr, size, maybe_device)
         .await;
-    cap
+    Ok(cap.unwrap())
 }
 
 struct ConsoleApi;
@@ -43,7 +42,7 @@ impl naive::rpc::RpcRequestHandlers for ConsoleApi {
     async fn handle_write(
         &self,
         request: &WriteRequest,
-    ) -> rpc::Result<(WriteResponse, Vec<CapSlot>)> {
+    ) -> naive::Result<(WriteResponse, Vec<CapSlot>)> {
         let mut con = crate::console::console();
         let res = con.write(&request.buf).await;
         Ok((
@@ -54,7 +53,7 @@ impl naive::rpc::RpcRequestHandlers for ConsoleApi {
         ))
     }
 
-    async fn handle_read(&self, request: &ReadRequest) -> rpc::Result<(ReadResponse, Vec<CapSlot>)> {
+    async fn handle_read(&self, request: &ReadRequest) -> naive::Result<(ReadResponse, Vec<CapSlot>)> {
         let read_len = request.len;
         let mut buf = Vec::new();
         let mut con_stream = crate::console::console();

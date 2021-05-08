@@ -41,7 +41,12 @@ impl<'a> Command<'a> {
     }
 
     async fn cat(&self, path: &Path) -> Result<(), ()> {
-        let mut file = File::open(path).await?;
+        let file = File::open(path).await;
+        if let Err(e) = file {
+            println!("Error opening file {:?}", e).await;
+            return Err(())
+        }
+        let mut file = file.unwrap();
         let mut buf = Vec::new();
 
         file.read_to_end(&mut buf).await.map_err(|_| ())?;
@@ -50,7 +55,7 @@ impl<'a> Command<'a> {
     }
 
     async fn cd<P: AsRef<Path>>(&self, pwd: P) -> Result<(), ()> {
-        set_current_dir(pwd).await
+        set_current_dir(pwd).await.map_err(|_| ())
     }
 
     async fn ls(&self, args: &[&str]) -> Result<(), ()> {

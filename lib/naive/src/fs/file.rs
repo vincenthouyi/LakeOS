@@ -15,6 +15,7 @@ use crate::{
     path::{Path, PathBuf},
     rpc::RpcClient,
     objects::EpCap,
+    Result,
 };
 
 pub struct File {
@@ -23,18 +24,17 @@ pub struct File {
 }
 
 impl File {
-    pub async fn open<P: AsRef<Path>>(path: P) -> Result<Self, ()> {
+    pub async fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = super::canonicalize(path)?;
         let resp_cap = ns_client()
             .lock()
             .lookup_service(&path)
-            .await
-            .map_err(|_| ())?;
+            .await?;
         let ret = Self::connect(&resp_cap).await;
         ret
     }
 
-    pub async fn connect(ep: &EpCap) -> Result<Self, ()> {
+    pub async fn connect(ep: &EpCap) -> Result<Self> {
         let (ntf_badge, ntf_ep) = EP_SERVER.derive_badged_cap().unwrap();
         let cli = RpcClient::connect(ep, ntf_ep, ntf_badge).unwrap();
         Ok(Self {
@@ -43,8 +43,8 @@ impl File {
         })
     }
 
-    pub async fn read_dir(&mut self) -> Result<Vec<PathBuf>, ()> {
-        self.client.read_dir().await.map_err(|_| ())
+    pub async fn read_dir(&mut self) -> Result<Vec<PathBuf>> {
+        self.client.read_dir().await
     }
 }
 
@@ -56,7 +56,9 @@ impl AsyncWrite for File {
     ) -> Poll<io::Result<usize>> {
         let client = &mut self.client;
         let mut fut = Box::pin(client.rpc_write(buf));
-        Pin::new(&mut fut).poll(cx).map(|r| Ok(r))
+        Pin::new(&mut fut)
+            .poll(cx)
+            .map_err(|_| io::Error::new(io::ErrorKind::Other, "foo"))
     }
 
     fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
@@ -76,9 +78,12 @@ impl AsyncRead for File {
     ) -> Poll<io::Result<usize>> {
         let Self { client, offset } = &mut *self;
         let mut fut = Box::pin(client.rpc_read(buf, *offset));
-        Pin::new(&mut fut).poll(cx).map(|readlen| {
-            *offset += readlen;
-            Ok(readlen)
-        })
+        Pin::new(&mut fut)
+            .poll(cx)
+            .map_ok(|readlen| {
+                *offset += readlen;
+                readlen
+            })
+            .map_err(|_| io::Error::new(io::ErrorKind::Other, "foo"))
     }
 }
