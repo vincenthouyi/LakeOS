@@ -24,9 +24,10 @@ pub struct File {
 
 impl File {
     pub async fn open<P: AsRef<Path>>(path: P) -> Result<Self, ()> {
+        let path = super::canonicalize(path)?;
         let resp_cap = ns_client()
             .lock()
-            .lookup_service(path.as_ref())
+            .lookup_service(&path)
             .await
             .map_err(|_| ())?;
         let ret = Self::connect(&resp_cap).await;
