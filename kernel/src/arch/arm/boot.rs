@@ -216,6 +216,8 @@ jump_to_el1:
     isb
 
     /* Initialize page tables */
+    // HACK: set a temp sp in case init_cpu use stack
+    mov     sp, #0x80000
     bl      init_cpu
 
     /* Initialize SCTLR_EL1 */
