@@ -8,6 +8,7 @@ use spin::{Mutex, MutexGuard};
 use crate::space_manager::{gsm, copy_cap_badged};
 use crate::ipc::{self, IpcMessage, FaultMessage};
 use crate::objects::{EpCap, EndpointObj};
+use crate::ep_receiver::EpReceiver;
 
 pub struct Ep {
     ep: EpCap,
@@ -54,6 +55,14 @@ impl EpServer {
 
     pub fn derive_badged_cap(&self) -> Option<(usize, EpCap)> {
         self.ep.derive_badged_cap()
+    }
+
+    pub fn derive_receiver(&self) -> EpReceiver {
+        let (badge, ep) = self.derive_badged_cap().unwrap();
+        let receiver = EpReceiver::new(ep.into(), badge);
+        self.insert_event(badge, receiver.clone());
+
+        receiver
     }
 
     pub fn insert_event<T: 'static + EpMsgHandler>(&self, badge: usize, cb: T) {

@@ -4,7 +4,7 @@ use crate::objects::CapSlot;
 use crate::space_manager::gsm;
 
 mod listener;
-pub use listener::{LmpListener, LmpListenerHandle};
+pub use listener::LmpListener;
 
 mod channel;
 pub use channel::{LmpChannel, LmpChannelHandle, Role};

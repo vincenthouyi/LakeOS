@@ -15,7 +15,7 @@ use alloc::vec::Vec;
 use async_trait::async_trait;
 
 use naive::io::AsyncWriteExt;
-use naive::lmp::LmpListenerHandle;
+use naive::lmp::LmpListener;
 use naive::ns::ns_client;
 use naive::rpc::{
     ReadRequest, ReadResponse, RpcServer,
@@ -29,6 +29,7 @@ use futures_util::StreamExt;
 pub async fn request_memory(paddr: usize, size: usize, maybe_device: bool) -> Result<RamCap, ()> {
     let client = ns_client();
     let cap = client
+        .await
         .lock()
         .request_memory(paddr, size, maybe_device)
         .await;
@@ -78,6 +79,7 @@ async fn main() {
     let con = console::console();
     let (_irq_badge, irq_ep) = ep_server.derive_badged_cap().unwrap();
     let irq_cap = ns_client()
+        .await
         .lock()
         .request_irq(Interrupt::Aux as usize)
         .await
@@ -87,15 +89,15 @@ async fn main() {
         .unwrap();
     ep_server.insert_notification(Interrupt::Aux as usize, con.clone());
 
-    let (listen_badge, listen_ep) = ep_server.derive_badged_cap().unwrap();
-    let listener = LmpListenerHandle::new(listen_ep.into(), listen_badge);
+    let receiver = EP_SERVER.derive_receiver();
+    let listener = LmpListener::new(receiver);
     let connector_ep = listener.derive_connector_ep().unwrap();
-    ep_server.insert_event(listen_badge, listener.clone());
 
     let console_api = ConsoleApi {};
     let console_server = RpcServer::new(listener, console_api);
 
     ns_client()
+        .await
         .lock()
         .register_service("/dev/tty", connector_ep)
         .await

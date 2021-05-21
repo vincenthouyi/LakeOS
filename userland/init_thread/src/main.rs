@@ -20,7 +20,7 @@ use alloc::vec::Vec;
 
 use async_trait::async_trait;
 
-use naive::lmp::LmpListenerHandle;
+use naive::lmp::LmpListener;
 use naive::objects::{EpCap, CapSlot, IrqRef, MonitorRef, RamObj, KernelObject, RamCap};
 use naive::rpc::{
     self, LookupServiceRequest, LookupServiceResponse, RegisterServiceRequest,
@@ -126,10 +126,8 @@ lazy_static! {
 async fn main() {
     kprintln!("Init thread started");
 
-    let (listen_badge, listen_ep) = EP_SERVER.derive_badged_cap().unwrap();
-
-    let listener = LmpListenerHandle::new(listen_ep.into(), listen_badge);
-    EP_SERVER.insert_event(listen_badge, listener.clone());
+    let receiver = EP_SERVER.derive_receiver();
+    let listener = LmpListener::new(receiver);
 
     VFS.lock().mount("/", rootfs::RootFs::new()).unwrap();
     VFS.lock().mount("/dev", devfs::DevFs::new()).unwrap();

@@ -18,7 +18,6 @@
 extern crate alloc;
 #[macro_use]
 extern crate rustyl4api;
-#[macro_use]
 extern crate futures_util;
 #[macro_use]
 extern crate serde;
@@ -51,6 +50,7 @@ mod spaceman;
 pub mod objects;
 pub mod ipc;
 pub mod error;
+pub mod ep_receiver;
 
 pub use error::{Result, Error};
 

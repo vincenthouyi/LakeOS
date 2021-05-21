@@ -2,19 +2,19 @@ use alloc::{boxed::Box, vec::Vec};
 
 use futures_util::StreamExt;
 
-use crate::lmp::{LmpChannelHandle, LmpListenerHandle, LmpMessage};
+use crate::lmp::{LmpChannelHandle, LmpListener, LmpMessage};
 use crate::objects::CapSlot;
 
 use super::message::*;
 use crate::{Error, Result};
 
 pub struct RpcServer<T> {
-    listener: LmpListenerHandle,
+    listener: LmpListener,
     handlers: T,
 }
 
 impl<T: RpcRequestHandlers + Sync> RpcServer<T> {
-    pub fn new(listener: LmpListenerHandle, handlers: T) -> Self {
+    pub fn new(listener: LmpListener, handlers: T) -> Self {
         Self {
             listener: listener,
             handlers: handlers,
@@ -34,8 +34,8 @@ impl<T: RpcRequestHandlers + Sync> RpcServer<T> {
 
                 channel
                     .messages()
-                    .for_each_concurrent(None, |req| async {
-                        handlers.handle_request(channel.clone(), req).await;
+                    .for_each(|req| async {
+                        handlers.handle_request(&channel, req).await;
                     })
                     .await;
             })
@@ -166,7 +166,7 @@ pub trait RpcRequestHandlers {
         }
     }
 
-    async fn handle_request(&self, channel: LmpChannelHandle, request: LmpMessage) {
+    async fn handle_request(&self, channel: &LmpChannelHandle, request: LmpMessage) {
         let mut resp = self._handle_request(request).await;
         channel.poll_send(&mut resp).await.unwrap();
     }

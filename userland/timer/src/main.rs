@@ -10,7 +10,7 @@ use alloc::vec::Vec;
 
 use async_trait::async_trait;
 
-use naive::lmp::LmpListenerHandle;
+use naive::lmp::LmpListener;
 use naive::ns::ns_client;
 use naive::rpc::{ReadRequest, ReadResponse, RpcServer};
 use naive::objects::{CapSlot, RamCap};
@@ -20,6 +20,7 @@ mod timer;
 pub async fn request_memory(paddr: usize, size: usize, maybe_device: bool) -> Result<RamCap, ()> {
     let client = ns_client();
     let cap = client
+        .await
         .lock()
         .request_memory(paddr, size, maybe_device)
         .await;
@@ -48,15 +49,15 @@ async fn main() {
 
     timer::init_timer_server().await;
 
-    let (listen_badge, listen_ep) = EP_SERVER.derive_badged_cap().unwrap();
-    let listener = LmpListenerHandle::new(listen_ep.into(), listen_badge);
+    let receiver = EP_SERVER.derive_receiver();
+    let listener = LmpListener::new(receiver);
     let connector_ep = listener.derive_connector_ep().unwrap();
-    EP_SERVER.insert_event(listen_badge, listener.clone());
 
     let timer_api = TimerApi {};
     let timer_server = RpcServer::new(listener, timer_api);
 
     ns_client()
+        .await
         .lock()
         .register_service("/dev/timer", connector_ep)
         .await

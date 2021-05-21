@@ -8,7 +8,7 @@ use hashbrown::{HashMap, HashSet};
 use spin::Mutex;
 
 use naive::ep_server::EP_SERVER;
-use naive::lmp::LmpListenerHandle;
+use naive::lmp::LmpListener;
 use naive::path::{Path, PathBuf};
 use naive::rpc::{self, ReadDirRequest, ReadDirResponse, RpcServer};
 use naive::objects::{CapSlot, EpRef};
@@ -54,12 +54,9 @@ impl DirEntry {
             dentry: self.clone(),
         };
 
-        let (listen_badge, listen_ep) = EP_SERVER.derive_badged_cap().unwrap();
-        let listen_ep: EpRef = listen_ep.into();
-        // let listen_ep_slot = listen_ep.slot.slot();
-
-        let listener = LmpListenerHandle::new(listen_ep.clone(), listen_badge);
-        EP_SERVER.insert_event(listen_badge, listener.clone());
+        let receiver = EP_SERVER.derive_receiver();
+        let listen_ep = receiver.ep.clone();
+        let listener = LmpListener::new(receiver);
         let file_svr = Box::new(RpcServer::new(listener, node));
 
         inner.cached_ep = Some(listen_ep.clone());
