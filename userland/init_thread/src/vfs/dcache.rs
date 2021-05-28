@@ -54,7 +54,7 @@ impl DirEntry {
             dentry: self.clone(),
         };
 
-        let receiver = EP_SERVER.derive_receiver();
+        let receiver = EP_SERVER.derive_receiver().unwrap();
         let listen_ep = receiver.ep.clone();
         let listener = LmpListener::new(receiver);
         let file_svr = Box::new(RpcServer::new(listener, node));

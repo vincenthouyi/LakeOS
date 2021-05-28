@@ -16,6 +16,7 @@ use crate::{
     objects::{EpCap, RamObj},
     space_manager::{copy_cap, gsm},
     Result,
+    Error,
 };
 
 use super::{ArgumentBuffer, LmpMessage};
@@ -55,7 +56,8 @@ impl LmpChannel {
         server_ep.send(&[], Some(ntf_ep.into_slot())).unwrap();
 
         let s_ntf_msg = receiver.receive().await.unwrap();
-        let svr_ntf_ep = EpCap::new(s_ntf_msg.cap_transfer.unwrap());
+        let svr_ntf_ep = s_ntf_msg.cap_transfer.ok_or(Error::ProtocolError)?;
+        let svr_ntf_ep = EpCap::new(svr_ntf_ep);
 
         /* Generate buffer cap and Derive a copy of buffer cap */
         let buf_cap = gsm!().alloc_object::<RamObj>(12).unwrap();
@@ -175,7 +177,7 @@ impl LmpChannelHandle {
 
     pub async fn poll_recv(&self) -> Result<LmpMessage> {
         let mut inner = self.inner.lock();
-        let ep_msg = inner.receiver.receive().await.unwrap();
+        let ep_msg = inner.receiver.receive().await?;
         let mut msg = inner.recv_message().unwrap();
         if let Some(cap) = ep_msg.cap_transfer {
             msg.caps.push(cap);
@@ -190,7 +192,7 @@ impl LmpChannelHandle {
 
 pub struct MessagesFuture<'a> {
     channel: &'a LmpChannelHandle,
-    recv_state: Option<BoxFuture<'a, LmpMessage>>,
+    recv_state: Option<BoxFuture<'a, Result<LmpMessage>>>,
 }
 
 impl<'a> MessagesFuture<'a> {
@@ -211,14 +213,14 @@ impl<'a> Stream for MessagesFuture<'a> {
         } = &mut *self;
         let fut = recv_state.get_or_insert_with(|| {
             let channel = *channel;
-            let fut = || async move { channel.poll_recv().await.unwrap() };
+            let fut = || async move { channel.poll_recv().await };
             Box::pin(fut())
         });
 
         let msg = ready!(fut.as_mut().poll(cx));
 
         recv_state.take();
-        Poll::Ready(Some(msg))
+        Poll::Ready(msg.ok())
     }
 }
 

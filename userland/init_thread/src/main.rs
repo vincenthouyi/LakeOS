@@ -126,7 +126,7 @@ lazy_static! {
 async fn main() {
     kprintln!("Init thread started");
 
-    let receiver = EP_SERVER.derive_receiver();
+    let receiver = EP_SERVER.derive_receiver().unwrap();
     let listener = LmpListener::new(receiver);
 
     VFS.lock().mount("/", rootfs::RootFs::new()).unwrap();

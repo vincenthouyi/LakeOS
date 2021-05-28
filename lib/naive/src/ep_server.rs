@@ -25,7 +25,7 @@ impl Ep {
 
     pub fn derive_badged_cap(&self) -> Option<(usize, EpCap)> {
         let badge = self.cur_badge.fetch_add(1, Ordering::Relaxed);
-        let badged_ep = copy_cap_badged(&self.ep, NonZeroUsize::new(badge)).unwrap();
+        let badged_ep = copy_cap_badged(&self.ep, NonZeroUsize::new(badge))?;
         Some((badge, badged_ep))
     }
 }
@@ -56,12 +56,12 @@ impl EpServer {
         self.ep.derive_badged_cap()
     }
 
-    pub fn derive_receiver(&self) -> EpReceiver {
-        let (badge, ep) = self.derive_badged_cap().unwrap();
+    pub fn derive_receiver(&self) -> Option<EpReceiver> {
+        let (badge, ep) = self.derive_badged_cap()?;
         let receiver = EpReceiver::new(ep.into(), badge);
         self.insert_event(badge, receiver.clone());
 
-        receiver
+        Some(receiver)
     }
 
     pub fn insert_event<T: 'static + EpMsgHandler>(&self, badge: usize, cb: T) {

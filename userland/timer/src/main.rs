@@ -52,7 +52,7 @@ async fn main() {
 
     timer::init_timer_server().await;
 
-    let receiver = EP_SERVER.derive_receiver();
+    let receiver = EP_SERVER.derive_receiver().unwrap();
     let listener = LmpListener::new(receiver);
     let connector_ep = listener.derive_connector_ep().unwrap();
 

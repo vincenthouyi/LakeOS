@@ -14,7 +14,7 @@ use crate::{
     ep_server::EP_SERVER,
     objects::{EpCap, RamCap},
     space_manager::{copy_cap, gsm},
-    Result,
+    Result, Error,
 };
 
 use super::{ArgumentBuffer, LmpChannel, LmpChannelHandle, Role};
@@ -33,14 +33,16 @@ impl LmpListener {
         use rustyl4api::vspace::Permission;
 
         let conn_msg = self.receiver.receive().await?;
-        let c_ntf_ep = EpCap::new(conn_msg.cap_transfer.unwrap());
+        let c_ntf_ep = conn_msg.cap_transfer.ok_or(Error::ProtocolError)?;
+        let c_ntf_ep = EpCap::new(c_ntf_ep);
 
-        let receiver = EP_SERVER.derive_receiver();
+        let receiver = EP_SERVER.derive_receiver().ok_or(Error::NoReceiver)?;
         let s_ntf_ep = copy_cap(&receiver.ep).unwrap();
         c_ntf_ep.send(&[], Some(s_ntf_ep.into_slot())).unwrap();
 
         let shm_msg = receiver.receive().await?;
-        let buf_cap = RamCap::new(shm_msg.cap_transfer.unwrap());
+        let buf_cap = shm_msg.cap_transfer.ok_or(Error::ProtocolError)?;
+        let buf_cap = RamCap::new(buf_cap);
         let buf_ptr = gsm!().insert_ram_at(buf_cap, 0, Permission::writable());
 
         let argbuf = unsafe { ArgumentBuffer::new(buf_ptr as *mut usize, 4096) };

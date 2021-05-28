@@ -19,6 +19,7 @@ use crate::{
     path::{Path, PathBuf},
     rpc::RpcClient,
     Result,
+    Error,
 };
 
 pub struct File {
@@ -46,8 +47,8 @@ impl File {
     }
 
     pub async fn connect(ep: &EpCap) -> Result<Self> {
-        let receiver = EP_SERVER.derive_receiver();
-        let cli = RpcClient::connect(ep, receiver).await.unwrap();
+        let receiver = EP_SERVER.derive_receiver().ok_or(Error::NoReceiver)?;
+        let cli = RpcClient::connect(ep, receiver).await?;
         Ok(Self::new(cli))
     }
 
