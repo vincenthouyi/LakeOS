@@ -4,9 +4,7 @@ use crate::path::{Path, PathBuf};
 use crate::Result;
 
 lazy_static! {
-    static ref PWD: Mutex<PathBuf> = {
-        Mutex::new(Path::new("/").into())
-    };
+    static ref PWD: Mutex<PathBuf> = Mutex::new(Path::new("/").into());
 }
 
 pub fn current_dir() -> Result<PathBuf> {

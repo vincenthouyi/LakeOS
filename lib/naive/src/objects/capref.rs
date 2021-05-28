@@ -1,10 +1,13 @@
-use core::ops::Deref;
-use core::convert::From;
+use super::{
+    CNodeObj, CapSlot, Capability, EndpointObj, InterruptObj, KernelObject, MonitorObj, RamObj,
+    ReplyObj, TcbObj, UntypedObj, VTableObj,
+};
 use alloc::sync::Arc;
-use super::{Capability, KernelObject, CNodeObj, EndpointObj, InterruptObj, MonitorObj, RamObj, ReplyObj, TcbObj, UntypedObj, VTableObj, CapSlot};
+use core::convert::From;
+use core::ops::Deref;
 
 #[derive(Clone, Debug)]
-pub struct CapRef<T: KernelObject> (Arc<Capability<T>>);
+pub struct CapRef<T: KernelObject>(Arc<Capability<T>>);
 
 impl<T: KernelObject> CapRef<T> {
     pub fn from_inner(inner: Capability<T>) -> CapRef<T> {
@@ -23,7 +26,9 @@ impl<T: KernelObject> CapRef<T> {
 impl<T: KernelObject> Deref for CapRef<T> {
     type Target = Capability<T>;
 
-    fn deref(&self) -> &Self::Target { &self.0 }
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 impl<T: KernelObject> From<CapSlot> for CapRef<T> {

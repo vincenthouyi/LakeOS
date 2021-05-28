@@ -29,11 +29,11 @@ struct CNodeBlock {
 impl CNodeBlock {
     pub fn new(cap: CNodeRef, start: usize, size: usize) -> Self {
         let mut free_slots = LinkedList::new();
-        free_slots.push_back(start .. start + size);
+        free_slots.push_back(start..start + size);
         Self {
             cap: cap,
-            range: start .. start + size,
-            free_slots: Mutex::new(free_slots)
+            range: start..start + size,
+            free_slots: Mutex::new(free_slots),
         }
     }
 
@@ -75,8 +75,8 @@ impl CNodeBlock {
                         }
                     } else {
                         let cur_range = range.clone();
-                        cur.insert_before(cur_range.start .. slot);
-                        cur.insert_after(slot + 1 .. cur_range.end);
+                        cur.insert_before(cur_range.start..slot);
+                        cur.insert_after(slot + 1..cur_range.end);
                         cur.remove_current().unwrap();
                     }
                     break;
@@ -100,7 +100,11 @@ impl CNodeBlock {
         }
 
         if !self.range.contains(&slot) {
-            kprintln!("Warning: freeing slot {} not in block range {:?}", slot, self.range);
+            kprintln!(
+                "Warning: freeing slot {} not in block range {:?}",
+                slot,
+                self.range
+            );
             return;
         }
 
@@ -113,7 +117,7 @@ impl CNodeBlock {
                     range.end += 1;
                     let range = range.clone();
                     if let Some(next_range) = cur.peek_next() {
-                        if range.end == next_range.start{
+                        if range.end == next_range.start {
                             next_range.start = range.start;
                             cur.remove_current();
                         }
@@ -125,7 +129,7 @@ impl CNodeBlock {
                 }
                 cur.move_next();
             } else {
-                cur.insert_after(slot..slot+1);
+                cur.insert_after(slot..slot + 1);
                 return;
             }
         }
@@ -140,7 +144,11 @@ pub struct CSpaceMan {
 impl CSpaceMan {
     pub fn new(root_cnode: CNodeRef, root_cn_size: usize) -> Self {
         Self {
-            root_cn_block: CNodeBlock::new(root_cnode, ProcessCSpace::WellKnownMax as usize, root_cn_size - ProcessCSpace::WellKnownMax as usize),
+            root_cn_block: CNodeBlock::new(
+                root_cnode,
+                ProcessCSpace::WellKnownMax as usize,
+                root_cn_size - ProcessCSpace::WellKnownMax as usize,
+            ),
         }
     }
 

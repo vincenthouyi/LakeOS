@@ -1,4 +1,3 @@
-
 extern crate alloc;
 
 use crate::objects::KernelObject;
@@ -12,9 +11,11 @@ pub mod vspace_man;
 use core::alloc::Layout;
 
 use crate::objects::identify::IdentifyResult;
-use crate::objects::{Capability, RamCap, RamObj, VTableObj, VTableCap, CapSlot, CNodeRef, VTableRef, UntypedCap};
+use crate::objects::{
+    CNodeRef, CapSlot, Capability, RamCap, RamObj, UntypedCap, VTableCap, VTableObj, VTableRef,
+};
 
-use vspace_man::{VSpaceManError, VSpaceEntry};
+use vspace_man::{VSpaceEntry, VSpaceManError};
 
 #[derive(Debug)]
 pub struct SpaceManager {
@@ -25,11 +26,7 @@ pub struct SpaceManager {
 }
 
 impl SpaceManager {
-    pub fn new(
-        root_cnode: CNodeRef,
-        root_cnode_size: usize,
-        root_vnode: VTableRef,
-    ) -> Self {
+    pub fn new(root_cnode: CNodeRef, root_cnode_size: usize, root_vnode: VTableRef) -> Self {
         Self {
             vspace_man: vspace_man::VSpaceMan::new(root_vnode),
             cspace_man: cspace_man::CSpaceMan::new(root_cnode, root_cnode_size),
@@ -73,15 +70,19 @@ impl SpaceManager {
                 is_device: _,
             } => {
                 let cap = RamCap::new(slot);
-                self.vspace_man.map_frame(cap.into(), mapped_vaddr, Permission::writable(), 4, false).unwrap();
+                self.vspace_man
+                    .map_frame(cap.into(), mapped_vaddr, Permission::writable(), 4, false)
+                    .unwrap();
             }
             IdentifyResult::VTable {
                 mapped_vaddr,
                 mapped_asid: _,
                 level,
             } if level > 1 => {
-                let cap= Capability::<VTableObj>::new(slot);
-                self.vspace_man.map_table(cap.into(), mapped_vaddr, level - 1, false).unwrap();
+                let cap = Capability::<VTableObj>::new(slot);
+                self.vspace_man
+                    .map_table(cap.into(), mapped_vaddr, level - 1, false)
+                    .unwrap();
             }
             // IdentifyResult::CNode { bit_sz: _ } => {}
             // IdentifyResult::NullObj => {}
@@ -90,7 +91,7 @@ impl SpaceManager {
             // IdentifyResult::Reply => {}
             // IdentifyResult::Monitor => {}
             // IdentifyResult::Interrupt => {}
-            _ => { core::mem::forget(slot) }
+            _ => core::mem::forget(slot),
         };
     }
 
@@ -171,7 +172,6 @@ impl SpaceManager {
                         panic!("unexpected error {:?}", e);
                     }
                 }
-
             } else {
                 break;
             }
@@ -188,7 +188,14 @@ impl SpaceManager {
         self.vspace_man.install_entry(entry, do_map).unwrap();
     }
 
-    pub fn install_ram(&self, ram: RamCap, vaddr: usize, perm: Permission, level: usize, do_map:bool) {
+    pub fn install_ram(
+        &self,
+        ram: RamCap,
+        vaddr: usize,
+        perm: Permission,
+        level: usize,
+        do_map: bool,
+    ) {
         let entry = vspace_man::VSpaceEntry::new_frame(ram.into(), vaddr, perm, level);
         self.vspace_man.install_entry(entry, do_map).unwrap();
     }

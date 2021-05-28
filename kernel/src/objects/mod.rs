@@ -13,8 +13,8 @@ mod vtable;
 
 use core::cell::Cell;
 use core::marker::PhantomData;
-use core::ptr::NonNull;
 use core::num::NonZeroUsize;
+use core::ptr::NonNull;
 
 pub use cnode::*;
 pub use endpoint::*;
@@ -81,21 +81,20 @@ impl<'a, T: KernelObject + ?Sized> CapRef<'a, T> {
 }
 
 pub fn cnode_entry_append_next(src: &CNodeEntry, dst: &CNodeEntry) {
-        let mut src_raw = src.get();
-        let mut dst_raw = dst.get();
-        let orig_next = src_raw.get_next();
-        orig_next.map(|next_ptr| {
-            let next_cap = unsafe { next_ptr.as_ref() };
-            let mut next_raw = next_cap.get();
-            next_raw.set_prev(Some(NonNull::from(dst)));
-            next_cap.set(next_raw);
-        });
-        dst_raw.set_next(orig_next);
-        dst_raw.set_prev(Some(NonNull::from(src)));
-        dst.set(dst_raw);
-        src_raw.set_next(Some(NonNull::from(dst)));
-        src.set(src_raw);
-
+    let mut src_raw = src.get();
+    let mut dst_raw = dst.get();
+    let orig_next = src_raw.get_next();
+    orig_next.map(|next_ptr| {
+        let next_cap = unsafe { next_ptr.as_ref() };
+        let mut next_raw = next_cap.get();
+        next_raw.set_prev(Some(NonNull::from(dst)));
+        next_cap.set(next_raw);
+    });
+    dst_raw.set_next(orig_next);
+    dst_raw.set_prev(Some(NonNull::from(src)));
+    dst.set(dst_raw);
+    src_raw.set_next(Some(NonNull::from(dst)));
+    src.set(src_raw);
 }
 
 impl<'a, T: KernelObject + Sized> CapRef<'a, T> {
@@ -227,6 +226,6 @@ pub fn cap_derive(cap_slot: &CNodeEntry, badge: Option<NonZeroUsize>) -> SysResu
             let cap = RamCap::try_from(cap_slot).unwrap();
             Ok(cap.derive())
         }
-        _ => { Ok(cap_slot.get()) }
+        _ => Ok(cap_slot.get()),
     }
 }

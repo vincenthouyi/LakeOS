@@ -44,7 +44,7 @@ impl<'a> Command<'a> {
         let file = File::open(path).await;
         if let Err(e) = file {
             println!("Error opening file {:?}", e).await;
-            return Err(())
+            return Err(());
         }
         let mut file = file.unwrap();
         let mut buf = Vec::new();
@@ -117,16 +117,14 @@ impl<'a> Command<'a> {
                     self.sleep(s).await.unwrap();
                 }
             }
-            ["readmem", addr] => {
-                match addr.parse() {
-                    Ok(addr) => {
-                        self.readmem(addr).await.unwrap();
-                    }
-                    Err(e) => {
-                        println!("error while parsing address {}: {:?}", addr, e).await;
-                    }
+            ["readmem", addr] => match addr.parse() {
+                Ok(addr) => {
+                    self.readmem(addr).await.unwrap();
                 }
-            }
+                Err(e) => {
+                    println!("error while parsing address {}: {:?}", addr, e).await;
+                }
+            },
             [] => { /* Ignore empty command */ }
             cmd => {
                 println!("unknown command: {:?}", cmd).await;

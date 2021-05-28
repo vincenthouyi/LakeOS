@@ -10,8 +10,8 @@ extern crate lazy_static;
 // mod rt;
 mod devfs;
 mod initfs;
-mod vfs;
 mod rootfs;
+mod vfs;
 
 use core::ptr::NonNull;
 
@@ -21,25 +21,23 @@ use alloc::vec::Vec;
 use async_trait::async_trait;
 
 use naive::lmp::LmpListener;
-use naive::objects::{EpCap, CapSlot, IrqRef, MonitorRef, RamObj, KernelObject, RamCap};
+use naive::objects::{CapSlot, EpCap, IrqRef, KernelObject, MonitorRef, RamCap, RamObj};
 use naive::rpc::{
     self, LookupServiceRequest, LookupServiceResponse, RegisterServiceRequest,
     RegisterServiceResponse, RequestIrqRequest, RequestIrqResponse, RequestMemoryRequest,
     RequestMemoryResponse, RpcServer,
 };
-use naive::space_manager::{gsm, copy_cap};
+use naive::space_manager::{copy_cap, gsm};
 use rustyl4api::init::InitCSpaceSlot;
 use spin::Mutex;
 
 use vfs::Vfs;
 
 lazy_static! {
-    pub static ref IRQ_CAP: IrqRef = {
-        IrqRef::from_slot_num(InitCSpaceSlot::IrqController as usize)
-    };
-    pub static ref MONITOR_CAP: MonitorRef = {
-        MonitorRef::from_slot_num(InitCSpaceSlot::Monitor as usize)
-    };
+    pub static ref IRQ_CAP: IrqRef =
+        IrqRef::from_slot_num(InitCSpaceSlot::IrqController as usize);
+    pub static ref MONITOR_CAP: MonitorRef =
+        MonitorRef::from_slot_num(InitCSpaceSlot::Monitor as usize);
 }
 
 pub fn allocate_frame_at(paddr: usize, _size: usize) -> Option<NonNull<u8>> {
@@ -58,7 +56,7 @@ pub fn alloc_object_at<T: KernelObject>(
 ) -> Option<RamCap> {
     // let monitor_cap = Capability::<MonitorObj>::new(CapSlot::new(Monitor as usize));
     let ut_slot = gsm!().cspace_alloc()?;
-    let ut_cap = MONITOR_CAP 
+    let ut_cap = MONITOR_CAP
         .mint_untyped(ut_slot, paddr, bit_sz, maybe_device)
         .ok()?;
     let obj_slot = gsm!().cspace_alloc()?;
@@ -100,7 +98,9 @@ impl rpc::RpcRequestHandlers for InitThreadApi {
         mut cap: Vec<CapSlot>,
     ) -> naive::Result<(RegisterServiceResponse, Vec<CapSlot>)> {
         let slot = cap.pop().unwrap();
-        VFS.lock().publish(&request.name, EpCap::new(slot).into()).map_err(|_| naive::Error::InternalError)?;
+        VFS.lock()
+            .publish(&request.name, EpCap::new(slot).into())
+            .map_err(|_| naive::Error::InternalError)?;
         Ok((RegisterServiceResponse {}, alloc::vec![]))
     }
 
@@ -109,7 +109,9 @@ impl rpc::RpcRequestHandlers for InitThreadApi {
         request: &LookupServiceRequest,
     ) -> naive::Result<(LookupServiceResponse, Vec<CapSlot>)> {
         let mut vfs_guard = VFS.lock();
-        let node = vfs_guard.open(&request.name).map_err(|_| naive::Error::InternalError)?;
+        let node = vfs_guard
+            .open(&request.name)
+            .map_err(|_| naive::Error::InternalError)?;
 
         let ep = naive::space_manager::copy_cap(&node.cap).unwrap();
         Ok((LookupServiceResponse {}, alloc::vec![ep.into_slot()]))
@@ -117,9 +119,7 @@ impl rpc::RpcRequestHandlers for InitThreadApi {
 }
 
 lazy_static! {
-    static ref VFS: Mutex<Vfs> = {
-        Mutex::new(Vfs::new())
-    };
+    static ref VFS: Mutex<Vfs> = Mutex::new(Vfs::new());
 }
 
 #[naive::main]

@@ -5,8 +5,8 @@ use alloc::sync::Arc;
 
 use hashbrown::HashMap;
 
-use naive::path::{Component, Path, PathBuf};
 use naive::objects::EpRef;
+use naive::path::{Component, Path, PathBuf};
 
 pub use dcache::*;
 pub use inode::*;
@@ -60,9 +60,7 @@ impl Vfs {
         if entry.is_negative() {
             return Err(());
         }
-        let ep = entry
-            .open()?
-            .ok_or(())?;
+        let ep = entry.open()?.ok_or(())?;
         let ret = Ok(IndexNode {
             cap: ep.clone(),
             node_type: NodeType::File,

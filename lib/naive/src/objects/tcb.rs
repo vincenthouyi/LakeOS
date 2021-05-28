@@ -1,8 +1,8 @@
+use crate::objects::ObjType;
 use rustyl4api::error::SysResult;
 use rustyl4api::syscall::{syscall, MsgInfo, SyscallOp};
-use crate::objects::ObjType;
 
-use super::{Capability, KernelObject, VTableCap, CNodeCap, EpCap};
+use super::{CNodeCap, Capability, EpCap, KernelObject, VTableCap};
 
 pub use rustyl4api::objects::{TCB_OBJ_BIT_SZ, TCB_OBJ_SZ};
 
@@ -17,13 +17,18 @@ impl KernelObject for TcbObj {
 }
 
 impl Capability<TcbObj> {
-    pub fn configure(&self, vspace_cap: Option<&VTableCap>, cspace_cap: Option<&CNodeCap>, fault_handler_ep_cap: Option<&EpCap>) -> SysResult<()> {
+    pub fn configure(
+        &self,
+        vspace_cap: Option<&VTableCap>,
+        cspace_cap: Option<&CNodeCap>,
+        fault_handler_ep_cap: Option<&EpCap>,
+    ) -> SysResult<()> {
         let info = MsgInfo::new(SyscallOp::TcbConfigure, 3);
         let mut args = [
             self.slot(),
-            vspace_cap.map(|c| c.slot() ).unwrap_or(0),
-            cspace_cap.map(|c| c.slot() ).unwrap_or(0),
-            fault_handler_ep_cap.map(|c| c.slot() ).unwrap_or(0),
+            vspace_cap.map(|c| c.slot()).unwrap_or(0),
+            cspace_cap.map(|c| c.slot()).unwrap_or(0),
+            fault_handler_ep_cap.map(|c| c.slot()).unwrap_or(0),
             0,
             0,
         ];

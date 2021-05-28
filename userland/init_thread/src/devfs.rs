@@ -4,8 +4,8 @@ use alloc::vec::Vec;
 use hashbrown::HashMap;
 use spin::Mutex;
 
-use naive::path::{Path, PathBuf};
 use naive::objects::EpRef;
+use naive::path::{Path, PathBuf};
 
 use crate::vfs::{self, INode};
 

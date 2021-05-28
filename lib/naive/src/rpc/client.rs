@@ -3,10 +3,10 @@ use alloc::vec::Vec;
 use crate::objects::{EpCap, InterruptCap, RamCap};
 
 use crate::{
+    ep_receiver::EpReceiver,
     lmp::{LmpChannelHandle, LmpMessage},
     path::{Path, PathBuf},
     Result,
-    ep_receiver::EpReceiver,
 };
 
 use super::message::*;
@@ -21,7 +21,9 @@ impl RpcClient {
     }
 
     pub async fn connect(server_ep: &EpCap, receiver: EpReceiver) -> Result<Self> {
-        let channel = LmpChannelHandle::connect(server_ep, receiver).await.map_err(|_| crate::Error::Invalid)?;
+        let channel = LmpChannelHandle::connect(server_ep, receiver)
+            .await
+            .map_err(|_| crate::Error::Invalid)?;
         let client = Self::new(channel);
         Ok(client)
     }
@@ -112,11 +114,7 @@ impl RpcClient {
         Ok(InterruptCap::new(cap_slot))
     }
 
-    pub async fn register_service<P: AsRef<Path>>(
-        &mut self,
-        name: P,
-        cap: EpCap,
-    ) -> Result<()> {
+    pub async fn register_service<P: AsRef<Path>>(&mut self, name: P, cap: EpCap) -> Result<()> {
         let payload = RegisterServiceRequest {
             name: name.as_ref().to_path_buf(),
         };

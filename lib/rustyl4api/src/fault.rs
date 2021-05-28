@@ -11,7 +11,7 @@ impl Fault {
         Self::DataFault(VmFaultInfo {
             address: addr,
             level,
-            kind
+            kind,
         })
     }
 
@@ -19,7 +19,7 @@ impl Fault {
         Self::DataFault(VmFaultInfo {
             address: addr,
             level,
-            kind
+            kind,
         })
     }
 

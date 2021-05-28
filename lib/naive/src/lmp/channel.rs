@@ -1,21 +1,21 @@
-use alloc::vec::Vec;
 use alloc::boxed::Box;
+use alloc::vec::Vec;
 
+use core::ops::Drop;
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use core::ops::Drop;
 
-use futures_util::stream::Stream;
 use futures_util::future::BoxFuture;
 use futures_util::ready;
+use futures_util::stream::Stream;
 use spin::Mutex;
 
 use crate::{
-    ep_server::EP_SERVER,
     ep_receiver::EpReceiver,
-    space_manager::{gsm, copy_cap},
+    ep_server::EP_SERVER,
     objects::{EpCap, RamObj},
-    Result
+    space_manager::{copy_cap, gsm},
+    Result,
 };
 
 use super::{ArgumentBuffer, LmpMessage};
@@ -68,12 +68,7 @@ impl LmpChannel {
         /* send buffer cap to server */
         svr_ntf_ep.send(&[], Some(copied_cap.into_slot())).unwrap();
 
-        Ok(Self::new(
-            svr_ntf_ep,
-            receiver,
-            argbuf,
-            Role::Client,
-        ))
+        Ok(Self::new(svr_ntf_ep, receiver, argbuf, Role::Client))
     }
 
     fn send_channel(&mut self) -> &mut [u8] {
@@ -102,9 +97,7 @@ impl LmpChannel {
         chan[2] = (msg.msg.len() >> 8) as u8;
         chan[3..3 + msg.msg.len()].copy_from_slice(&msg.msg);
         let cap_slot = msg.caps.pop();
-        self.remote_ntf_ep
-            .send(&[], cap_slot)
-            .unwrap();
+        self.remote_ntf_ep.send(&[], cap_slot).unwrap();
     }
 
     fn recv_message(&mut self) -> Option<LmpMessage> {
@@ -171,7 +164,6 @@ impl LmpChannelHandle {
     }
 
     pub async fn poll_send<'a>(&'a self, msg: &'a mut LmpMessage) -> Result<()> {
-
         let mut inner = self.inner.lock();
 
         assert!(inner.can_send());
@@ -205,7 +197,7 @@ impl<'a> MessagesFuture<'a> {
     pub fn new(channel: &'a LmpChannelHandle) -> Self {
         Self {
             channel,
-            recv_state: None
+            recv_state: None,
         }
     }
 }
@@ -213,12 +205,13 @@ impl<'a> MessagesFuture<'a> {
 impl<'a> Stream for MessagesFuture<'a> {
     type Item = LmpMessage;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let Self { channel, recv_state } = &mut *self;
+        let Self {
+            channel,
+            recv_state,
+        } = &mut *self;
         let fut = recv_state.get_or_insert_with(|| {
             let channel = *channel;
-            let fut = || async move {
-                channel.poll_recv().await.unwrap()
-            };
+            let fut = || async move { channel.poll_recv().await.unwrap() };
             Box::pin(fut())
         });
 
@@ -231,6 +224,6 @@ impl<'a> Stream for MessagesFuture<'a> {
 
 impl Drop for LmpChannelHandle {
     fn drop(&mut self) {
-        self.disconnect();   
+        self.disconnect();
     }
 }

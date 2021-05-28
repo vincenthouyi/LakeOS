@@ -1,5 +1,5 @@
+use crate::objects::{CapSlot, Capability, KernelObject, UntypedCap, UntypedObj};
 use alloc::vec::Vec;
-use crate::objects::{Capability, CapSlot, KernelObject, UntypedObj, UntypedCap};
 use spin::Mutex;
 
 #[derive(Debug)]

@@ -1,14 +1,14 @@
 use alloc::sync::Arc;
-use core::sync::atomic::{AtomicUsize, Ordering};
 use core::num::NonZeroUsize;
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 use hashbrown::HashMap;
 use spin::{Mutex, MutexGuard};
 
-use crate::space_manager::{gsm, copy_cap_badged};
-use crate::ipc::{self, IpcMessage, FaultMessage};
-use crate::objects::{EpCap, EndpointObj};
 use crate::ep_receiver::EpReceiver;
+use crate::ipc::{self, FaultMessage, IpcMessage};
+use crate::objects::{EndpointObj, EpCap};
+use crate::space_manager::{copy_cap_badged, gsm};
 
 pub struct Ep {
     ep: EpCap,
@@ -49,8 +49,7 @@ impl EpServer {
     }
 
     fn get_event_handlers(&self) -> MutexGuard<HashMap<usize, Arc<dyn EpMsgHandler>>> {
-        self.event_handlers
-            .lock()
+        self.event_handlers.lock()
     }
 
     pub fn derive_badged_cap(&self) -> Option<(usize, EpCap)> {
@@ -136,12 +135,7 @@ impl EpServer {
 }
 
 pub trait EpMsgHandler: Send + Sync {
-    fn handle_ipc(
-        &self,
-        _ep_server: &EpServer,
-        _msg: ipc::Message,
-    ) {
-    }
+    fn handle_ipc(&self, _ep_server: &EpServer, _msg: ipc::Message) {}
 }
 
 pub trait EpNtfHandler: Send + Sync {

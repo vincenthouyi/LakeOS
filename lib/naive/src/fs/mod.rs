@@ -12,7 +12,7 @@ use crate::Result;
 pub fn canonicalize<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
     let path = path.as_ref();
     if path.is_relative() {
-        let mut path_buf= current_dir()?;
+        let mut path_buf = current_dir()?;
         path_buf.push(path);
         Ok(path_buf)
     } else {

@@ -1,10 +1,10 @@
-use rustyl4api::error::SysResult;
-use rustyl4api::syscall::{syscall, MsgInfo, RespInfo, SyscallOp};
-use rustyl4api::fault::Fault;
-use crate::objects::ObjType;
 use crate::ipc::{self, IpcMessage, IpcMessageType, IPC_MAX_ARGS};
+use crate::objects::ObjType;
+use rustyl4api::error::SysResult;
+use rustyl4api::fault::Fault;
+use rustyl4api::syscall::{syscall, MsgInfo, RespInfo, SyscallOp};
 
-use super::{Capability, KernelObject, CapSlot};
+use super::{CapSlot, Capability, KernelObject};
 
 #[derive(Debug, Clone)]
 pub struct EndpointObj {}
@@ -29,7 +29,14 @@ impl Capability<EndpointObj> {
 
     pub fn receive(&self, cap: Option<CapSlot>) -> SysResult<IpcMessage> {
         let info = MsgInfo::new_ipc(SyscallOp::EndpointRecv, 0, cap.is_some());
-        let mut args = [self.slot(), 0, 0, 0, 0, cap.as_ref().map(|c| c.slot()).unwrap_or(0)];
+        let mut args = [
+            self.slot(),
+            0,
+            0,
+            0,
+            0,
+            cap.as_ref().map(|c| c.slot()).unwrap_or(0),
+        ];
         let (retinfo, retbuf, badge) = syscall(info, &mut args)?;
 
         handle_receive_return(retinfo, retbuf, badge, cap)
@@ -73,7 +80,7 @@ fn handle_receive_return(
             let badge = if respinfo.badged { Some(badge) } else { None };
             let payload_len = msgbuf.len();
             real_msgbuf[..payload_len].copy_from_slice(msgbuf);
-            IpcMessage::Message( ipc::Message{
+            IpcMessage::Message(ipc::Message {
                 payload: real_msgbuf,
                 payload_len: payload_len,
                 need_reply: respinfo.need_reply,
@@ -85,10 +92,9 @@ fn handle_receive_return(
             let badge = if respinfo.badged { Some(badge) } else { None };
             let fault_info = Fault::from_ipc_message_buf(&msgbuf[0..3]);
             IpcMessage::Fault(ipc::FaultMessage {
-                    badge: badge,
-                    info: fault_info,
-                }
-            )
+                badge: badge,
+                info: fault_info,
+            })
         }
         IpcMessageType::Notification => IpcMessage::Notification(msgbuf[0]),
         IpcMessageType::Invalid => {

@@ -1,5 +1,5 @@
-use rustyl4api::error::{SysError, SysResult};
 use crate::objects::ObjType;
+use rustyl4api::error::{SysError, SysResult};
 use rustyl4api::syscall::{syscall, MsgInfo, SyscallOp};
 
 #[derive(Debug, Clone, Copy)]

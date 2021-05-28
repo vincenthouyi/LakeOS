@@ -9,9 +9,9 @@ use spin::Mutex;
 
 use naive::ep_server::EP_SERVER;
 use naive::lmp::LmpListener;
+use naive::objects::{CapSlot, EpRef};
 use naive::path::{Path, PathBuf};
 use naive::rpc::{self, ReadDirRequest, ReadDirResponse, RpcServer};
-use naive::objects::{CapSlot, EpRef};
 
 use crate::vfs::INode;
 

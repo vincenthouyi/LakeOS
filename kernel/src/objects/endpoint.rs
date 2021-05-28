@@ -1,11 +1,11 @@
-use core::num::NonZeroUsize;
-use sysapi::fault::Fault;
-use sysapi::syscall::SyscallOp;
 use super::*;
 use crate::objects::tcb::ThreadState;
 use crate::syscall::{MsgInfo, RespInfo};
 use crate::utils::tcb_queue::TcbQueue;
+use core::num::NonZeroUsize;
 use num_traits::FromPrimitive;
+use sysapi::fault::Fault;
+use sysapi::syscall::SyscallOp;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EpState {
     Free,
@@ -276,7 +276,6 @@ impl<'a> EndpointCap<'a> {
                 Ok(())
             }
             _ => {
-
                 let badge = self.badge();
                 if let Some(b) = badge {
                     sender.set_sending_badge(b);

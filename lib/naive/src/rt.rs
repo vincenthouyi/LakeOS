@@ -1,5 +1,5 @@
-use crate::space_manager::{gsm};
 use crate::objects::CapSlot;
+use crate::space_manager::gsm;
 
 const MEMPOOL_SIZE: usize = 4096;
 

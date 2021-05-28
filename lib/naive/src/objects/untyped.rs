@@ -1,7 +1,7 @@
 use rustyl4api::error::SysResult;
 use rustyl4api::syscall::{syscall, MsgInfo, SyscallOp};
 
-use super::{Capability, KernelObject, ObjType, CapSlot};
+use super::{CapSlot, Capability, KernelObject, ObjType};
 
 #[derive(Debug)]
 pub struct UntypedObj {}

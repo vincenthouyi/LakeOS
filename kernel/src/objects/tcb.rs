@@ -6,7 +6,7 @@ use sysapi::fault::Fault;
 use super::*;
 use crate::arch::trapframe::TrapFrame;
 use crate::cspace::CSpace;
-use crate::objects::{NullCap, EndpointCap};
+use crate::objects::{EndpointCap, NullCap};
 use crate::syscall::{MsgInfo, RespInfo};
 use crate::utils::tcb_queue::TcbQueueNode;
 use crate::vspace::VSpace;
@@ -168,7 +168,12 @@ impl TcbObj {
         Ok((pgd_cap.paddr() >> 12) & MASK!(16))
     }
 
-    pub fn configure(&self, cspace: Option<CNodeCap>, vspace: Option<VTableCap>, fault_handler_ep: Option<EndpointCap>) -> SysResult<()> {
+    pub fn configure(
+        &self,
+        cspace: Option<CNodeCap>,
+        vspace: Option<VTableCap>,
+        fault_handler_ep: Option<EndpointCap>,
+    ) -> SysResult<()> {
         if let Some(vs) = vspace {
             let dst_vspace = NullCap::try_from(&self.vspace)?;
             vs.derive(&dst_vspace)?;

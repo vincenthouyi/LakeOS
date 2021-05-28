@@ -1,14 +1,14 @@
-use core::task::{Waker, Poll, Context};
 use core::future::Future;
 use core::pin::Pin;
+use core::task::{Context, Poll, Waker};
 
 use alloc::sync::Arc;
 
-use crossbeam_queue::{SegQueue, ArrayQueue};
+use crossbeam_queue::{ArrayQueue, SegQueue};
 
+use crate::ep_server::{EpMsgHandler, EpServer};
 use crate::ipc::Message;
 use crate::objects::EpRef;
-use crate::ep_server::{EpServer, EpMsgHandler};
 use crate::Result;
 
 #[derive(Clone)]

@@ -82,7 +82,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             }
 
             //TODO: check children etc.
-            //TODO: changing next and prev cap ptr. 
+            //TODO: changing next and prev cap ptr.
             cap_slot.set(NullCap::mint());
             Ok(())
         }

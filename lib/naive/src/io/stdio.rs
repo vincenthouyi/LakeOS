@@ -47,9 +47,7 @@ static STDOUT: OnceCell<Arc<Mutex<File>>> = OnceCell::uninit();
 
 pub async fn stdout() -> Stdout {
     if !STDOUT.is_initialized() {
-        let fd = File::connect(&STDOUT_CAP)
-            .await
-            .unwrap();
+        let fd = File::connect(&STDOUT_CAP).await.unwrap();
         STDOUT.get_or_init(|| Arc::new(Mutex::new(fd)));
     }
     let inner = STDOUT.get().unwrap().clone();
@@ -96,9 +94,7 @@ static STDIN: OnceCell<Arc<Mutex<File>>> = OnceCell::uninit();
 
 pub async fn stdin() -> Stdin {
     if !STDIN.is_initialized() {
-        let fd = File::connect(&STDIN_CAP)
-            .await
-            .unwrap();
+        let fd = File::connect(&STDIN_CAP).await.unwrap();
         STDIN.get_or_init(|| Arc::new(Mutex::new(fd)));
     }
     let inner = STDIN.get().unwrap().clone();

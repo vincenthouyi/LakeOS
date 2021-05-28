@@ -5,15 +5,15 @@ use core::{
 
 use alloc::boxed::Box;
 
-use futures_util::stream::Stream;
 use futures_util::future::BoxFuture;
 use futures_util::ready;
+use futures_util::stream::Stream;
 
 use crate::{
-    ep_server::EP_SERVER,
     ep_receiver::EpReceiver,
-    space_manager::{gsm, copy_cap},
+    ep_server::EP_SERVER,
     objects::{EpCap, RamCap},
+    space_manager::{copy_cap, gsm},
     Result,
 };
 
@@ -26,9 +26,7 @@ pub struct LmpListener {
 
 impl LmpListener {
     pub fn new(receiver: EpReceiver) -> Self {
-        Self {
-            receiver
-        }
+        Self { receiver }
     }
 
     pub async fn accept(&self) -> Result<LmpChannelHandle> {
@@ -65,14 +63,14 @@ impl LmpListener {
 
 pub struct IncomingFuture<'a> {
     listener: &'a mut LmpListener,
-    accept_state: Option<BoxFuture<'a, Result<LmpChannelHandle>>>
+    accept_state: Option<BoxFuture<'a, Result<LmpChannelHandle>>>,
 }
 
 impl<'a> IncomingFuture<'a> {
     pub fn new(listener: &'a mut LmpListener) -> Self {
         Self {
             listener,
-            accept_state: None
+            accept_state: None,
         }
     }
 }
@@ -81,12 +79,13 @@ impl<'a> Stream for IncomingFuture<'a> {
     type Item = Result<LmpChannelHandle>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let Self { listener, accept_state } = &mut *self;
+        let Self {
+            listener,
+            accept_state,
+        } = &mut *self;
         let fut = accept_state.get_or_insert_with(|| {
             let listener = listener.clone();
-            let fut = || async move {
-                listener.accept().await
-            };
+            let fut = || async move { listener.accept().await };
             Box::pin(fut())
         });
 

@@ -2,8 +2,8 @@ use alloc::collections::linked_list::LinkedList;
 
 use spin::Mutex;
 
-use rustyl4api::error::SysResult;
 use crate::objects::{RamRef, VTableRef};
+use rustyl4api::error::SysResult;
 use rustyl4api::vspace::Permission;
 
 #[derive(Debug, Clone)]
@@ -103,7 +103,6 @@ impl VSpaceEntry {
             VSpaceEntry::Frame(f) => f.level,
             VSpaceEntry::Table(t) => t.level,
         }
-
     }
 }
 
@@ -124,12 +123,16 @@ pub struct FrameNode {
 
 impl FrameNode {
     pub const fn new(cap: RamRef, vaddr: usize, perm: Permission, level: usize) -> Self {
-        Self { vaddr, cap, perm, level }
+        Self {
+            vaddr,
+            cap,
+            perm,
+            level,
+        }
     }
 
     pub fn map_to_vspace(&self, root: &VTableRef) -> SysResult<()> {
-        self.cap
-            .map(root, self.vaddr, self.perm)
+        self.cap.map(root, self.vaddr, self.perm)
     }
 }
 
@@ -163,19 +166,21 @@ impl VTableNode {
             .find(|e| vaddr_to_idx(e.vaddr(), level) == idx)
     }
 
-    pub fn insert_entry(&mut self, entry: VSpaceEntry) -> Result<&VSpaceEntry, (VSpaceManError, VSpaceEntry)> {
+    pub fn insert_entry(
+        &mut self,
+        entry: VSpaceEntry,
+    ) -> Result<&VSpaceEntry, (VSpaceManError, VSpaceEntry)> {
         let vaddr = entry.vaddr();
 
         if self.lookup_entry(vaddr).is_some() {
-            return Err((VSpaceManError::SlotOccupied{ level: self.level }, entry))
+            return Err((VSpaceManError::SlotOccupied { level: self.level }, entry));
         }
         self.entry.push_back(entry);
         Ok(self.entry.back_mut().unwrap())
     }
 
     pub fn map_to_vspace(&self, root: &VTableRef) -> SysResult<()> {
-        self.cap
-            .map(root, self.vaddr, self.level + 1)
+        self.cap.map(root, self.vaddr, self.level + 1)
     }
 }
 
@@ -191,24 +196,32 @@ impl VSpace {
         self.0.as_vtable_node().unwrap().cap.clone()
     }
 
-    fn lookup_entry(&mut self, vaddr: usize, level: usize) -> Result<&mut VSpaceEntry, VSpaceManError> {
+    fn lookup_entry(
+        &mut self,
+        vaddr: usize,
+        level: usize,
+    ) -> Result<&mut VSpaceEntry, VSpaceManError> {
         let mut cur_level = 0;
         let mut cur_node = &mut self.0;
         while cur_level < level {
             cur_node = cur_node
                 .as_vtable_node_mut()
-                .ok_or(VSpaceManError::SlotTypeError{ level: cur_level })?
+                .ok_or(VSpaceManError::SlotTypeError { level: cur_level })?
                 .lookup_entry(vaddr)
-                .ok_or(VSpaceManError::PageTableMiss{ level: cur_level })?;
+                .ok_or(VSpaceManError::PageTableMiss { level: cur_level })?;
             cur_level += 1;
         }
         Ok(cur_node)
     }
 
-    pub fn install_entry(&mut self, entry: VSpaceEntry, do_map: bool) -> Result<(), (VSpaceManError, VSpaceEntry)> {
+    pub fn install_entry(
+        &mut self,
+        entry: VSpaceEntry,
+        do_map: bool,
+    ) -> Result<(), (VSpaceManError, VSpaceEntry)> {
         let vaddr = entry.vaddr();
         let level = entry.level();
-        let root_cap= self.root_cap();
+        let root_cap = self.root_cap();
 
         if level == 0 {
             todo!("install root entry");
@@ -225,15 +238,21 @@ impl VSpace {
         let parent_entry = parent_entry.unwrap();
         let entry = parent_entry.insert_entry(entry)?;
         if do_map {
-            entry.map_to_vspace(&root_cap).expect("failed to map to kernel");
+            entry
+                .map_to_vspace(&root_cap)
+                .expect("failed to map to kernel");
         }
         Ok(())
     }
 
     pub fn memory_unmap(&mut self, base_ptr: *mut u8, len: usize) {
-        let range = base_ptr as usize .. base_ptr as usize + len;
+        let range = base_ptr as usize..base_ptr as usize + len;
         'outer: for vaddr in range.step_by(4096) {
-            let table_entry = self.lookup_entry(vaddr, 3).unwrap().as_vtable_node_mut().unwrap();
+            let table_entry = self
+                .lookup_entry(vaddr, 3)
+                .unwrap()
+                .as_vtable_node_mut()
+                .unwrap();
             let mut cur = table_entry.entry.cursor_front_mut();
             cur.move_next();
             while cur.current().is_some() {
@@ -261,10 +280,12 @@ impl VSpaceMan {
         }
     }
 
-    pub fn install_entry(&self, entry: VSpaceEntry, do_map: bool) -> Result<(), (VSpaceManError, VSpaceEntry)> {
-        self.root
-            .lock()
-            .install_entry(entry, do_map)
+    pub fn install_entry(
+        &self,
+        entry: VSpaceEntry,
+        do_map: bool,
+    ) -> Result<(), (VSpaceManError, VSpaceEntry)> {
+        self.root.lock().install_entry(entry, do_map)
     }
 
     pub fn map_frame(
@@ -280,7 +301,13 @@ impl VSpaceMan {
             .map_err(|(e, ent)| (e, ent.into_ramcap().unwrap()))
     }
 
-    pub fn map_table(&self, table: VTableRef, vaddr: usize, level: usize, do_map: bool) -> Result<(), (VSpaceManError, VTableRef)> {
+    pub fn map_table(
+        &self,
+        table: VTableRef,
+        vaddr: usize,
+        level: usize,
+        do_map: bool,
+    ) -> Result<(), (VSpaceManError, VTableRef)> {
         let entry = VSpaceEntry::new_table(table, vaddr, level);
         self.install_entry(entry, do_map)
             .map_err(|(e, ent)| (e, ent.into_vtablecap().unwrap()))
@@ -291,6 +318,9 @@ impl VSpaceMan {
     }
 
     pub fn lookup_entry(&self, vaddr: usize, level: u8) -> Result<VSpaceEntry, VSpaceManError> {
-        self.root.lock().lookup_entry(vaddr, level as usize).map(|e| e.clone())
+        self.root
+            .lock()
+            .lookup_entry(vaddr, level as usize)
+            .map(|e| e.clone())
     }
 }

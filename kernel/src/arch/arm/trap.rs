@@ -135,7 +135,7 @@ impl From<u32> for Syndrome {
 }
 
 pub fn handle_vfault(tcb: &mut TcbObj, fault: SysFault) -> ! {
-    let tcb2 = unsafe { &mut *(tcb as *mut TcbObj)};
+    let tcb2 = unsafe { &mut *(tcb as *mut TcbObj) };
     let fault_handler_ep = tcb.fault_handler_ep().unwrap();
     fault_handler_ep.send_fault_ipc(tcb2, fault).unwrap();
 

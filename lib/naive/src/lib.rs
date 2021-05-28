@@ -28,12 +28,16 @@ extern crate lazy_static;
 
 #[macro_use]
 mod utils;
+pub mod ep_receiver;
 pub mod ep_server;
+pub mod error;
 pub mod fs;
 pub mod io;
+pub mod ipc;
 pub mod lmp;
 mod macros;
 pub mod ns;
+pub mod objects;
 pub mod os_str;
 mod os_str_bytes;
 mod panic;
@@ -42,17 +46,13 @@ pub mod process;
 pub mod rpc;
 pub mod rt;
 pub mod space_manager;
+mod spaceman;
 pub mod task;
 pub mod thread;
 pub mod time;
 mod vm_allocator;
-mod spaceman;
-pub mod objects;
-pub mod ipc;
-pub mod error;
-pub mod ep_receiver;
 
-pub use error::{Result, Error};
+pub use error::{Error, Result};
 
 pub use naive_attributes::main;
 

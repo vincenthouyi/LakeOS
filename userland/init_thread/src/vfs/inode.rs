@@ -1,5 +1,5 @@
-use naive::path::{Path, PathBuf};
 use naive::objects::EpRef;
+use naive::path::{Path, PathBuf};
 
 use alloc::sync::Arc;
 use alloc::vec::Vec;

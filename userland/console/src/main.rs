@@ -17,11 +17,8 @@ use async_trait::async_trait;
 use naive::io::AsyncWriteExt;
 use naive::lmp::LmpListener;
 use naive::ns::ns_client;
-use naive::rpc::{
-    ReadRequest, ReadResponse, RpcServer,
-    WriteRequest, WriteResponse,
-};
 use naive::objects::{CapSlot, RamCap};
+use naive::rpc::{ReadRequest, ReadResponse, RpcServer, WriteRequest, WriteResponse};
 use pi::interrupt::Interrupt;
 
 use futures_util::StreamExt;
@@ -54,7 +51,10 @@ impl naive::rpc::RpcRequestHandlers for ConsoleApi {
         ))
     }
 
-    async fn handle_read(&self, request: &ReadRequest) -> naive::Result<(ReadResponse, Vec<CapSlot>)> {
+    async fn handle_read(
+        &self,
+        request: &ReadRequest,
+    ) -> naive::Result<(ReadResponse, Vec<CapSlot>)> {
         let read_len = request.len;
         let mut buf = Vec::new();
         let mut con_stream = crate::console::console();

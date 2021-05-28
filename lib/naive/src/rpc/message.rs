@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::path::PathBuf;
 

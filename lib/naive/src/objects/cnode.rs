@@ -23,10 +23,22 @@ impl CNodeCap {
         self.cap_copy_badged(dst_slot, src_slot, None)
     }
 
-    pub fn cap_copy_badged(&self, dst_slot: usize, src_slot: usize, badge: Option<NonZeroUsize>) -> SysResult<()> {
+    pub fn cap_copy_badged(
+        &self,
+        dst_slot: usize,
+        src_slot: usize,
+        badge: Option<NonZeroUsize>,
+    ) -> SysResult<()> {
         let info = MsgInfo::new(SyscallOp::CapCopy, 3);
 
-        let mut args = [self.slot(), dst_slot, src_slot, badge.map(|b| b.get()).unwrap_or(0), 0, 0];
+        let mut args = [
+            self.slot(),
+            dst_slot,
+            src_slot,
+            badge.map(|b| b.get()).unwrap_or(0),
+            0,
+            0,
+        ];
 
         syscall(info, &mut args).map(|_| ())
     }

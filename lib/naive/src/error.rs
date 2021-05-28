@@ -1,4 +1,3 @@
-
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub enum Error {
     NotSupported,

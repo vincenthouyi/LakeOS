@@ -1,6 +1,6 @@
+use crate::objects::{CapSlot, ObjType};
 use rustyl4api::error::SysResult;
 use rustyl4api::syscall::{syscall, MsgInfo, SyscallOp};
-use crate::objects::{ObjType, CapSlot};
 
 use super::{Capability, KernelObject};
 

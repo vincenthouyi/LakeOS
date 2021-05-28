@@ -163,7 +163,13 @@ impl<'a> CapRef<'a, RamObj> {
     }
 
     pub fn derive(&self) -> CapRaw {
-        Self::mint(self.paddr(), self.is_writable(), self.is_readable(), self.size(), self.is_device())
+        Self::mint(
+            self.paddr(),
+            self.is_writable(),
+            self.is_readable(),
+            self.size(),
+            self.is_device(),
+        )
     }
 }
 

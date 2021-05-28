@@ -290,7 +290,9 @@ impl VSpace {
 
     pub fn from_asid(asid: usize) -> Self {
         let addr = (asid << 12) + crate::prelude::KERNEL_OFFSET;
-        Self { root: addr as *mut Table }
+        Self {
+            root: addr as *mut Table,
+        }
     }
 }
 

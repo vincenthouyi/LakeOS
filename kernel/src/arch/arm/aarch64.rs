@@ -1,4 +1,3 @@
-
 pub fn mpidr_el1() -> u64 {
     let x;
     unsafe {
@@ -22,7 +21,9 @@ pub fn dsb() {
 
 #[inline(always)]
 pub fn dmb() {
-    unsafe { llvm_asm!("dmb sy" ::: "memory": "volatile"); }
+    unsafe {
+        llvm_asm!("dmb sy" ::: "memory": "volatile");
+    }
 }
 
 #[inline(always)]
@@ -129,9 +130,7 @@ pub fn clean_l1_cache() {
     dsb();
     clean_dcache_poc();
     dsb();
-    unsafe {
-        llvm_asm!("ic iallu")
-    }
+    unsafe { llvm_asm!("ic iallu") }
     isb();
     dsb();
 }

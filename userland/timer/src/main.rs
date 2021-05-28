@@ -12,8 +12,8 @@ use async_trait::async_trait;
 
 use naive::lmp::LmpListener;
 use naive::ns::ns_client;
-use naive::rpc::{ReadRequest, ReadResponse, RpcServer};
 use naive::objects::{CapSlot, RamCap};
+use naive::rpc::{ReadRequest, ReadResponse, RpcServer};
 
 mod timer;
 
@@ -31,7 +31,10 @@ struct TimerApi;
 
 #[async_trait]
 impl naive::rpc::RpcRequestHandlers for TimerApi {
-    async fn handle_read(&self, _request: &ReadRequest) -> naive::Result<(ReadResponse, Vec<CapSlot>)> {
+    async fn handle_read(
+        &self,
+        _request: &ReadRequest,
+    ) -> naive::Result<(ReadResponse, Vec<CapSlot>)> {
         let time = timer::current_time();
         let time_buf: [u8; 8] = unsafe { core::mem::transmute(time) };
         Ok((

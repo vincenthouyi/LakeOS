@@ -1,5 +1,5 @@
-pub use rustyl4api::ipc::*;
 pub use rustyl4api::fault::Fault;
+pub use rustyl4api::ipc::*;
 
 use crate::objects::CapSlot;
 

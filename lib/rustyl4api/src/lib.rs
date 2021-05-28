@@ -12,6 +12,7 @@ extern crate num_derive;
 #[macro_use]
 pub mod debug_printer;
 pub mod error;
+pub mod fault;
 pub mod init;
 pub mod ipc;
 pub mod objects;
@@ -20,4 +21,3 @@ pub mod syscall;
 pub mod thread;
 pub(crate) mod utils;
 pub mod vspace;
-pub mod fault;

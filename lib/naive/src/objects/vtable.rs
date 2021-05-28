@@ -1,7 +1,7 @@
 use rustyl4api::error::SysResult;
 use rustyl4api::syscall::{syscall, MsgInfo, SyscallOp};
 
-use super::{Capability, ObjType, KernelObject};
+use super::{Capability, KernelObject, ObjType};
 
 #[derive(Debug, Clone)]
 pub struct VTableObj {}

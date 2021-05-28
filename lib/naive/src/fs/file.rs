@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec::Vec, sync::Arc};
+use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use core::{
     convert::AsRef,
     pin::Pin,
@@ -7,17 +7,17 @@ use core::{
 
 use spin::Mutex;
 
-use futures_util::io::{AsyncRead, AsyncWrite};
 use futures_util::future::BoxFuture;
+use futures_util::io::{AsyncRead, AsyncWrite};
 use futures_util::ready;
 
 use crate::{
     ep_server::EP_SERVER,
     io,
     ns::ns_client,
+    objects::EpCap,
     path::{Path, PathBuf},
     rpc::RpcClient,
-    objects::EpCap,
     Result,
 };
 
@@ -40,11 +40,7 @@ impl File {
 
     pub async fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         let path = super::canonicalize(path)?;
-        let resp_cap = ns_client()
-            .await
-            .lock()
-            .lookup_service(&path)
-            .await?;
+        let resp_cap = ns_client().await.lock().lookup_service(&path).await?;
         let ret = Self::connect(&resp_cap).await;
         ret
     }
@@ -66,7 +62,12 @@ impl AsyncWrite for File {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        let Self { client, offset, read_state: _, write_state } = &mut *self;
+        let Self {
+            client,
+            offset,
+            read_state: _,
+            write_state,
+        } = &mut *self;
         let write_fut = write_state.get_or_insert_with(|| {
             let fut_cli = client.clone();
             let buf = buf.to_vec();
@@ -80,7 +81,7 @@ impl AsyncWrite for File {
 
         let write_len = ready!(write_fut.as_mut().poll(cx))
             .map_err(|_| io::Error::new(io::ErrorKind::Other, "foo"))?;
-    
+
         *offset += write_len;
         write_state.take();
         Poll::Ready(Ok(write_len))
@@ -101,7 +102,12 @@ impl AsyncRead for File {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        let Self { client, offset, read_state, write_state: _ } = &mut *self;
+        let Self {
+            client,
+            offset,
+            read_state,
+            write_state: _,
+        } = &mut *self;
         let buflen = buf.len();
         let read_fut = read_state.get_or_insert_with(|| {
             let fut_cli = client.clone();

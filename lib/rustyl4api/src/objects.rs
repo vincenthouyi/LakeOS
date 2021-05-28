@@ -1,4 +1,3 @@
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug, FromPrimitive, ToPrimitive)]
 pub enum ObjType {
     NullObj = 0,

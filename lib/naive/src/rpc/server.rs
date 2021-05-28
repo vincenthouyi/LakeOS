@@ -93,7 +93,12 @@ pub trait RpcRequestHandlers {
         Err(Error::NotSupported)
     }
 
-    async fn __handle_request(&self, opcode: u8, request: RpcRequest, cap: Vec<CapSlot>) -> Result<(Vec<u8>, Vec<CapSlot>)> {
+    async fn __handle_request(
+        &self,
+        opcode: u8,
+        request: RpcRequest,
+        cap: Vec<CapSlot>,
+    ) -> Result<(Vec<u8>, Vec<CapSlot>)> {
         let r = match opcode {
             0 => {
                 let request: WriteRequest =
@@ -122,9 +127,7 @@ pub trait RpcRequestHandlers {
             4 => {
                 let request_msg =
                     serde_json::from_slice(&request.payload).map_err(|_| Error::Invalid)?;
-                let (resp, cap) = self
-                    .handle_register_service(&request_msg, cap)
-                    .await?;
+                let (resp, cap) = self.handle_register_service(&request_msg, cap).await?;
                 (serde_json::to_vec(&resp).unwrap(), cap)
             }
             5 => {
@@ -154,11 +157,21 @@ pub trait RpcRequestHandlers {
                 .map_or_else(
                     |e| (RpcResponse { payload: Err(e) }, Vec::new()),
                     |(rpc_resp, caps)| {
-                        (RpcResponse { payload: Ok(rpc_resp) }, caps)
-                    }
+                        (
+                            RpcResponse {
+                                payload: Ok(rpc_resp),
+                            },
+                            caps,
+                        )
+                    },
                 )
         } else {
-            (RpcResponse { payload: Err(Error::Invalid) }, Vec::new())
+            (
+                RpcResponse {
+                    payload: Err(Error::Invalid),
+                },
+                Vec::new(),
+            )
         };
         LmpMessage {
             msg: serde_json::to_vec(&rpc_resp).unwrap(),
