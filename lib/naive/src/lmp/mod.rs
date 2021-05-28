@@ -7,7 +7,7 @@ mod listener;
 pub use listener::LmpListener;
 
 mod channel;
-pub use channel::{LmpChannel, LmpChannelHandle, Role};
+pub use channel::{LmpChannel, Role};
 
 pub trait LmpHandler: Send + Sync {
     fn handle_message(&self, msg: LmpMessage);

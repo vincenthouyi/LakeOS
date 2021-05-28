@@ -1,14 +1,4 @@
-use alloc::boxed::Box;
 use alloc::vec::Vec;
-
-use core::ops::Drop;
-use core::pin::Pin;
-use core::task::{Context, Poll};
-
-use futures_util::future::BoxFuture;
-use futures_util::ready;
-use futures_util::stream::Stream;
-use spin::Mutex;
 
 use crate::{
     ep_receiver::EpReceiver,
@@ -116,116 +106,37 @@ impl LmpChannel {
         Some(msg)
     }
 
-    pub fn can_send(&mut self) -> bool {
+    fn can_send(&mut self) -> bool {
         self.send_channel()[0] == 0
     }
 
-    pub fn can_recv(&mut self) -> bool {
+    fn can_recv(&mut self) -> bool {
         self.recv_channel()[0] == 0
     }
 
     pub fn notification_badge(&self) -> usize {
         self.receiver.badge
     }
-}
 
-pub struct LmpChannelHandle {
-    pub inner: Mutex<LmpChannel>,
-}
-
-impl LmpChannelHandle {
-    pub fn new(
-        remote_ntf_ep: EpCap,
-        receiver: EpReceiver,
-        argbuf: ArgumentBuffer,
-        role: Role,
-    ) -> Self {
-        let inner = LmpChannel::new(remote_ntf_ep, receiver, argbuf, role);
-        Self::from_inner(inner)
-    }
-
-    pub fn from_inner(inner: LmpChannel) -> Self {
-        Self {
-            inner: Mutex::new(inner),
-        }
-    }
-
-    pub async fn connect(server_ep: &EpCap, receiver: EpReceiver) -> Result<Self> {
-        let inner = LmpChannel::connect(server_ep, receiver).await?;
-        let chan = Self::from_inner(inner);
-        Ok(chan)
-    }
-
-    pub fn disconnect(&self) {
-        let badge = self.inner.lock().notification_badge();
+    pub fn disconnect(self) {
+        let badge = self.notification_badge();
         EP_SERVER.remove_event(badge);
     }
 
-    pub fn send_message(&self, msg: &mut LmpMessage) {
-        self.inner.lock().send_message(msg)
-    }
+    pub async fn poll_send<'a>(&'a mut self, msg: &'a mut LmpMessage) -> Result<()> {
+        assert!(self.can_send());
 
-    pub async fn poll_send<'a>(&'a self, msg: &'a mut LmpMessage) -> Result<()> {
-        let mut inner = self.inner.lock();
-
-        assert!(inner.can_send());
-
-        inner.send_message(msg);
+        self.send_message(msg);
 
         Ok(())
     }
 
-    pub async fn poll_recv(&self) -> Result<LmpMessage> {
-        let mut inner = self.inner.lock();
-        let ep_msg = inner.receiver.receive().await?;
-        let mut msg = inner.recv_message().unwrap();
+    pub async fn poll_recv(&mut self) -> Result<LmpMessage> {
+        let ep_msg = self.receiver.receive().await?;
+        let mut msg = self.recv_message().unwrap();
         if let Some(cap) = ep_msg.cap_transfer {
             msg.caps.push(cap);
         }
         Ok(msg)
-    }
-
-    pub fn messages(&self) -> MessagesFuture<'_> {
-        MessagesFuture::new(self)
-    }
-}
-
-pub struct MessagesFuture<'a> {
-    channel: &'a LmpChannelHandle,
-    recv_state: Option<BoxFuture<'a, Result<LmpMessage>>>,
-}
-
-impl<'a> MessagesFuture<'a> {
-    pub fn new(channel: &'a LmpChannelHandle) -> Self {
-        Self {
-            channel,
-            recv_state: None,
-        }
-    }
-}
-
-impl<'a> Stream for MessagesFuture<'a> {
-    type Item = LmpMessage;
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let Self {
-            channel,
-            recv_state,
-        } = &mut *self;
-        let fut = recv_state.get_or_insert_with(|| {
-            let channel = *channel;
-            let fut = || async move { channel.poll_recv().await };
-            Box::pin(fut())
-        });
-
-        let msg = ready!(fut.as_mut().poll(cx));
-
-        recv_state.take();
-        Poll::Ready(msg.ok())
-    }
-}
-
-impl Drop for LmpChannelHandle {
-    fn drop(&mut self) {
-        self.disconnect();
     }
 }

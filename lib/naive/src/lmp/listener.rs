@@ -17,7 +17,7 @@ use crate::{
     Result, Error,
 };
 
-use super::{ArgumentBuffer, LmpChannel, LmpChannelHandle, Role};
+use super::{ArgumentBuffer, LmpChannel, Role};
 
 #[derive(Clone)]
 pub struct LmpListener {
@@ -29,7 +29,7 @@ impl LmpListener {
         Self { receiver }
     }
 
-    pub async fn accept(&self) -> Result<LmpChannelHandle> {
+    pub async fn accept(&self) -> Result<LmpChannel> {
         use rustyl4api::vspace::Permission;
 
         let conn_msg = self.receiver.receive().await?;
@@ -46,12 +46,12 @@ impl LmpListener {
         let buf_ptr = gsm!().insert_ram_at(buf_cap, 0, Permission::writable());
 
         let argbuf = unsafe { ArgumentBuffer::new(buf_ptr as *mut usize, 4096) };
-        Ok(LmpChannelHandle::from_inner(LmpChannel::new(
+        Ok(LmpChannel::new(
             c_ntf_ep,
             receiver,
             argbuf,
             Role::Server,
-        )))
+        ))
     }
 
     pub fn incoming(&mut self) -> IncomingFuture {
@@ -65,7 +65,7 @@ impl LmpListener {
 
 pub struct IncomingFuture<'a> {
     listener: &'a mut LmpListener,
-    accept_state: Option<BoxFuture<'a, Result<LmpChannelHandle>>>,
+    accept_state: Option<BoxFuture<'a, Result<LmpChannel>>>,
 }
 
 impl<'a> IncomingFuture<'a> {
@@ -78,7 +78,7 @@ impl<'a> IncomingFuture<'a> {
 }
 
 impl<'a> Stream for IncomingFuture<'a> {
-    type Item = Result<LmpChannelHandle>;
+    type Item = Result<LmpChannel>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let Self {

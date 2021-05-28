@@ -4,7 +4,7 @@ use crate::objects::{EpCap, InterruptCap, RamCap};
 
 use crate::{
     ep_receiver::EpReceiver,
-    lmp::{LmpChannelHandle, LmpMessage},
+    lmp::{LmpChannel, LmpMessage},
     path::{Path, PathBuf},
     Result,
 };
@@ -12,16 +12,16 @@ use crate::{
 use super::message::*;
 
 pub struct RpcClient {
-    channel: LmpChannelHandle,
+    channel: LmpChannel,
 }
 
 impl RpcClient {
-    fn new(channel: LmpChannelHandle) -> Self {
+    fn new(channel: LmpChannel) -> Self {
         Self { channel }
     }
 
     pub async fn connect(server_ep: &EpCap, receiver: EpReceiver) -> Result<Self> {
-        let channel = LmpChannelHandle::connect(server_ep, receiver)
+        let channel = LmpChannel::connect(server_ep, receiver)
             .await
             .map_err(|_| crate::Error::Invalid)?;
         let client = Self::new(channel);

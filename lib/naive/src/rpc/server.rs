@@ -2,7 +2,7 @@ use alloc::{boxed::Box, vec::Vec};
 
 use futures_util::StreamExt;
 
-use crate::lmp::{LmpChannelHandle, LmpListener, LmpMessage};
+use crate::lmp::{LmpListener, LmpMessage};
 use crate::objects::CapSlot;
 
 use super::message::*;
@@ -30,14 +30,20 @@ impl<T: RpcRequestHandlers + Sync> RpcServer<T> {
         listener
             .incoming()
             .for_each_concurrent(None, |channel| async {
-                let channel = channel.unwrap();
+                let mut channel = channel.unwrap();
 
-                channel
-                    .messages()
-                    .for_each(|req| async {
-                        handlers.handle_request(&channel, req).await;
-                    })
-                    .await;
+                loop {
+                    let req = channel.poll_recv().await;
+                    if let Ok(req) = req {
+                        let mut resp = handlers.handle_request(req).await;
+                        let res = channel.poll_send(&mut resp).await;
+                        if res.is_err() {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
             })
             .await;
     }
@@ -149,7 +155,7 @@ pub trait RpcRequestHandlers {
         Ok(r)
     }
 
-    async fn _handle_request(&self, msg: LmpMessage) -> LmpMessage {
+    async fn handle_request(&self, msg: LmpMessage) -> LmpMessage {
         let (rpc_resp, caps) = if let Ok(request) = serde_json::from_slice::<RpcRequest>(&msg.msg) {
             let opcode = request.opcode;
             self.__handle_request(opcode, request, msg.caps)
@@ -177,10 +183,5 @@ pub trait RpcRequestHandlers {
             msg: serde_json::to_vec(&rpc_resp).unwrap(),
             caps,
         }
-    }
-
-    async fn handle_request(&self, channel: &LmpChannelHandle, request: LmpMessage) {
-        let mut resp = self._handle_request(request).await;
-        channel.poll_send(&mut resp).await.unwrap();
     }
 }
