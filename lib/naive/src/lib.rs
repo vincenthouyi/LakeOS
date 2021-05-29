@@ -28,7 +28,6 @@ extern crate lazy_static;
 
 #[macro_use]
 mod utils;
-pub mod ep_receiver;
 pub mod ep_server;
 pub mod error;
 pub mod fs;

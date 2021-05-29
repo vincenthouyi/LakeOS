@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use crate::objects::{EpCap, InterruptCap, RamCap};
 
 use crate::{
-    ep_receiver::EpReceiver,
+    ep_server::MsgReceiver,
     lmp::{LmpChannel, LmpMessage},
     path::{Path, PathBuf},
     Result,
@@ -20,7 +20,7 @@ impl RpcClient {
         Self { channel }
     }
 
-    pub async fn connect(server_ep: &EpCap, receiver: EpReceiver) -> Result<Self> {
+    pub async fn connect(server_ep: &EpCap, receiver: MsgReceiver) -> Result<Self> {
         let channel = LmpChannel::connect(server_ep, receiver)
             .await
             .map_err(|_| crate::Error::Invalid)?;

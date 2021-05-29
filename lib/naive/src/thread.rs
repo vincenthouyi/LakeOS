@@ -1,12 +1,10 @@
-use rustyl4api::fault::Fault;
-
-use crate::ep_server::{EpFaultHandler, EpServer, EP_SERVER};
-use crate::ipc::FaultMessage;
-use crate::objects::{CapSlot, EpCap, ReplyCap, TcbCap, TcbObj};
+use crate::ep_server::{EP_SERVER, FaultReceiver};
+use crate::objects::{TcbCap, TcbObj};
 use crate::space_manager::{gsm, ROOT_CNODE_CAP, ROOT_VNODE_CAP};
 
 pub struct Thread {
     _tcb: TcbCap,
+    _fault_receiver: FaultReceiver,
 }
 
 pub fn spawn(entry: fn() -> !) -> Thread {
@@ -18,43 +16,16 @@ pub fn spawn(entry: fn() -> !) -> Thread {
     let stack_base = gsm!()
         .map_frame_at(0, 0, FRAME_SIZE * npages, Permission::writable())
         .unwrap() as usize;
-    let (fault_ep_badge, fault_ep) = EP_SERVER.derive_badged_cap().unwrap();
+    let fault_receiver = EP_SERVER.derive_fault_receiver().unwrap();
     tcb.configure(
         Some(&ROOT_VNODE_CAP),
         Some(&ROOT_CNODE_CAP),
-        Some(&fault_ep),
+        Some(&fault_receiver.badged_ep()),
     )
     .expect("Error Configuring TCB");
-
-    let fault_handler = ThreadFaultHandler {
-        _fault_ep: fault_ep,
-    };
-    EP_SERVER.insert_fault(fault_ep_badge, fault_handler);
 
     tcb.set_registers(0b1100, entry as usize, stack_base + FRAME_SIZE * npages)
         .expect("Error Setting Registers");
     tcb.resume().expect("Error Resuming TCB");
-    Thread { _tcb: tcb }
-}
-
-struct ThreadFaultHandler {
-    _fault_ep: EpCap,
-}
-
-impl EpFaultHandler for ThreadFaultHandler {
-    fn handle_fault(&self, _ep_server: &EpServer, msg: FaultMessage) {
-        let faultinfo = match msg.info {
-            Fault::DataFault(f) => f,
-            Fault::PrefetchFault(f) => f,
-        };
-        let fault_addr = faultinfo.address;
-        kprintln!(
-            "recv fault message {:?}, fault address {:x}",
-            msg,
-            fault_addr
-        );
-
-        let reply = ReplyCap::new(CapSlot::new(0));
-        reply.reply(&[], None).unwrap();
-    }
+    Thread { _tcb: tcb, _fault_receiver: fault_receiver }
 }

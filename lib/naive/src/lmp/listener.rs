@@ -4,16 +4,16 @@ use core::{
 };
 
 use alloc::boxed::Box;
+use alloc::sync::Arc;
 
 use futures_util::future::BoxFuture;
 use futures_util::ready;
 use futures_util::stream::Stream;
 
 use crate::{
-    ep_receiver::EpReceiver,
-    ep_server::EP_SERVER,
+    ep_server::{EP_SERVER, MsgReceiver},
     objects::{EpCap, RamCap},
-    space_manager::{copy_cap, gsm},
+    space_manager::gsm,
     Result, Error,
 };
 
@@ -21,12 +21,12 @@ use super::{ArgumentBuffer, LmpChannel, Role};
 
 #[derive(Clone)]
 pub struct LmpListener {
-    receiver: EpReceiver,
+    receiver: Arc<MsgReceiver>,
 }
 
 impl LmpListener {
-    pub fn new(receiver: EpReceiver) -> Self {
-        Self { receiver }
+    pub fn new(receiver: MsgReceiver) -> Self {
+        Self { receiver: Arc::new(receiver) }
     }
 
     pub async fn accept(&self) -> Result<LmpChannel> {
@@ -37,7 +37,7 @@ impl LmpListener {
         let c_ntf_ep = EpCap::new(c_ntf_ep);
 
         let receiver = EP_SERVER.derive_receiver().ok_or(Error::NoReceiver)?;
-        let s_ntf_ep = copy_cap(&receiver.ep).unwrap();
+        let s_ntf_ep = receiver.badged_ep();
         c_ntf_ep.send(&[], Some(s_ntf_ep.into_slot())).unwrap();
 
         let shm_msg = receiver.receive().await?;
@@ -59,7 +59,7 @@ impl LmpListener {
     }
 
     pub fn derive_connector_ep(&self) -> Option<EpCap> {
-        copy_cap(&self.receiver.ep)
+        Some(self.receiver.badged_ep())
     }
 }
 

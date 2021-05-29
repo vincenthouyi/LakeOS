@@ -55,7 +55,7 @@ impl DirEntry {
         };
 
         let receiver = EP_SERVER.derive_receiver().unwrap();
-        let listen_ep = receiver.ep.clone();
+        let listen_ep: EpRef = receiver.badged_ep().into();
         let listener = LmpListener::new(receiver);
         let file_svr = Box::new(RpcServer::new(listener, node));
 

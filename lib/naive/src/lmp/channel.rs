@@ -1,8 +1,7 @@
 use alloc::vec::Vec;
 
 use crate::{
-    ep_receiver::EpReceiver,
-    ep_server::EP_SERVER,
+    ep_server::MsgReceiver,
     objects::{EpCap, RamObj},
     space_manager::{copy_cap, gsm},
     Result,
@@ -13,7 +12,7 @@ use super::{ArgumentBuffer, LmpMessage};
 
 pub struct LmpChannel {
     remote_ntf_ep: EpCap,
-    receiver: EpReceiver,
+    receiver: MsgReceiver,
     argbuf: ArgumentBuffer,
     role: Role,
 }
@@ -26,7 +25,7 @@ pub enum Role {
 impl LmpChannel {
     pub fn new(
         remote_ntf_ep: EpCap,
-        receiver: EpReceiver,
+        receiver: MsgReceiver,
         argbuf: ArgumentBuffer,
         role: Role,
     ) -> Self {
@@ -38,11 +37,11 @@ impl LmpChannel {
         }
     }
 
-    pub async fn connect(server_ep: &EpCap, receiver: EpReceiver) -> Result<Self> {
+    pub async fn connect(server_ep: &EpCap, receiver: MsgReceiver) -> Result<Self> {
         use rustyl4api::vspace::Permission;
 
         /* Connect by sending client notification ep */
-        let ntf_ep = copy_cap(&receiver.ep).unwrap();
+        let ntf_ep = receiver.badged_ep();
         server_ep.send(&[], Some(ntf_ep.into_slot())).unwrap();
 
         let s_ntf_msg = receiver.receive().await.unwrap();
@@ -110,18 +109,9 @@ impl LmpChannel {
         self.send_channel()[0] == 0
     }
 
-    fn can_recv(&mut self) -> bool {
-        self.recv_channel()[0] == 0
-    }
-
-    pub fn notification_badge(&self) -> usize {
-        self.receiver.badge
-    }
-
-    pub fn disconnect(self) {
-        let badge = self.notification_badge();
-        EP_SERVER.remove_event(badge);
-    }
+    // fn can_recv(&mut self) -> bool {
+    //     self.recv_channel()[0] == 0
+    // }
 
     pub async fn poll_send<'a>(&'a mut self, msg: &'a mut LmpMessage) -> Result<()> {
         assert!(self.can_send());
