@@ -30,3 +30,4 @@ static_assertions = "1.1.0"
 align-data = "0.1.0"
 elfloader = "0.12.0"
 cpio = { path = "../lib/cpio" }
+vspace = { path = "../lib/vspace" }
