@@ -1,3 +1,4 @@
+use crate::PhysAddr;
 use crate::permission::Permission;
 use super::asm::*;
 
@@ -31,9 +32,9 @@ pub enum AccessPermission {
 
 impl Into<AccessPermission> for Permission {
     fn into(self) -> AccessPermission {
-        if self == Permission::READWIRTE {
+        if self.contains(Permission::READABLE & Permission::WRITABLE) {
             AccessPermission::ReadWrite
-        } else if self == Permission::READONLY {
+        } else if self.contains(Permission::READABLE) {
             AccessPermission::ReadOnly
         } else {
             AccessPermission::KernelOnly
@@ -51,15 +52,46 @@ pub enum Shareability {
 }
 
 
-// #[inline(always)]
-// pub unsafe fn enable_mmu(pgd_higher: usize) {
-//     let mair_value = (MairFlag::Normal as usize) << (MemoryAttr::Normal as usize * 8)
-//         | (MairFlag::NormalNC as usize) << (MemoryAttr::NormalNC as usize * 8)
-//         | (MairFlag::DevicenGnRnE as usize) << (MemoryAttr::DevicenGnRnE as usize * 8)
-//         | (MairFlag::DevicenGnRE as usize) << (MemoryAttr::DevicenGnRE as usize * 8)
-//         | (MairFlag::DeviceGRE as usize) << (MemoryAttr::DeviceGRE as usize * 8);
-//     set_mair(mair_value);
+#[inline(always)]
+pub unsafe fn init_mmu() {
+    let mair_value = (MairFlag::Normal as usize) << (MemoryAttr::Normal as usize * 8)
+        | (MairFlag::NormalNC as usize) << (MemoryAttr::NormalNC as usize * 8)
+        | (MairFlag::DevicenGnRnE as usize) << (MemoryAttr::DevicenGnRnE as usize * 8)
+        | (MairFlag::DevicenGnRE as usize) << (MemoryAttr::DevicenGnRE as usize * 8)
+        | (MairFlag::DeviceGRE as usize) << (MemoryAttr::DeviceGRE as usize * 8);
+    set_mair(mair_value);
 
-//     install_kernel_vspace(pgd_higher);
-//     flush_tlb_allel1_is();
-// }
+    flush_tlb_allel1_is();
+}
+
+#[inline(always)]
+pub unsafe fn install_kernel_vspace(paddr: PhysAddr) {
+    dsb();
+    llvm_asm!("msr     ttbr1_el1, $0"
+        :
+        : "r"(paddr.0)
+        : "memory"
+    );
+    isb();
+    flush_tlb_allel1_is();
+}
+
+#[inline(always)]
+pub unsafe fn install_user_vspace(asid: usize, pgd: usize) {
+    let entry = asid << 48 | (pgd & MASK!(48));
+    dsb();
+    llvm_asm!("msr     ttbr0_el1, $0"
+        :
+        : "r"(entry)
+        : "memory"
+        : "volatile"
+    );
+    isb();
+}
+
+pub fn invalidate_local_tlb_asid(asid: usize) {
+    dsb();
+    unsafe { llvm_asm!("tlbi aside1, $0"::"r"(asid)) }
+    dsb();
+    isb();
+}

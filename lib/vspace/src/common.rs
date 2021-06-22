@@ -8,9 +8,13 @@ pub trait PageLevel: TableLevel {
     const FRAME_BIT_SIZE: usize;
 }
 
+#[derive(Copy, Clone, Debug)]
 pub enum Level4 {}
+#[derive(Copy, Clone, Debug)]
 pub enum Level3 {}
+#[derive(Copy, Clone, Debug)]
 pub enum Level2 {}
+#[derive(Copy, Clone, Debug)]
 pub enum Level1 {}
 
 impl TableLevel for Level4 {

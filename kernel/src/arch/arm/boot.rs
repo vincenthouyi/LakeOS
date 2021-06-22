@@ -6,7 +6,6 @@ use core::mem::MaybeUninit;
 use crate::arch::cpuid;
 use crate::objects::*;
 use crate::utils::percore::PerCore;
-use crate::vspace::*;
 use crate::NCPU;
 use sysapi::init::InitCSpaceSlot::*;
 use sysapi::process::{
@@ -15,6 +14,7 @@ use sysapi::process::{
 };
 use sysapi::vspace::{Permission, FRAME_BIT_SIZE, FRAME_SIZE};
 
+use vspace::{VirtAddr, PhysAddr, Table, Entry, TableLevel, Level1, Level2, Level3, Level4};
 use align_data::{include_aligned, Align64};
 use elfloader::{ElfBinary, ElfLoader, Flags, LoadableHeaders, Rela, VAddr, P64};
 
@@ -25,9 +25,9 @@ struct Frame([usize; FRAME_SIZE]);
 #[no_mangle]
 static mut kernel_stack: [Frame; NCPU] = [Frame([0; FRAME_SIZE]); NCPU];
 
-static mut KERNEL_PGD: Table = Table::zero();
-static mut KERNEL_PUD: Table = Table::zero();
-static mut KERNEL_PD: Table = Table::zero();
+static mut KERNEL_PGD: Table<Level4> = Table::zero();
+static mut KERNEL_PUD: Table<Level3> = Table::zero();
+static mut KERNEL_PD: Table<Level2> = Table::zero();
 
 static mut INIT_CNODE: MaybeUninit<[CNodeEntry; PROCESS_ROOT_CNODE_SIZE]> = MaybeUninit::uninit();
 static INIT_FS: &[u8] = include_aligned!(Align64, "../../../build/initfs.cpio");
@@ -251,11 +251,17 @@ jump_to_el1:
 
 #[link_section = ".boot.text"]
 unsafe fn init_kernel_vspace() {
-    KERNEL_PGD[pgd_index!(KERNEL_BASE)] = Entry::table_entry(KERNEL_PUD.paddr());
-    KERNEL_PUD[pud_index!(KERNEL_BASE)] = Entry::table_entry(KERNEL_PD.paddr());
-    for i in pd_index!(KERNEL_OFFSET)..pd_index!(IO_BASE) {
-        KERNEL_PD[i] = Entry::block_entry(
-            i * 0x200000,
+    use vspace::arch::mmu::{Shareability, AccessPermission, MemoryAttr};
+
+    let kernel_base = VirtAddr(KERNEL_BASE);
+    let io_base = VirtAddr(IO_BASE);
+    let pud_paddr = (&KERNEL_PUD as *const _ as usize) - KERNEL_OFFSET;
+    let pd_paddr = (&KERNEL_PD as *const _ as usize) - KERNEL_OFFSET;
+    KERNEL_PGD[kernel_base.table_index::<Level4>()] = Entry::table_entry(PhysAddr(pud_paddr));
+    KERNEL_PUD[kernel_base.table_index::<Level3>()] = Entry::table_entry(PhysAddr(pd_paddr));
+    for i in kernel_base.table_index::<Level2>()..io_base.table_index::<Level2>() {
+        KERNEL_PD[i] = Entry::page_entry(
+            PhysAddr(i * 0x200000),
             true,
             true,
             true,
@@ -264,9 +270,9 @@ unsafe fn init_kernel_vspace() {
             MemoryAttr::Normal,
         );
     }
-    for i in pd_index!(IO_BASE)..512 {
-        KERNEL_PD[i] = Entry::block_entry(
-            i * 0x200000,
+    for i in io_base.table_index::<Level2>()..512 {
+        KERNEL_PD[i] = Entry::page_entry(
+            PhysAddr(i * 0x200000),
             true,
             true,
             true,
@@ -275,8 +281,8 @@ unsafe fn init_kernel_vspace() {
             MemoryAttr::DevicenGnRnE,
         );
     }
-    KERNEL_PUD[pud_index!(KERNEL_BASE) + 1] = Entry::block_entry(
-        0x40000000,
+    KERNEL_PUD[kernel_base.table_index::<Level3>() + 1] = Entry::page_entry(
+        PhysAddr(0x40000000),
         true,
         true,
         true,
@@ -289,14 +295,15 @@ unsafe fn init_kernel_vspace() {
 #[no_mangle]
 #[link_section = ".boot.text"]
 pub unsafe fn init_cpu() {
-    use crate::arch::vspace::enable_mmu;
 
     let cpuid = cpuid();
     if cpuid == 0 {
         init_kernel_vspace();
     }
 
-    enable_mmu(KERNEL_PGD.paddr());
+    vspace::mmu::init_mmu();
+    let pgd_paddr = (&KERNEL_PGD as *const _ as usize) - KERNEL_OFFSET;
+    vspace::arch::mmu::install_kernel_vspace(PhysAddr(pgd_paddr));
 }
 
 #[link_section = ".boot.text"]
@@ -419,52 +426,47 @@ where
 
 fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut usize) -> usize {
     let cspace = tcb.cspace().expect("Init CSpace not installed");
-    let vspace = tcb.vspace().expect("Init VSpace not installed");
+    let mut vspace = tcb.vspace().expect("Init VSpace not installed");
+    let vaddr = VirtAddr(vaddr);
 
-    vspace
-        .lookup_pgd_slot(vaddr)
-        .map(|slot| {
-            if slot.is_invalid() {
-                alloc_obj::<VTableObj>(&cspace, 12, &cspace[*cur_free_slot])
-                    .expect("Allocating PUD failed")
-                    .map_vtable(&vspace, vaddr, 2)
-                    .expect("Installing PUD failed");
-                *cur_free_slot += 1;
-            }
-        })
-        .expect("Looking up PGD slot failed");
+    if !vspace.lookup_slot_mut::<Level4, _>(vaddr)
+        .expect("Looking up PGD slot failed")
+        .is_valid()
+    {
+        alloc_obj::<VTableObj>(&cspace, 12, &cspace[*cur_free_slot])
+            .expect("Allocating PUD failed")
+            .map_vtable(&mut vspace, vaddr, Level4::LEVEL)
+            .expect("Installing PUD failed");
+        *cur_free_slot += 1;
+    }
 
-    vspace
-        .lookup_pud_slot(vaddr)
-        .map(|slot| {
-            if slot.is_invalid() {
-                alloc_obj::<VTableObj>(&cspace, 12, &cspace[*cur_free_slot])
-                    .expect("Allocating PD failed")
-                    .map_vtable(&vspace, vaddr, 3)
-                    .expect("Installing PD failed");
-                *cur_free_slot += 1;
-            }
-        })
-        .expect("Looking up PD slot failed");
+    if !vspace.lookup_slot::<Level3, _>(vaddr)
+        .expect("Looking up PD slot failed")
+        .is_valid()
+    {
+        alloc_obj::<VTableObj>(&cspace, 12, &cspace[*cur_free_slot])
+            .expect("Allocating PD failed")
+            .map_vtable(&mut vspace, vaddr, Level3::LEVEL)
+            .expect("Installing PD failed");
+        *cur_free_slot += 1;
+    }
 
-    vspace
-        .lookup_pd_slot(vaddr)
-        .map(|slot| {
-            if slot.is_invalid() {
-                alloc_obj::<VTableObj>(&cspace, 12, &cspace[*cur_free_slot])
-                    .expect("Allocating PT failed")
-                    .map_vtable(&vspace, vaddr, 4)
-                    .expect("Installing PT failed");
-                *cur_free_slot += 1;
-            }
-        })
-        .expect("Looking up PT slot failed");
+    if !vspace.lookup_slot::<Level2, _>(vaddr)
+        .expect("Looking up PT slot failed")
+        .is_valid()
+    {
+        alloc_obj::<VTableObj>(&cspace, 12, &cspace[*cur_free_slot])
+            .expect("Allocating PT failed")
+            .map_vtable(&mut vspace, vaddr, Level2::LEVEL)
+            .expect("Installing PT failed");
+        *cur_free_slot += 1;
+    }
 
     let frame_cap = alloc_obj::<RamObj>(&cspace, FRAME_BIT_SIZE, &cspace[*cur_free_slot])
         .expect("Allocating Frame failed");
     *cur_free_slot += 1;
     frame_cap
-        .map_page(&vspace, vaddr, perm)
+        .map_page::<Level1>(&mut vspace, vaddr.0, perm)
         .expect("Installing frame failed");
     frame_cap.vaddr()
 }
@@ -509,10 +511,10 @@ impl<'a> ElfLoader for InitThreadLoader<'a> {
         let mut frame_offset = (base as usize) % FRAME_SIZE;
 
         while region_offset < region.len() {
-            let frame_kvaddr =
-                vspace.lookup_pt_slot(vaddr).unwrap().paddr() as usize + KERNEL_OFFSET;
+            let frame_kvaddr: VirtAddr =
+                vspace.lookup_slot::<Level1, _>(VirtAddr(vaddr)).unwrap().vaddr();
             let frame =
-                unsafe { core::slice::from_raw_parts_mut(frame_kvaddr as *mut u8, FRAME_SIZE) };
+                unsafe { core::slice::from_raw_parts_mut(frame_kvaddr.0 as *mut u8, FRAME_SIZE) };
             let copy_len = (region.len() - region_offset).min(FRAME_SIZE) - frame_offset;
             frame[frame_offset..frame_offset + copy_len]
                 .copy_from_slice(&region[region_offset..region_offset + copy_len]);
@@ -666,7 +668,7 @@ pub extern "C" fn kmain() -> ! {
     timer.tick_in(crate::TICK);
 
     unsafe {
-        crate::arch::vspace::flush_tlb_allel1_is();
+        vspace::mmu::flush_all_tlb();
     }
     crate::arch::clean_l1_cache();
 

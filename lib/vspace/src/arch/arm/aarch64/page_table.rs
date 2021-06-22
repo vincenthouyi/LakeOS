@@ -49,6 +49,10 @@ impl<L: TableLevel> Entry<L> {
         PhysAddr(self.inner & PADDR_MASK)
     }
 
+    pub const fn vaddr(&self) -> VirtAddr {
+        crate::addr::phys_to_virt(self.paddr())
+    }
+
     pub const fn is_table_entry(&self) -> bool {
         if !self.is_valid() {
             return false;
@@ -104,10 +108,25 @@ impl<L: PageLevel> Entry<L> {
             paddr,
             !is_executable,
             false,
-            false,
+            true,
             Shareability::InnerSharable,
             perm.into(),
             MemoryAttr::Normal
+        )
+    }
+
+    pub fn device_page_entry(
+        paddr: PhysAddr,
+        perm: Permission,
+    ) -> Self {
+        Self::page_entry(
+            paddr,
+            true,
+            false,
+            true,
+            Shareability::NonSharable,
+            perm.into(),
+            MemoryAttr::DevicenGnRnE,
         )
     }
 }
@@ -156,10 +175,6 @@ impl<L: TableLevel> IndexMut<usize> for Table<L> {
     }
 }
 
-fn table_idx<L: TableLevel>(vaddr: VirtAddr) -> usize {
-    (vaddr.0 >> (12 + 9 * (4 - L::LEVEL))) & MASK!(9)
-}
-
 impl<L: TableLevel> Debug for Table<L> {
     fn fmt(&self, _f: &mut Formatter) -> fmt::Result {
         Ok(())
@@ -178,13 +193,13 @@ impl<L: TableLevel> Table<L> where Entry<L>: Copy {
 impl <L: TableLevel> Table<L> {
     pub fn lookup_slot_mut<M: TableLevel, V: Into<VirtAddr>>(&mut self, vaddr: V) -> Result<&mut Entry<M>> {
         let vaddr = vaddr.into();
-        let idx = table_idx::<L>(vaddr);
+        let idx = vaddr.table_index::<L>();
         let entry = &mut self[idx];
         if M::LEVEL == L::LEVEL {
             return Ok(unsafe { core::mem::transmute(entry) });
         } else if M::LEVEL < L::LEVEL {
             let next_table = entry.as_table_mut()
-                                  .ok_or(Error::SlotOccupied { level: L::LEVEL } )?;
+                                  .ok_or(Error::TableMiss { level: L::LEVEL } )?;
             return next_table.lookup_slot_mut(vaddr);
         } else {
             panic!()
@@ -193,16 +208,24 @@ impl <L: TableLevel> Table<L> {
 
     pub fn lookup_slot<M: TableLevel, V: Into<VirtAddr>>(&self, vaddr: V) -> Result<&Entry<M>> {
         let vaddr = vaddr.into();
-        let idx = table_idx::<L>(vaddr);
+        let idx = vaddr.table_index::<L>();
         let entry = &self[idx];
         if M::LEVEL == L::LEVEL {
             return Ok(unsafe { core::mem::transmute(entry) });
         } else if M::LEVEL < L::LEVEL {
             let next_table = entry.as_table()
-                                  .ok_or(Error::SlotOccupied { level: L::LEVEL } )?;
+                                  .ok_or(Error::TableMiss { level: L::LEVEL } )?;
             return next_table.lookup_slot(vaddr);
         } else {
             panic!()
         }
+    }
+
+    pub fn paddr(&self) -> PhysAddr {
+        VirtAddr::from(self).into()
+    }
+
+    pub fn vaddr(&self) -> VirtAddr {
+        VirtAddr::from(self)
     }
 }

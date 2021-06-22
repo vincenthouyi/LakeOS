@@ -1,4 +1,5 @@
 
+#[derive(Copy, Clone, Debug)]
 pub enum Error {
     TableMiss { level: usize },
     SlotOccupied { level: usize },

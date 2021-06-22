@@ -1,4 +1,3 @@
-use core::borrow::BorrowMut;
 use crate::{Error, Result};
 use crate::{VirtAddr, PhysAddr};
 use crate::common::*;
@@ -6,28 +5,30 @@ use crate::permission::Permission;
 use crate::arch::{Table, Entry, clean_dcache_by_va, TopLevel};
 
 #[derive(Debug)]
-pub struct VSpace<R> {
-    root: R,
+pub struct VSpace<'a> {
+    root: &'a mut Table<TopLevel>,
 }
 
-impl<R: BorrowMut<Table<TopLevel>>> VSpace<R> {
-    pub fn from_root(root: R) -> Self {
+impl<'a> VSpace<'a> {
+    pub fn from_root(root: &'a mut Table<TopLevel>) -> Self {
         Self { root }
     }
 
-    pub fn into_root(self) -> R {
+    pub fn into_root(self) -> &'a mut Table<TopLevel> {
         self.root
+    }
+
+    pub fn root_paddr(&self) -> PhysAddr {
+        self.root.paddr()
     }
 
     pub fn lookup_slot<L: TableLevel, V: Into<VirtAddr>>(&self, vaddr: V) -> Result<&Entry<L>> {
         self.root
-            .borrow()
             .lookup_slot(vaddr)
     }
 
     pub fn lookup_slot_mut<L: TableLevel, V: Into<VirtAddr>>(&mut self, vaddr: V) -> Result<&mut Entry<L>> {
         self.root
-            .borrow_mut()
             .lookup_slot_mut(vaddr)
     }
 
@@ -64,6 +65,12 @@ impl<R: BorrowMut<Table<TopLevel>>> VSpace<R> {
     pub fn map_normal_frame<L, V>(&mut self, vaddr: V, frame_paddr: PhysAddr, perm: Permission) -> Result<()>
         where L: PageLevel, V: Into<VirtAddr> {
         let entry = Entry::normal_page_entry(frame_paddr, perm);
+        self.map_entry::<L, V, Entry<L>>(vaddr, entry)
+    }
+
+    pub fn map_device_frame<L, V>(&mut self, vaddr: V, frame_paddr: PhysAddr, perm: Permission) -> Result<()>
+        where L: PageLevel, V: Into<VirtAddr> {
+        let entry = Entry::device_page_entry(frame_paddr, perm);
         self.map_entry::<L, V, Entry<L>>(vaddr, entry)
     }
 

@@ -1,7 +1,7 @@
 use crate::objects::CapSlot;
 use crate::space_manager::gsm;
 
-const MEMPOOL_SIZE: usize = 4096;
+const MEMPOOL_SIZE: usize = usize::pow(2, 15);
 
 #[repr(align(4096))]
 struct InitMemPool([u8; MEMPOOL_SIZE]);

@@ -3,6 +3,7 @@ use core::num::NonZeroUsize;
 use crate::objects::*;
 use crate::prelude::*;
 
+use vspace::{VirtAddr, Level1};
 pub use sysapi::syscall::{MsgInfo, RespInfo, SyscallOp};
 
 use core::convert::TryFrom;
@@ -231,7 +232,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             Ok(())
         }
         SyscallOp::RamMap => {
-            use crate::vspace::VSpace;
+            use vspace::VSpace;
 
             if msginfo.get_length() < 3 {
                 return Err(SysError::InvalidValue);
@@ -252,9 +253,10 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             let rights = tcb.get_mr(3).into();
 
             let vspace_cap_slot = cspace.lookup_slot(vspace_cap_idx)?;
-            let vspace = VSpace::from_pgd(&*(VTableCap::try_from(vspace_cap_slot)?));
+            let vspace_cap = VTableCap::try_from(vspace_cap_slot)?;
+            let mut vspace = VSpace::from_root(vspace_cap.as_table_mut());
 
-            cap.map_page(&vspace, vaddr, rights)?;
+            cap.map_page::<Level1>(&mut vspace, vaddr, rights)?;
 
             tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
             Ok(())
@@ -276,7 +278,7 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             Ok(())
         }
         SyscallOp::VTableMap => {
-            use crate::vspace::VSpace;
+            use vspace::VSpace;
 
             if msginfo.get_length() < 3 {
                 return Err(SysError::InvalidValue);
@@ -297,9 +299,10 @@ fn _handle_syscall(tcb: &mut TcbObj) -> SysResult<()> {
             let level = tcb.get_mr(3);
 
             let vspace_cap_slot = cspace.lookup_slot(vspace_cap_idx)?;
-            let vspace = VSpace::from_pgd(&*(VTableCap::try_from(vspace_cap_slot)?));
+            let vspace_cap = VTableCap::try_from(vspace_cap_slot)?;
+            let mut vspace = VSpace::from_root(vspace_cap.as_table_mut());
 
-            cap.map_vtable(&vspace, vaddr, level)?;
+            cap.map_vtable(&mut vspace, VirtAddr(vaddr), level)?;
 
             tcb.set_respinfo(RespInfo::new_syscall_resp(SysError::OK, 0));
             Ok(())

@@ -3,7 +3,7 @@ pub use page_table::*;
 
 pub mod mmu;
 
-mod asm;
+pub mod asm;
 mod page;
 
 pub fn clean_dcache_by_va(vaddr: usize) {

@@ -7,6 +7,7 @@ pub enum SysError {
     LookupError,
     UnableToDerive,
     SlotNotEmpty,
+    SlotEmpty,
     UnsupportedSyscallOp,
     VSpaceCapMapped,
     VSpaceCapNotMapped,
@@ -28,6 +29,7 @@ impl SysError {
             SysError::LookupError => SysErrno::LookupError,
             SysError::UnableToDerive => SysErrno::UnableToDerive,
             SysError::SlotNotEmpty => SysErrno::SlotNotEmpty,
+            SysError::SlotEmpty => SysErrno::SlotEmpty,
             SysError::UnsupportedSyscallOp => SysErrno::UnsupportedSyscallOp,
             SysError::VSpaceCapMapped => SysErrno::VSpaceCapMapped,
             SysError::VSpaceCapNotMapped => SysErrno::VSpaceCapNotMapped,
@@ -49,6 +51,7 @@ pub enum SysErrno {
     LookupError,
     UnableToDerive,
     SlotNotEmpty,
+    SlotEmpty,
     UnsupportedSyscallOp,
     VSpaceCapMapped,
     VSpaceCapNotMapped,
@@ -66,5 +69,15 @@ pub type SysResult<T> = core::result::Result<T, SysError>;
 impl core::convert::Into<SysErrno> for SysError {
     fn into(self) -> SysErrno {
         self.errno()
+    }
+}
+
+impl From<vspace::Error> for SysError {
+    fn from(e: vspace::Error) -> SysError {
+        match e {
+            vspace::Error::TableMiss { level } => SysError::VSpaceTableMiss { level: level as u8 },
+            vspace::Error::SlotOccupied { level } => SysError::VSpaceSlotOccupied { level: level as u8 },
+            vspace::Error::SlotEmpty => SysError::SlotEmpty,
+        }
     }
 }

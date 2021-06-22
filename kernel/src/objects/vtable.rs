@@ -1,7 +1,7 @@
 use super::*;
-use crate::arch::vspace::{Entry, VSpace};
-use crate::vspace::Table;
 use core::convert::TryFrom;
+
+use vspace::{VSpace, VirtAddr, PhysAddr, Table, TableLevel, Level2, Level3, Level4};
 
 /* Capability Entry Field Definition
  * -------------------------------------------------
@@ -12,7 +12,7 @@ use core::convert::TryFrom;
  * |    16   |         36          |       12      |
  * -------------------------------------------------
  */
-pub type VTableObj = Table;
+pub struct VTableObj([()]); // Make a RamObj not Sized
 
 pub type VTableCap<'a> = CapRef<'a, VTableObj>;
 impl<'a> VTableCap<'a> {
@@ -45,17 +45,16 @@ impl<'a> VTableCap<'a> {
         f.field("vaddr", &c.vaddr());
     }
 
-    pub fn map_vtable(&self, vspace: &VSpace, vaddr: usize, level: usize) -> SysResult<()> {
-        let entry = Entry::table_entry(self.paddr());
-
+    pub fn map_vtable(&self, vspace: &mut VSpace, vaddr: VirtAddr, level: usize) -> SysResult<()> {
         match level {
-            2 => vspace.map_pud_table(vaddr, entry),
-            3 => vspace.map_pd_table(vaddr, entry),
-            4 => vspace.map_pt_table(vaddr, entry),
+            4 => vspace.map_table::<Level4>(vaddr, PhysAddr(self.paddr())).map_err(|e| e.into()),
+            3 => vspace.map_table::<Level3>(vaddr, PhysAddr(self.paddr())).map_err(|e| e.into()),
+            2 => vspace.map_table::<Level2>(vaddr, PhysAddr(self.paddr())).map_err(|e| e.into()),
             _ => Err(SysError::InvalidValue),
         }?;
 
-        self.set_mapped_vaddr_asid(vaddr, vspace.asid(), level);
+        let asid = (vspace.root_paddr().0 >> 12) & MASK!(16);
+        self.set_mapped_vaddr_asid(vaddr.0, asid, level - 1);
 
         Ok(())
     }
@@ -71,5 +70,15 @@ impl<'a> VTableCap<'a> {
         tcb.set_mr(3, self.mapped_asid());
         tcb.set_mr(4, self.mapped_level());
         4
+    }
+
+    pub fn init(&self) {}
+
+    pub fn as_table<L: TableLevel>(&self) -> &Table<L> {
+        unsafe { &*(self.vaddr() as *const Table<L>) }
+    }
+
+    pub fn as_table_mut<L: TableLevel>(&self) -> &mut Table<L> {
+        unsafe { &mut *(self.vaddr() as *mut Table<L>) }
     }
 }

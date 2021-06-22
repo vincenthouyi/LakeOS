@@ -231,6 +231,7 @@ pub fn syscall(
         SysErrno::LookupError => Err(SysError::LookupError),
         SysErrno::UnableToDerive => Err(SysError::UnableToDerive),
         SysErrno::SlotNotEmpty => Err(SysError::SlotNotEmpty),
+        SysErrno::SlotEmpty => Err(SysError::SlotEmpty),
         SysErrno::VSpaceCapMapped => Err(SysError::VSpaceCapMapped),
         SysErrno::VSpaceCapNotMapped => Err(SysError::VSpaceCapNotMapped),
         SysErrno::UnsupportedSyscallOp => Err(SysError::UnsupportedSyscallOp),

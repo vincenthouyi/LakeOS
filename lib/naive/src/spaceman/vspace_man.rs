@@ -145,7 +145,8 @@ pub struct VTableNode {
 }
 
 fn vaddr_to_idx(vaddr: usize, level: usize) -> usize {
-    (((vaddr & MASK!(48)) >> 12) >> ((3 - level) * 9)) & MASK!(9)
+    // (((vaddr & MASK!(48)) >> 12) >> ((3 - level) * 9)) & MASK!(9)
+    (((vaddr & MASK!(48)) >> 12) >> ((level - 1) * 9)) & MASK!(9)
 }
 
 impl VTableNode {
@@ -189,7 +190,7 @@ struct VSpace(VSpaceEntry);
 
 impl VSpace {
     pub const fn new(cap: VTableRef) -> Self {
-        Self(VSpaceEntry::new_table(cap, 0, 0))
+        Self(VSpaceEntry::new_table(cap, 0, 4))
     }
 
     pub fn root_cap(&self) -> VTableRef {
@@ -201,15 +202,15 @@ impl VSpace {
         vaddr: usize,
         level: usize,
     ) -> Result<&mut VSpaceEntry, VSpaceManError> {
-        let mut cur_level = 0;
+        let mut cur_level = self.0.level();
         let mut cur_node = &mut self.0;
-        while cur_level < level {
+        while cur_level > level {
             cur_node = cur_node
                 .as_vtable_node_mut()
                 .ok_or(VSpaceManError::SlotTypeError { level: cur_level })?
                 .lookup_entry(vaddr)
-                .ok_or(VSpaceManError::PageTableMiss { level: cur_level })?;
-            cur_level += 1;
+                .ok_or(VSpaceManError::PageTableMiss { level: cur_level - 1 })?;
+            cur_level -= 1;
         }
         Ok(cur_node)
     }
@@ -223,17 +224,17 @@ impl VSpace {
         let level = entry.level();
         let root_cap = self.root_cap();
 
-        if level == 0 {
+        if level > 4 {
             todo!("install root entry");
         }
 
-        let parent_entry = self.lookup_entry(vaddr, level - 1);
+        let parent_entry = self.lookup_entry(vaddr, level + 1);
         if let Err(e) = parent_entry {
             return Err((e, entry));
         }
         let parent_entry = parent_entry.unwrap().as_vtable_node_mut();
         if let None = parent_entry {
-            return Err((VSpaceManError::SlotTypeError { level: level - 1 }, entry));
+            return Err((VSpaceManError::SlotTypeError { level: level }, entry));
         }
         let parent_entry = parent_entry.unwrap();
         let entry = parent_entry.insert_entry(entry)?;
@@ -296,7 +297,7 @@ impl VSpaceMan {
         level: usize,
         do_map: bool,
     ) -> Result<(), (VSpaceManError, RamRef)> {
-        let entry = VSpaceEntry::new_frame(frame, vaddr, perm, level);
+        let entry = VSpaceEntry::new_frame(frame, vaddr, perm, level - 1);
         self.install_entry(entry, do_map)
             .map_err(|(e, ent)| (e, ent.into_ramcap().unwrap()))
     }

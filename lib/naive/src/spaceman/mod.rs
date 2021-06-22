@@ -71,17 +71,17 @@ impl SpaceManager {
             } => {
                 let cap = RamCap::new(slot);
                 self.vspace_man
-                    .map_frame(cap.into(), mapped_vaddr, Permission::writable(), 4, false)
+                    .map_frame(cap.into(), mapped_vaddr, Permission::writable(), 1, false)
                     .unwrap();
             }
             IdentifyResult::VTable {
                 mapped_vaddr,
                 mapped_asid: _,
                 level,
-            } if level > 1 => {
+            } if level < 4 => {
                 let cap = Capability::<VTableObj>::new(slot);
                 self.vspace_man
-                    .map_table(cap.into(), mapped_vaddr, level - 1, false)
+                    .map_table(cap.into(), mapped_vaddr, level, false)
                     .unwrap();
             }
             // IdentifyResult::CNode { bit_sz: _ } => {}
@@ -150,7 +150,7 @@ impl SpaceManager {
         } else {
             vaddr
         };
-        let mut frame_entry = VSpaceEntry::new_frame(ram.into(), vaddr, perm, 4);
+        let mut frame_entry = VSpaceEntry::new_frame(ram.into(), vaddr, perm, 0);
         loop {
             let res = self.vspace_man.install_entry(frame_entry, true);
             if let Err((e, ent)) = res {
@@ -165,7 +165,7 @@ impl SpaceManager {
                     VSpaceManError::PageTableMiss { level } => {
                         let vtable_cap = self.alloc_object::<VTableObj>(12).unwrap();
                         self.vspace_man
-                            .map_table(vtable_cap.into(), vaddr, level + 1, true)
+                            .map_table(vtable_cap.into(), vaddr, level, true)
                             .unwrap();
                     }
                     e => {

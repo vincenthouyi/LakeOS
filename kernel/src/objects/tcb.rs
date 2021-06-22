@@ -9,7 +9,8 @@ use crate::cspace::CSpace;
 use crate::objects::{EndpointCap, NullCap};
 use crate::syscall::{MsgInfo, RespInfo};
 use crate::utils::tcb_queue::TcbQueueNode;
-use crate::vspace::VSpace;
+
+use vspace::{VSpace, Table, arch::TopLevel, TableLevel};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ThreadState {
@@ -87,7 +88,7 @@ impl TcbObj {
 
     pub fn install_vspace(&mut self, vspace: VTableCap) {
         let asid = (vspace.paddr() >> 12) & MASK!(16);
-        vspace.set_mapped_vaddr_asid(0, asid, 1);
+        vspace.set_mapped_vaddr_asid(0, asid, 4);
         let raw = vspace.raw();
         self.vspace.set(raw);
     }
@@ -98,8 +99,9 @@ impl TcbObj {
     }
 
     pub fn vspace(&self) -> Option<VSpace> {
-        let pgd = VTableCap::try_from(&self.vspace).ok()?;
-        Some(VSpace::from_pgd(&pgd))
+        let pgd_cap = VTableCap::try_from(&self.vspace).ok()?;
+        let root_table = unsafe { &mut *((pgd_cap.paddr() + KERNEL_OFFSET) as *mut Table<TopLevel>) };
+        Some(VSpace::from_root(root_table))
     }
 
     pub fn fault_handler_ep(&self) -> Option<EndpointCap> {
@@ -109,8 +111,8 @@ impl TcbObj {
     pub unsafe fn switch_vspace(&self) -> SysResult<()> {
         let pgd_cap = VTableCap::try_from(&self.vspace)?;
         let asid = self.asid()?;
-        crate::arch::vspace::install_user_vspace(asid, pgd_cap.paddr());
-        crate::arch::vspace::invalidateLocalTLB_ASID(asid);
+        vspace::mmu::install_user_vspace(pgd_cap.as_table(), asid);
+        vspace::mmu::invalidate_tlb_by_asid(asid);
         Ok(())
     }
 
@@ -177,6 +179,7 @@ impl TcbObj {
         if let Some(vs) = vspace {
             let dst_vspace = NullCap::try_from(&self.vspace)?;
             vs.derive(&dst_vspace)?;
+            vs.set_mapped_vaddr_asid(0, dst_vspace.paddr() >> 12, TopLevel::LEVEL);
         }
 
         if let Some(cs) = cspace {

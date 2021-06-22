@@ -28,7 +28,7 @@ fn map_page(vspace: &VSpaceMan, root_cn: &CNodeRef, cur_free: &mut usize, page_b
         .alloc_object::<RamObj>(FRAME_BIT_SIZE)
         .unwrap()
         .into();
-    let mut frame_entry = VSpaceEntry::new_frame(frame_cap, page_base, perm, 4);
+    let mut frame_entry = VSpaceEntry::new_frame(frame_cap, page_base, perm, 0);
     while let Err((e, ent)) = vspace.install_entry(frame_entry, true) {
         frame_entry = ent;
         match e {
@@ -36,7 +36,7 @@ fn map_page(vspace: &VSpaceMan, root_cn: &CNodeRef, cur_free: &mut usize, page_b
                 let vtable_cap: VTableRef =
                     gsm!().alloc_object::<VTableObj>(12).unwrap().into();
                 let vtable_entry =
-                    VSpaceEntry::new_table(vtable_cap.clone(), page_base, level + 1);
+                    VSpaceEntry::new_table(vtable_cap.clone(), page_base, level);
                 vspace.install_entry(vtable_entry, true).unwrap();
                 root_cn
                     .cap_copy(*cur_free, vtable_cap.slot.slot())
@@ -74,7 +74,7 @@ impl<'a> ElfLoader for ProcessElfLoader<'a> {
         let mut frame_offset = (base as usize) % FRAME_SIZE;
 
         while region_offset < region.len() {
-            let frame = self.vspace.lookup_entry(vaddr, 4).unwrap();
+            let frame = self.vspace.lookup_entry(vaddr, 0).unwrap();
             let frame_parent_cap = copy_cap(&frame.as_frame_node().unwrap().cap).unwrap();
             let frame_addr = gsm!().insert_ram_at(frame_parent_cap, 0, Permission::writable());
             let frame = unsafe { core::slice::from_raw_parts_mut(frame_addr, FRAME_SIZE) };

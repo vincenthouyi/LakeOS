@@ -1,8 +1,5 @@
 use crate::common::*;
 
-pub trait PageLevel: TableLevel {
-    const FRAME_BIT_SIZE: usize;
-}
 impl PageLevel for Level3 {
     const FRAME_BIT_SIZE: usize = 30;
 }

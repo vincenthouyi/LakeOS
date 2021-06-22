@@ -1,5 +1,5 @@
 use super::*;
-use crate::vspace::{AccessPermission, Entry, MemoryAttr, Shareability, VSpace};
+use vspace::{VSpace, Entry, Table, PageLevel, Level1, Level4, VirtAddr, PhysAddr};
 use core::convert::TryFrom;
 use sysapi::vspace::Permission;
 
@@ -105,46 +105,26 @@ impl<'a> CapRef<'a, RamObj> {
         }
     }
 
-    pub fn map_page(&self, vspace: &VSpace, vaddr: usize, rights: Permission) -> SysResult<()> {
-        let executable = rights.executable;
-        let access = match (rights.readable, rights.writable) {
-            (false, false) => AccessPermission::KernelOnly,
-            (false, true) => {
-                return Err(SysError::VSpacePermissionError);
-            }
-            (true, false) => AccessPermission::ReadOnly,
-            (true, true) => AccessPermission::ReadWrite,
-        };
-        let mem_attr = match self.is_device() {
-            true => MemoryAttr::DevicenGnRnE,
-            false => MemoryAttr::Normal,
-        };
-        let share = match self.is_device() {
-            true => Shareability::NonSharable,
-            false => Shareability::InnerSharable,
-        };
-        let entry = Entry::page_entry(
-            self.paddr(),
-            !executable,
-            false,
-            true,
-            share,
-            access,
-            mem_attr,
-        );
-        vspace.map_frame(vaddr, entry)?;
+    pub fn map_page<L: PageLevel>(&self, vspace: &mut VSpace, vaddr: usize, rights: Permission) -> SysResult<()> {
+        if self.is_device() {
+            vspace.map_device_frame::<L, _>(VirtAddr(vaddr), PhysAddr(self.paddr()), rights)?
+        } else {
+            vspace.map_normal_frame::<L, _>(VirtAddr(vaddr), PhysAddr(self.paddr()), rights)?
+        }
 
-        self.set_mapped_vaddr_asid(vaddr, vspace.asid());
+        let asid = (vspace.root_paddr().0 >> 12) & MASK!(16);
+        self.set_mapped_vaddr_asid(vaddr, asid);
 
         Ok(())
     }
 
     pub fn unmap_page(&self) -> SysResult<()> {
         let asid = self.mapped_asid();
-        let vspace = VSpace::from_asid(asid);
+        let root_table = unsafe { &mut *(((asid << 12) + KERNEL_OFFSET) as *mut Table<Level4>) };
+        let mut vspace = VSpace::from_root(root_table);
         let mapped_vaddr = self.mapped_vaddr();
 
-        let slot = vspace.lookup_pt_slot(mapped_vaddr)?;
+        let slot = vspace.lookup_slot_mut::<Level1, _>(VirtAddr(mapped_vaddr))?;
         *slot = Entry::zero();
 
         crate::arch::dc_clean_by_va_PoU(slot as *const _ as usize);

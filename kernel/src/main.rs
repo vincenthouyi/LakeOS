@@ -23,7 +23,6 @@ mod console;
 mod arch;
 mod objects;
 mod plat;
-#[macro_use]
 mod vspace;
 mod cspace;
 mod interrupt;
