@@ -23,6 +23,33 @@ struct ProcessElfLoader<'a> {
     cur_free: &'a mut usize,
 }
 
+fn map_page(vspace: &VSpaceMan, root_cn: &CNodeRef, cur_free: &mut usize, page_base: usize, perm: Permission) {
+    let frame_cap = gsm!()
+        .alloc_object::<RamObj>(FRAME_BIT_SIZE)
+        .unwrap()
+        .into();
+    let mut frame_entry = VSpaceEntry::new_frame(frame_cap, page_base, perm, 4);
+    while let Err((e, ent)) = vspace.install_entry(frame_entry, true) {
+        frame_entry = ent;
+        match e {
+            VSpaceManError::PageTableMiss { level } => {
+                let vtable_cap: VTableRef =
+                    gsm!().alloc_object::<VTableObj>(12).unwrap().into();
+                let vtable_entry =
+                    VSpaceEntry::new_table(vtable_cap.clone(), page_base, level + 1);
+                vspace.install_entry(vtable_entry, true).unwrap();
+                root_cn
+                    .cap_copy(*cur_free, vtable_cap.slot.slot())
+                    .unwrap();
+                *cur_free += 1;
+            }
+            e => {
+                panic!("vaddr {:x} perm {:?} error: {:?}", page_base, perm, e);
+            }
+        }
+    }
+}
+
 impl<'a> ElfLoader for ProcessElfLoader<'a> {
     fn allocate(&mut self, load_headers: LoadableHeaders) -> Result<(), &'static str> {
         for header in load_headers {
@@ -31,30 +58,7 @@ impl<'a> ElfLoader for ProcessElfLoader<'a> {
             let base = align_down(header.virtual_addr() as usize, FRAME_SIZE);
             let top = (header.virtual_addr() + header.mem_size()) as usize;
             for page_base in (base..top).step_by(FRAME_SIZE) {
-                let frame_cap = gsm!()
-                    .alloc_object::<RamObj>(FRAME_BIT_SIZE)
-                    .unwrap()
-                    .into();
-                let mut frame_entry = VSpaceEntry::new_frame(frame_cap, page_base, perm, 4);
-                while let Err((e, ent)) = self.vspace.install_entry(frame_entry, true) {
-                    frame_entry = ent;
-                    match e {
-                        VSpaceManError::PageTableMiss { level } => {
-                            let vtable_cap: VTableRef =
-                                gsm!().alloc_object::<VTableObj>(12).unwrap().into();
-                            let vtable_entry =
-                                VSpaceEntry::new_table(vtable_cap.clone(), page_base, level + 1);
-                            self.vspace.install_entry(vtable_entry, true).unwrap();
-                            self.child_root_cn
-                                .cap_copy(*self.cur_free, vtable_cap.slot.slot())
-                                .unwrap();
-                            *self.cur_free += 1;
-                        }
-                        e => {
-                            panic!("vaddr {:x} perm {:?} error: {:?}", page_base, perm, e);
-                        }
-                    }
-                }
+                map_page(self.vspace, self.child_root_cn, self.cur_free, page_base, perm)
             }
         }
         Ok(())
@@ -163,30 +167,7 @@ impl<'a> ProcessBuilder<'a> {
         for i in 1..PROCESS_MAIN_THREAD_STACK_PAGES + 1 {
             let page_base = PROCESS_MAIN_THREAD_STACK_TOP - i * FRAME_SIZE;
             let perm = Permission::writable();
-            let frame_cap = gsm!()
-                .alloc_object::<RamObj>(FRAME_BIT_SIZE)
-                .unwrap()
-                .into();
-            let mut frame_entry = VSpaceEntry::new_frame(frame_cap, page_base, perm, 4);
-            while let Err((e, ent)) = vspace.install_entry(frame_entry, true) {
-                frame_entry = ent;
-                match e {
-                    VSpaceManError::PageTableMiss { level } => {
-                        let vtable_cap: VTableRef =
-                            gsm!().alloc_object::<VTableObj>(12).unwrap().into();
-                        let vtable_entry =
-                            VSpaceEntry::new_table(vtable_cap.clone(), page_base, level + 1);
-                        vspace.install_entry(vtable_entry, true).unwrap();
-                        child_root_cn
-                            .cap_copy(cur_free, vtable_cap.slot.slot())
-                            .unwrap();
-                        cur_free += 1;
-                    }
-                    e => {
-                        panic!("vaddr {:x} perm {:?} error: {:?}", page_base, perm, e);
-                    }
-                }
-            }
+            map_page(&vspace, &child_root_cn, &mut cur_free, page_base, perm)
         }
         let entry = child_elf.entry_point() as usize;
 
