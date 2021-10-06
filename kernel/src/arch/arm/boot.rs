@@ -14,9 +14,9 @@ use sysapi::process::{
 };
 use sysapi::vspace::{Permission, FRAME_BIT_SIZE, FRAME_SIZE};
 
-use vspace::{VirtAddr, PhysAddr, Table, Entry, TableLevel, Level1, Level2, Level3, Level4};
-use align_data::{include_aligned, Align64};
+use bootloader::boot_info::{BootInfo, BootInfoEntry, RamType};
 use elfloader::{ElfBinary, ElfLoader, Flags, LoadableHeaders, Rela, VAddr, P64};
+use vspace::{Level1, Level2, Level3, Level4, TableLevel, VirtAddr};
 
 #[derive(Copy, Clone)]
 #[repr(align(4096))]
@@ -25,12 +25,7 @@ struct Frame([usize; FRAME_SIZE]);
 #[no_mangle]
 static mut kernel_stack: [Frame; NCPU] = [Frame([0; FRAME_SIZE]); NCPU];
 
-static mut KERNEL_PGD: Table<Level4> = Table::zero();
-static mut KERNEL_PUD: Table<Level3> = Table::zero();
-static mut KERNEL_PD: Table<Level2> = Table::zero();
-
 static mut INIT_CNODE: MaybeUninit<[CNodeEntry; PROCESS_ROOT_CNODE_SIZE]> = MaybeUninit::uninit();
-static INIT_FS: &[u8] = include_aligned!(Align64, "../../../build/initfs.cpio");
 
 const DEFAULT_IDLE_THREAD: UnsafeCell<TcbObj> = UnsafeCell::new(TcbObj::new());
 pub static IDLE_THREADS: PerCore<TcbObj, NCPU> = PerCore([DEFAULT_IDLE_THREAD; NCPU]);
@@ -148,45 +143,24 @@ lower64_irq:
 
 #[naked]
 #[no_mangle]
-#[link_section = ".boot.text.startup"]
 unsafe extern "C" fn _start() {
-    const TCR_T0SZ: usize = (64 - 48) << 0;
-    const TCR_T1SZ: usize = (64 - 48) << 16;
-    const TCR_TG0_4K: usize = 0 << 14;
-    const TCR_TG1_4K: usize = 2 << 30;
-    const TCR_A1: usize = 0 << 22; // Use TTBR0_EL1.ASID as ASID
-    const TCR_AS: usize = 1 << 36; // 16 bit ASID size
-    const TCR_IRGN_WBWA: usize = (1 << 8) | (1 << 24);
-    const TCR_ORGN_WBWA: usize = (1 << 10) | (1 << 26);
-    const TCR_SHARED: usize = (3 << 12) | (3 << 28);
-    const TCR_VALUE: usize = TCR_T0SZ
-        | TCR_T1SZ
-        | TCR_TG0_4K
-        | TCR_TG1_4K
-        | TCR_AS
-        | TCR_A1
-        | TCR_IRGN_WBWA
-        | TCR_ORGN_WBWA
-        | TCR_SHARED;
+    asm!(
+        r#"
+    mov     x20, x0              // save BootInfo register to x20
 
-    const CONTROL_I: usize = 12; // Instruction access Cacheability control
-    const CONTROL_C: usize = 2; // Cacheability control, for data accesses
-    const CONTROL_M: usize = 0; // MMU enable
-                                // const  CONTROL_A : usize = 1;  // Alignment check
-    const SCTLR_VALUE: usize = BIT!(CONTROL_I) | BIT!(CONTROL_C) | BIT!(CONTROL_M); // TODO: enable alignment check
-    asm!(r#"
     msr     daifset, 0xf
     mrs     x0, mpidr_el1        // check core id, only one core is used.
     mov     x1, #0xc1000000
     bic     x0, x0, x1
     cbz     x0, zero_bss
 hang:
-    b       jump_to_el1
+    b       hang
 
 zero_bss:
     // load the start address and number of bytes in BSS section
     ldr     x1, =__bss_start
-    ldr     x2, =__bss_length
+    ldr     x2, =__bss_end__
+    sub     x2, x2, x1
 
 zero_bss_loop:
     // zero out the BSS section, 64-bits at a time
@@ -202,112 +176,25 @@ jump_to_el1:
     mul     x1, x1, x0
     ldr     x2, =kernel_stack + 4096
     add     x2, x2, x1
-    msr     sp_el1, x2
+    mov     sp, x2
 
     /* Store (kernel_stack | cpu_id) in tpidr_el1 */
     orr     x0, x0, x2
     msr     tpidr_el1, x0
 
-    // mov     x0, #3 << 20
-    // msr     cpacr_el1, x0        // enable fp/simd at el1
-
-    // initialize hcr_el2
-    mov     x0, #(1 << 31)
-    msr     hcr_el2, x0          // set el1 to 64 bit
-
-    /* put spsr to a known state */
-    mov     x0, #(15 << 6 | 0b01 << 2 | 1) // DAIF masked, EL1, SpSelx 
-    msr     spsr_el2, x0
-
     /* set up exception handlers (guide: 10.4) */
     ldr     x2, =trap_vectors
     msr     VBAR_EL1, x2
 
-    /* Translation Control Register */
-    ldr     x4, ={TCR_VALUE}
-    msr     tcr_el1, x4
-    isb
 
-    /* Initialize page tables */
-    // HACK: set a temp sp in case init_cpu use stack
-    mov     sp, #0x80000
-    bl      init_cpu
-
-    /* Initialize SCTLR_EL1 */
-    ldr     x0, ={SCTLR_VALUE}
-    msr     sctlr_el1, x0
-    isb
-
-    ldr     x0, =kmain
-    msr     elr_el2, x0
-
-    /* jump to kmain in higher half runing in el1 */
-    eret
+    mov     x0, x20            // restore BootInfo register
+    b kmain    
     "#,
-    TCR_VALUE = const TCR_VALUE,
-    SCTLR_VALUE = const SCTLR_VALUE,
-    options(noreturn))
+        options(noreturn)
+    )
 }
 
-#[link_section = ".boot.text"]
-unsafe fn init_kernel_vspace() {
-    use vspace::arch::mmu::{Shareability, AccessPermission, MemoryAttr};
-
-    let kernel_base = VirtAddr(KERNEL_BASE);
-    let io_base = VirtAddr(IO_BASE);
-    let pud_paddr = (&KERNEL_PUD as *const _ as usize) - KERNEL_OFFSET;
-    let pd_paddr = (&KERNEL_PD as *const _ as usize) - KERNEL_OFFSET;
-    KERNEL_PGD[kernel_base.table_index::<Level4>()] = Entry::table_entry(PhysAddr(pud_paddr));
-    KERNEL_PUD[kernel_base.table_index::<Level3>()] = Entry::table_entry(PhysAddr(pd_paddr));
-    for i in kernel_base.table_index::<Level2>()..io_base.table_index::<Level2>() {
-        KERNEL_PD[i] = Entry::page_entry(
-            PhysAddr(i * 0x200000),
-            true,
-            true,
-            true,
-            Shareability::InnerSharable,
-            AccessPermission::KernelOnly,
-            MemoryAttr::Normal,
-        );
-    }
-    for i in io_base.table_index::<Level2>()..512 {
-        KERNEL_PD[i] = Entry::page_entry(
-            PhysAddr(i * 0x200000),
-            true,
-            true,
-            true,
-            Shareability::InnerSharable,
-            AccessPermission::KernelOnly,
-            MemoryAttr::DevicenGnRnE,
-        );
-    }
-    KERNEL_PUD[kernel_base.table_index::<Level3>() + 1] = Entry::page_entry(
-        PhysAddr(0x40000000),
-        true,
-        true,
-        true,
-        Shareability::InnerSharable,
-        AccessPermission::KernelOnly,
-        MemoryAttr::DevicenGnRnE,
-    );
-}
-
-#[no_mangle]
-#[link_section = ".boot.text"]
-pub unsafe fn init_cpu() {
-
-    let cpuid = cpuid();
-    if cpuid == 0 {
-        init_kernel_vspace();
-    }
-
-    vspace::mmu::init_mmu();
-    let pgd_paddr = (&KERNEL_PGD as *const _ as usize) - KERNEL_OFFSET;
-    vspace::arch::mmu::install_kernel_vspace(PhysAddr(pgd_paddr));
-}
-
-#[link_section = ".boot.text"]
-fn initialize_init_cspace(cnode: &CNodeObj, cur_free_slot: &mut usize) {
+fn initialize_init_cspace(cnode: &CNodeObj, cur_free_slot: &mut usize, bi: &BootInfo) {
     fn init_cspace_populate_untyped(
         addr_start: usize,
         addr_end: usize,
@@ -354,29 +241,18 @@ fn initialize_init_cspace(cnode: &CNodeObj, cur_free_slot: &mut usize) {
         kernel_base,
         kernel_top
     );
-    /* Insert Physical memory to CSpace */
-    for atag in atags::Atags::get(KERNEL_OFFSET) {
-        if let atags::Atag::Mem(mem) = atag {
-            kprintln!(
-                "Reading Atag Mem {:x?}, range 0x{:x}-0x{:x}",
-                mem,
-                mem.start,
-                mem.start + mem.size
-            );
-            let mem_start = mem.start.max(0x1000) as usize; // skip first 4k for safety
-            let mem_end = (mem.start + mem.size) as usize;
 
-            if mem_start < kernel_base {
-                let untyped_end = mem_end.min(kernel_base);
-                init_cspace_populate_untyped(mem_start, untyped_end, cnode, cur_free_slot, false);
-            }
-
-            if mem_end > kernel_top {
-                let untyped_start = mem_start.max(kernel_top);
-                init_cspace_populate_untyped(untyped_start, mem_end, cnode, cur_free_slot, false);
-            }
-        }
-    }
+    // /* Insert Physical memory to CSpace */
+    bi.entries
+        .iter()
+        .filter_map(|e| match e {
+            BootInfoEntry::RamEntry(r) => Some(r),
+            _ => None,
+        })
+        .filter(|e| e.mem_type == RamType::FreeSpace)
+        .for_each(|e| {
+            init_cspace_populate_untyped(e.base, e.base + e.size, cnode, cur_free_slot, false);
+        });
 
     /* Insert Init CSpace itself into it */
     let cnode_cap = CNodeCap::mint(
@@ -424,14 +300,16 @@ where
     Err(SysError::InvalidValue)
 }
 
-fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut usize) -> usize {
+fn map_page_table<L: TableLevel>(tcb: &TcbObj, vaddr: usize, cur_free_slot: &mut usize) {
     let cspace = tcb.cspace().expect("Init CSpace not installed");
     let mut vspace = tcb.vspace().expect("Init VSpace not installed");
     let vaddr = VirtAddr(vaddr);
 
-    if !vspace.lookup_slot_mut::<Level4, _>(vaddr)
-        .expect("Looking up PGD slot failed")
-        .is_valid()
+    if L::LEVEL <= Level4::LEVEL
+        && !vspace
+            .lookup_slot_mut::<Level4>(vaddr)
+            .expect("Looking up PGD slot failed")
+            .is_valid()
     {
         alloc_obj::<VTableObj>(&cspace, 12, &cspace[*cur_free_slot])
             .expect("Allocating PUD failed")
@@ -440,9 +318,11 @@ fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut u
         *cur_free_slot += 1;
     }
 
-    if !vspace.lookup_slot::<Level3, _>(vaddr)
-        .expect("Looking up PD slot failed")
-        .is_valid()
+    if L::LEVEL <= Level3::LEVEL
+        && !vspace
+            .lookup_slot::<Level3>(vaddr)
+            .expect("Looking up PD slot failed")
+            .is_valid()
     {
         alloc_obj::<VTableObj>(&cspace, 12, &cspace[*cur_free_slot])
             .expect("Allocating PD failed")
@@ -451,9 +331,11 @@ fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut u
         *cur_free_slot += 1;
     }
 
-    if !vspace.lookup_slot::<Level2, _>(vaddr)
-        .expect("Looking up PT slot failed")
-        .is_valid()
+    if L::LEVEL <= Level2::LEVEL
+        && !vspace
+            .lookup_slot::<Level2>(vaddr)
+            .expect("Looking up PT slot failed")
+            .is_valid()
     {
         alloc_obj::<VTableObj>(&cspace, 12, &cspace[*cur_free_slot])
             .expect("Allocating PT failed")
@@ -461,12 +343,19 @@ fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut u
             .expect("Installing PT failed");
         *cur_free_slot += 1;
     }
+}
+
+fn map_frame(tcb: &TcbObj, vaddr: usize, perm: Permission, cur_free_slot: &mut usize) -> usize {
+    map_page_table::<Level2>(tcb, vaddr, cur_free_slot);
+
+    let cspace = tcb.cspace().expect("Init CSpace not installed");
+    let mut vspace = tcb.vspace().expect("Init VSpace not installed");
 
     let frame_cap = alloc_obj::<RamObj>(&cspace, FRAME_BIT_SIZE, &cspace[*cur_free_slot])
         .expect("Allocating Frame failed");
     *cur_free_slot += 1;
     frame_cap
-        .map_page::<Level1>(&mut vspace, vaddr.0, perm)
+        .map_page::<Level1>(&mut vspace, vaddr, perm)
         .expect("Installing frame failed");
     frame_cap.vaddr()
 }
@@ -511,8 +400,10 @@ impl<'a> ElfLoader for InitThreadLoader<'a> {
         let mut frame_offset = (base as usize) % FRAME_SIZE;
 
         while region_offset < region.len() {
-            let frame_kvaddr: VirtAddr =
-                vspace.lookup_slot::<Level1, _>(VirtAddr(vaddr)).unwrap().vaddr();
+            let frame_kvaddr: VirtAddr<KERNEL_OFFSET> = vspace
+                .lookup_slot::<Level1>(VirtAddr(vaddr))
+                .unwrap()
+                .vaddr();
             let frame =
                 unsafe { core::slice::from_raw_parts_mut(frame_kvaddr.0 as *mut u8, FRAME_SIZE) };
             let copy_len = (region.len() - region_offset).min(FRAME_SIZE) - frame_offset;
@@ -528,8 +419,7 @@ impl<'a> ElfLoader for InitThreadLoader<'a> {
     }
 }
 
-#[link_section = ".boot.text"]
-fn load_init_thread(tcb: &mut TcbObj, elf_file: &[u8], cur_free_slot: &mut usize) {
+fn load_init_thread(tcb: &mut TcbObj, elf_file: &[u8], cur_free_slot: &mut usize, init_fs: &[u8]) {
     let cspace = tcb.cspace().expect("Init CSpace not installed");
     let pgd_cap = VTableCap::try_from(&cspace[ProcessCSpace::RootVNodeCap as usize])
         .expect("Init PGD cap not installed");
@@ -556,14 +446,18 @@ fn load_init_thread(tcb: &mut TcbObj, elf_file: &[u8], cur_free_slot: &mut usize
     let entry = init_binary.entry_point();
 
     let mut initfs_base = 0x40000000;
-    for frame in INIT_FS.chunks(FRAME_SIZE) {
+    let mut vspace = tcb.vspace().expect("Init VSpace not installed");
+    for chunk in init_fs.chunks(FRAME_SIZE * 512) {
+        map_page_table::<Level3>(tcb, initfs_base, cur_free_slot);
+        let mut frame_obj = alloc_obj::<RamObj>(&cspace, 21, &cspace[*cur_free_slot]).unwrap();
+        *cur_free_slot += 1;
+
         let perm = Permission::readonly();
-        let frame_kvaddr = map_frame(tcb, initfs_base, perm, cur_free_slot);
-        unsafe {
-            core::slice::from_raw_parts_mut(frame_kvaddr as *mut u8, FRAME_SIZE)[..frame.len()]
-                .copy_from_slice(frame)
-        }
-        initfs_base += FRAME_SIZE;
+        frame_obj
+            .map_page::<Level2>(&mut vspace, initfs_base, perm)
+            .expect("fail to map InitFS");
+        frame_obj[0..chunk.len()].copy_from_slice(chunk);
+        initfs_base += FRAME_SIZE * 512;
     }
 
     tcb.tf.set_elr(entry as usize);
@@ -588,11 +482,17 @@ fn init_app_cpu() {
     SCHEDULER.get_mut().push(IDLE_THREADS.get());
 }
 
-fn init_bsp_cpu() {
+fn init_bsp_cpu(bi: &BootInfo) {
     use crate::scheduler::SCHEDULER;
 
     crate::plat::uart::init_uart();
     kprintln!("Initializing Bootstrapping CPU");
+
+    for (i, entry) in bi.entries.iter().enumerate() {
+        if let BootInfoEntry::RamEntry(e) = entry {
+            kprintln!("bi entry[{}]: {:?}", i, e);
+        }
+    }
 
     let mut cur_free_slot = UntypedStart as usize;
 
@@ -609,7 +509,7 @@ fn init_bsp_cpu() {
         cnode
     };
 
-    initialize_init_cspace(init_cnode_obj, &mut cur_free_slot);
+    initialize_init_cspace(init_cnode_obj, &mut cur_free_slot, bi);
     let mut init_tcb_cap = TcbCap::try_from(&init_cnode_obj[ProcessCSpace::TcbCap as usize])
         .expect("Init TCB cap not installed");
 
@@ -617,12 +517,26 @@ fn init_bsp_cpu() {
         CNodeCap::try_from(&init_cnode_obj[ProcessCSpace::RootCNodeCap as usize]).unwrap();
     init_tcb_cap.install_cspace(&init_cnode_cap).unwrap();
 
+    let init_fs_bytes = bi
+        .entries
+        .iter()
+        .filter_map(|e| match e {
+            BootInfoEntry::RamEntry(r) => Some(r),
+            _ => None,
+        })
+        .find(|e| e.mem_type == RamType::InitRamFS)
+        .map(|e| unsafe {
+            core::slice::from_raw_parts((e.base + KERNEL_OFFSET) as *const u8, e.size)
+        })
+        .expect("InitFS entry not found");
     kprintln!(
-        "initfs@0x{:x}-0x{:x}",
-        INIT_FS.as_ptr() as usize,
-        INIT_FS.as_ptr() as usize + INIT_FS.len()
+        "initfs@0x{:p}-0x{:x} len {}",
+        init_fs_bytes,
+        init_fs_bytes.as_ptr() as usize + init_fs_bytes.len(),
+        init_fs_bytes.len()
     );
-    let initfs = cpio::NewcReader::from_bytes(INIT_FS);
+
+    let initfs = cpio::NewcReader::from_bytes(&init_fs_bytes);
     for (i, ent) in initfs.entries().enumerate() {
         kprintln!(
             "Init fs entry[{}]: {:?}",
@@ -635,7 +549,12 @@ fn init_bsp_cpu() {
         .find(|entry| entry.name() == b"init_thread")
         .map(|entry| entry.content())
         .expect("Init thread not found!");
-    load_init_thread(&mut init_tcb_cap, init_thread_elf, &mut cur_free_slot);
+    load_init_thread(
+        &mut init_tcb_cap,
+        init_thread_elf,
+        &mut cur_free_slot,
+        &init_fs_bytes,
+    );
 
     run_secondary_cpus(crate::_start as usize);
 
@@ -648,13 +567,14 @@ fn init_bsp_cpu() {
 }
 
 #[no_mangle]
-#[link_section = ".boot.text"]
-pub extern "C" fn kmain() -> ! {
+pub extern "C" fn kmain(bi_frame: usize) -> ! {
     use crate::scheduler::SCHEDULER;
     let cpuid = cpuid();
 
+    let bi_frame =
+        unsafe { BootInfo::new_from_frame((bi_frame + KERNEL_OFFSET) as *mut u8, false) };
     if cpuid == 0 {
-        init_bsp_cpu()
+        init_bsp_cpu(&bi_frame)
     } else {
         init_app_cpu()
     }

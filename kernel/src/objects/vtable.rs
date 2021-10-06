@@ -1,7 +1,7 @@
 use super::*;
 use core::convert::TryFrom;
 
-use vspace::{VSpace, VirtAddr, PhysAddr, Table, TableLevel, Level2, Level3, Level4};
+use vspace::{Level2, Level3, Level4, PhysAddr, Table, TableLevel, VSpace, VirtAddr};
 
 /* Capability Entry Field Definition
  * -------------------------------------------------
@@ -45,11 +45,22 @@ impl<'a> VTableCap<'a> {
         f.field("vaddr", &c.vaddr());
     }
 
-    pub fn map_vtable(&self, vspace: &mut VSpace, vaddr: VirtAddr, level: usize) -> SysResult<()> {
+    pub fn map_vtable(
+        &self,
+        vspace: &mut VSpace<KERNEL_OFFSET>,
+        vaddr: VirtAddr<KERNEL_OFFSET>,
+        level: usize,
+    ) -> SysResult<()> {
         match level {
-            4 => vspace.map_table::<Level4>(vaddr, PhysAddr(self.paddr())).map_err(|e| e.into()),
-            3 => vspace.map_table::<Level3>(vaddr, PhysAddr(self.paddr())).map_err(|e| e.into()),
-            2 => vspace.map_table::<Level2>(vaddr, PhysAddr(self.paddr())).map_err(|e| e.into()),
+            4 => vspace
+                .map_table::<Level4>(vaddr, PhysAddr(self.paddr()))
+                .map_err(|e| e.into()),
+            3 => vspace
+                .map_table::<Level3>(vaddr, PhysAddr(self.paddr()))
+                .map_err(|e| e.into()),
+            2 => vspace
+                .map_table::<Level2>(vaddr, PhysAddr(self.paddr()))
+                .map_err(|e| e.into()),
             _ => Err(SysError::InvalidValue),
         }?;
 
@@ -74,11 +85,11 @@ impl<'a> VTableCap<'a> {
 
     pub fn init(&self) {}
 
-    pub fn as_table<L: TableLevel>(&self) -> &Table<L> {
-        unsafe { &*(self.vaddr() as *const Table<L>) }
+    pub fn as_table<L: TableLevel>(&self) -> &Table<L, KERNEL_OFFSET> {
+        unsafe { &*(self.vaddr() as *const Table<L, KERNEL_OFFSET>) }
     }
 
-    pub fn as_table_mut<L: TableLevel>(&self) -> &mut Table<L> {
-        unsafe { &mut *(self.vaddr() as *mut Table<L>) }
+    pub fn as_table_mut<L: TableLevel>(&self) -> &mut Table<L, KERNEL_OFFSET> {
+        unsafe { &mut *(self.vaddr() as *mut Table<L, KERNEL_OFFSET>) }
     }
 }

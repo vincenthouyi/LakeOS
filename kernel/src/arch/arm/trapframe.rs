@@ -119,6 +119,10 @@ impl TrapFrame {
         self.spsr = spsr;
     }
 
+    pub fn get_sp(&mut self) -> usize {
+        self.sp
+    }
+
     pub fn set_sp(&mut self, sp: usize) {
         self.sp = sp;
     }

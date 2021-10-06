@@ -34,8 +34,7 @@ use spin::Mutex;
 use vfs::Vfs;
 
 lazy_static! {
-    pub static ref IRQ_CAP: IrqRef =
-        IrqRef::from_slot_num(InitCSpaceSlot::IrqController as usize);
+    pub static ref IRQ_CAP: IrqRef = IrqRef::from_slot_num(InitCSpaceSlot::IrqController as usize);
     pub static ref MONITOR_CAP: MonitorRef =
         MonitorRef::from_slot_num(InitCSpaceSlot::Monitor as usize);
 }

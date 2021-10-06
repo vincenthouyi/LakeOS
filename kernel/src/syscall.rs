@@ -3,8 +3,8 @@ use core::num::NonZeroUsize;
 use crate::objects::*;
 use crate::prelude::*;
 
-use vspace::{VirtAddr, Level1};
 pub use sysapi::syscall::{MsgInfo, RespInfo, SyscallOp};
+use vspace::{Level1, VirtAddr};
 
 use core::convert::TryFrom;
 

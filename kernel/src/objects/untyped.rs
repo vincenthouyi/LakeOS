@@ -92,7 +92,9 @@ impl<'a> CapRef<'a, UntypedObj> {
                     CapRef::<CNodeObj>::mint(addr, radix_sz, 64 - radix_sz, 0)
                 }
                 ObjType::Tcb => CapRef::<TcbObj>::mint(addr),
-                ObjType::Ram => CapRef::<RamObj>::mint(addr, true, true, 12, self.is_device()),
+                ObjType::Ram => {
+                    CapRef::<RamObj>::mint(addr, true, true, bit_size, self.is_device())
+                }
                 ObjType::VTable => CapRef::<VTableObj>::mint(addr),
                 ObjType::Endpoint => CapRef::<EndpointObj>::mint(addr, 0),
                 _ => return Err(SysError::InvalidValue),

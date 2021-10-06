@@ -1,7 +1,7 @@
 use super::*;
-use vspace::{VSpace, Entry, Table, PageLevel, Level1, Level4, VirtAddr, PhysAddr};
 use core::convert::TryFrom;
 use sysapi::vspace::Permission;
+use vspace::{Entry, Level1, Level4, PageLevel, PhysAddr, Table, VSpace, VirtAddr};
 
 /* Capability Entry Field Definition
  * -------------------------------------------------
@@ -105,11 +105,24 @@ impl<'a> CapRef<'a, RamObj> {
         }
     }
 
-    pub fn map_page<L: PageLevel>(&self, vspace: &mut VSpace, vaddr: usize, rights: Permission) -> SysResult<()> {
+    pub fn map_page<L: PageLevel>(
+        &self,
+        vspace: &mut VSpace<KERNEL_OFFSET>,
+        vaddr: usize,
+        rights: Permission,
+    ) -> SysResult<()> {
         if self.is_device() {
-            vspace.map_device_frame::<L, _>(VirtAddr(vaddr), PhysAddr(self.paddr()), rights)?
+            vspace.map_device_frame::<L>(
+                VirtAddr(vaddr),
+                PhysAddr::<KERNEL_OFFSET>(self.paddr()),
+                rights,
+            )?
         } else {
-            vspace.map_normal_frame::<L, _>(VirtAddr(vaddr), PhysAddr(self.paddr()), rights)?
+            vspace.map_normal_frame::<L>(
+                VirtAddr(vaddr),
+                PhysAddr::<KERNEL_OFFSET>(self.paddr()),
+                rights,
+            )?
         }
 
         let asid = (vspace.root_paddr().0 >> 12) & MASK!(16);
@@ -120,11 +133,12 @@ impl<'a> CapRef<'a, RamObj> {
 
     pub fn unmap_page(&self) -> SysResult<()> {
         let asid = self.mapped_asid();
-        let root_table = unsafe { &mut *(((asid << 12) + KERNEL_OFFSET) as *mut Table<Level4>) };
+        let root_table =
+            unsafe { &mut *(((asid << 12) + KERNEL_OFFSET) as *mut Table<Level4, KERNEL_OFFSET>) };
         let mut vspace = VSpace::from_root(root_table);
         let mapped_vaddr = self.mapped_vaddr();
 
-        let slot = vspace.lookup_slot_mut::<Level1, _>(VirtAddr(mapped_vaddr))?;
+        let slot = vspace.lookup_slot_mut::<Level1>(VirtAddr(mapped_vaddr))?;
         *slot = Entry::zero();
 
         crate::arch::dc_clean_by_va_PoU(slot as *const _ as usize);

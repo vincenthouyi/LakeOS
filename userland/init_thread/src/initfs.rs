@@ -17,7 +17,7 @@ impl InitFs {
         let archive = unsafe {
             cpio::NewcReader::from_bytes(core::slice::from_raw_parts(
                 0x40000000 as *const u8,
-                0x4000000,
+                0x200000,
             ))
         };
         Self {

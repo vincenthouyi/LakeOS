@@ -10,7 +10,7 @@ use crate::objects::{EndpointCap, NullCap};
 use crate::syscall::{MsgInfo, RespInfo};
 use crate::utils::tcb_queue::TcbQueueNode;
 
-use vspace::{VSpace, Table, arch::TopLevel, TableLevel};
+use vspace::{arch::TopLevel, Table, TableLevel, VSpace};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ThreadState {
@@ -98,9 +98,11 @@ impl TcbObj {
         Ok(CSpace(cap.as_object_mut()))
     }
 
-    pub fn vspace(&self) -> Option<VSpace> {
+    pub fn vspace(&self) -> Option<VSpace<KERNEL_OFFSET>> {
         let pgd_cap = VTableCap::try_from(&self.vspace).ok()?;
-        let root_table = unsafe { &mut *((pgd_cap.paddr() + KERNEL_OFFSET) as *mut Table<TopLevel>) };
+        let root_table = unsafe {
+            &mut *((pgd_cap.paddr() + KERNEL_OFFSET) as *mut Table<TopLevel, KERNEL_OFFSET>)
+        };
         Some(VSpace::from_root(root_table))
     }
 

@@ -64,15 +64,20 @@ impl SpaceManager {
                 self.insert_untyped(cap, paddr, bit_sz, is_device, free_offset);
             }
             IdentifyResult::Ram {
-                bit_sz: _,
+                bit_sz,
                 mapped_vaddr,
                 mapped_asid: _,
                 is_device: _,
             } => {
-                let cap = RamCap::new(slot);
-                self.vspace_man
-                    .map_frame(cap.into(), mapped_vaddr, Permission::writable(), 1, false)
-                    .unwrap();
+                if bit_sz == 12 {
+                    let cap = RamCap::new(slot);
+                    self.vspace_man
+                        .map_frame(cap.into(), mapped_vaddr, Permission::writable(), 1, false)
+                        .unwrap();
+                } else {
+                    kprintln!("TODO: frame bitsizes other than 12 are not supported yet");
+                    core::mem::forget(slot);
+                }
             }
             IdentifyResult::VTable {
                 mapped_vaddr,

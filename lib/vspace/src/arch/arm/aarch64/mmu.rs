@@ -65,7 +65,7 @@ pub unsafe fn init_mmu() {
 }
 
 #[inline(always)]
-pub unsafe fn install_kernel_vspace(paddr: PhysAddr) {
+pub unsafe fn install_kernel_vspace<const O: usize>(paddr: PhysAddr<O>) {
     dsb();
     llvm_asm!("msr     ttbr1_el1, $0"
         :

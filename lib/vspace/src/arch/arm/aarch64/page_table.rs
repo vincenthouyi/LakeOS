@@ -19,12 +19,12 @@ const AF_OFFSET: usize = 10;
 const ATTR_INDEX_OFFSET: usize = 2;
 
 #[derive(Default, Debug, Copy, Clone)]
-pub struct Entry<L: TableLevel> {
+pub struct Entry<L: TableLevel, const O:usize> {
     inner: usize,
     level: PhantomData<L>,
 }
 
-impl<L: TableLevel> Entry<L> {
+impl<L: TableLevel, const O:usize> Entry<L, O> {
     pub const fn zero() -> Self {
         Self::new(0)
     }
@@ -37,7 +37,7 @@ impl<L: TableLevel> Entry<L> {
     }
 
     #[inline(always)]
-    pub const fn table_entry(paddr: PhysAddr) -> Self {
+    pub const fn table_entry(paddr: PhysAddr<O>) -> Self {
         Self::new((paddr.0 & PADDR_MASK) | 1 << TABLE_OFFSET | 1 << VALID_OFFSET)
     }
 
@@ -45,11 +45,11 @@ impl<L: TableLevel> Entry<L> {
         self.inner & 0x1 == 0x1
     }
 
-    pub const fn paddr(&self) -> PhysAddr {
-        PhysAddr(self.inner & PADDR_MASK)
+    pub const fn paddr(&self) -> PhysAddr<O> {
+        PhysAddr::<O>(self.inner & PADDR_MASK)
     }
 
-    pub const fn vaddr(&self) -> VirtAddr {
+    pub const fn vaddr(&self) -> VirtAddr<O> {
         crate::addr::phys_to_virt(self.paddr())
     }
 
@@ -62,10 +62,10 @@ impl<L: TableLevel> Entry<L> {
     }
 }
 
-impl<L: PageLevel> Entry<L> {
+impl<L: PageLevel, const O: usize> Entry<L, O> {
     #[inline(always)]
     pub const fn page_entry(
-        paddr: PhysAddr,
+        paddr: PhysAddr<O>,
         uxn: bool,
         global: bool,
         af: bool,
@@ -100,7 +100,7 @@ impl<L: PageLevel> Entry<L> {
     }
 
     pub fn normal_page_entry(
-        paddr: PhysAddr,
+        paddr: PhysAddr<O>,
         perm: Permission,
     ) -> Self {
         let is_executable = perm.is_executable();
@@ -116,7 +116,7 @@ impl<L: PageLevel> Entry<L> {
     }
 
     pub fn device_page_entry(
-        paddr: PhysAddr,
+        paddr: PhysAddr<O>,
         perm: Permission,
     ) -> Self {
         Self::page_entry(
@@ -131,18 +131,18 @@ impl<L: PageLevel> Entry<L> {
     }
 }
 
-impl<L: TableLevel> Entry<L> {
-    pub fn as_table(&self) -> Option<&Table<L::NextLevel>> {
+impl<L: TableLevel, const O: usize> Entry<L, O> {
+    pub fn as_table(&self) -> Option<&Table<L::NextLevel, O>> {
         self.is_table_entry()
             .then_some(
-                unsafe { &*(VirtAddr::from(self.paddr()).0 as *const _) }
+                unsafe { &*(VirtAddr::<O>::from(self.paddr()).0 as *const _) }
             )
     }
 
-    pub fn as_table_mut(&mut self) -> Option<&mut Table<L::NextLevel>> {
+    pub fn as_table_mut(&mut self) -> Option<&mut Table<L::NextLevel, O>> {
         self.is_table_entry()
             .then_some(
-                unsafe { &mut *(VirtAddr::from(self.paddr()).0 as *mut _) }
+                unsafe { &mut *(VirtAddr::<O>::from(self.paddr()).0 as *mut _) }
             )
     }
 }
@@ -151,48 +151,49 @@ pub type TopLevel = Level4;
 
 #[derive(Copy, Clone)]
 #[repr(align(4096))]
-pub struct Table<L: TableLevel> {
-    entries: [Entry<L>; 512],
-    level: PhantomData<L>,
+pub struct Table<L: TableLevel, const O: usize> {
+    entries: [Entry<L, O>; 512],
 }
 
-impl<L: TableLevel> Default for Table<L> where Entry<L>: Copy {
+impl<L: TableLevel, const O: usize> Default for Table<L, O> where Entry<L, O>: Copy {
     fn default() -> Self {
         Self::zero()
     }
 }
 
-impl<L: TableLevel> Index<usize> for Table<L> {
-    type Output = Entry<L>;
+impl<L: TableLevel, const O: usize> Index<usize> for Table<L, O> {
+    type Output = Entry<L, O>;
     fn index(&self, index: usize) -> &Self::Output {
         &self.entries[index]
     }
 }
 
-impl<L: TableLevel> IndexMut<usize> for Table<L> {
+impl<L: TableLevel, const O: usize> IndexMut<usize> for Table<L, O> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.entries[index]
     }
 }
 
-impl<L: TableLevel> Debug for Table<L> {
+impl<L: TableLevel, const O: usize> Debug for Table<L, O> {
     fn fmt(&self, _f: &mut Formatter) -> fmt::Result {
         Ok(())
     }
 }
 
-impl<L: TableLevel> Table<L> where Entry<L>: Copy {
+impl<L: TableLevel, const O: usize> Table<L, O> where Entry<L, O>: Copy {
     pub const fn zero() -> Self {
         Self {
-            entries: [Entry::<L>::zero(); 512],
-            level: PhantomData
+            entries: [Entry::<L, O>::zero(); 512],
         }
     }
 }
 
-impl <L: TableLevel> Table<L> {
-    pub fn lookup_slot_mut<M: TableLevel, V: Into<VirtAddr>>(&mut self, vaddr: V) -> Result<&mut Entry<M>> {
-        let vaddr = vaddr.into();
+impl <L: TableLevel, const O: usize> Table<L, O> {
+    pub unsafe fn from_vaddr<'a>(ptr: *mut u8) -> &'a mut Self {
+        &mut *(ptr as *mut Self)
+    }
+
+    pub fn lookup_slot_mut<M: TableLevel>(&mut self, vaddr: VirtAddr<O>) -> Result<&mut Entry<M, O>> {
         let idx = vaddr.table_index::<L>();
         let entry = &mut self[idx];
         if M::LEVEL == L::LEVEL {
@@ -206,8 +207,7 @@ impl <L: TableLevel> Table<L> {
         }
     }
 
-    pub fn lookup_slot<M: TableLevel, V: Into<VirtAddr>>(&self, vaddr: V) -> Result<&Entry<M>> {
-        let vaddr = vaddr.into();
+    pub fn lookup_slot<M: TableLevel>(&self, vaddr: VirtAddr<O>) -> Result<&Entry<M, O>> {
         let idx = vaddr.table_index::<L>();
         let entry = &self[idx];
         if M::LEVEL == L::LEVEL {
@@ -221,11 +221,11 @@ impl <L: TableLevel> Table<L> {
         }
     }
 
-    pub fn paddr(&self) -> PhysAddr {
-        VirtAddr::from(self).into()
+    pub fn paddr(&self) -> PhysAddr<O> {
+        VirtAddr::<O>::from(self).into()
     }
 
-    pub fn vaddr(&self) -> VirtAddr {
-        VirtAddr::from(self)
+    pub fn vaddr(&self) -> VirtAddr<O> {
+        VirtAddr::<O>::from(self)
     }
 }

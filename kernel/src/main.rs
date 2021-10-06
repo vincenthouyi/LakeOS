@@ -21,11 +21,10 @@ mod macros;
 mod console;
 #[macro_use]
 mod arch;
-mod objects;
-mod plat;
-mod vspace;
 mod cspace;
 mod interrupt;
+mod objects;
+mod plat;
 mod scheduler;
 mod syscall;
 mod utils;

@@ -27,5 +27,3 @@ pub use vspace::VSpace;
 
 #[macro_use]
 extern crate bitflags;
-
-pub const PAGE_OFFSET: usize = 0xffff0000_00000000;

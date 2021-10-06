@@ -2,7 +2,8 @@
 target = "aarch64-none-elf.json"
 
 [target.'cfg(target_os = "none")']
-rustflags = ["-C", "link-args= -Ttext 0xffff800000080000"]
+rustflags = ["-C", "link-args= -Tlayout.ld"]
+# rustflags = ["-C", "link-args= -e_start -Ttext 0x80000"]
 
 [unstable]
 build-std = ["core", "compiler_builtins"]

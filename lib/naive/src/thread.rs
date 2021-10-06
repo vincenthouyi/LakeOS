@@ -11,7 +11,8 @@ pub fn spawn(entry: fn() -> !) -> Thread {
     use rustyl4api::vspace::{Permission, FRAME_SIZE};
 
     let npages = 4;
-    let tcb = gsm!().alloc_object::<TcbObj>(12).unwrap();
+    let tcb = gsm!().alloc_object::<TcbObj>(12)
+        .expect("Fail to allocate TCB object");
 
     let stack_base = gsm!()
         .map_frame_at(0, 0, FRAME_SIZE * npages, Permission::writable())
