@@ -108,6 +108,7 @@ use crate::boot_info::{BootInfo, BootInfoEntry, RamInfo, RamType};
 use crate::ram_block;
 use elf_loader::ElfLoader;
 use elf_rs::{Elf, ElfFile, ProgramHeaderWrapper};
+use log::info;
 use vspace::{PhysAddr, VSpace, VirtAddr};
 
 const KERNEL_OFFSET: usize = 0xffff0000_00000000;
@@ -338,7 +339,7 @@ pub extern "C" fn bootloader_main() -> ! {
 
     for atag in atags::Atags::get(0) {
         if let atags::Atag::Mem(mem) = atag {
-            kprintln!(
+            info!(
                 "Reading Atag Mem {:x?}, range 0x{:x}-0x{:x}",
                 mem,
                 mem.start,
@@ -358,22 +359,6 @@ pub extern "C" fn bootloader_main() -> ! {
         .find(|e| e.name() == b"rustyl4")
         .map(|e| Elf::from_bytes(e.content()).unwrap())
         .expect("kernel not found in init fs!");
-
-    for ph in kernel_elf.program_header_iter() {
-        kprintln!("ph {:x?}", ph);
-        let ph_base = ph.vaddr();
-        for (i, c) in ph.content().chunks(4).enumerate().step_by(4096) {
-            kprintln!(
-                "{:x}:{:p} {:02x}{:02x}{:02x}{:02x}",
-                ph_base + i as u64 * 4,
-                c,
-                c[3],
-                c[2],
-                c[1],
-                c[0]
-            );
-        }
-    }
 
     let bi_frame = ram_blocks
         .frame_alloc(4096)
@@ -410,7 +395,7 @@ pub extern "C" fn bootloader_main() -> ! {
     kernel_loader
         .load_elf(&kernel_elf)
         .expect("fail to load kernel!");
-    kprintln!("load finished");
+    info!("load finished");
 
     for blk in ram_blocks.list.iter() {
         match blk {

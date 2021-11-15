@@ -7,14 +7,14 @@ extern crate alloc;
 #[macro_use]
 extern crate naive;
 
+use log::trace;
 use naive::{fs::File, io};
-use rustyl4api::kprintln;
 
 mod shell;
 
 #[naive::main]
 async fn main() -> () {
-    kprintln!("shell process start");
+    trace!("shell process start");
 
     let mut tty = None;
     while let None = tty {

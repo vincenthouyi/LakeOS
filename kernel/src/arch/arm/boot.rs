@@ -16,6 +16,7 @@ use sysapi::vspace::{Permission, FRAME_BIT_SIZE, FRAME_SIZE};
 
 use bootloader::boot_info::{BootInfo, BootInfoEntry, RamType};
 use elfloader::{ElfBinary, ElfLoader, Flags, LoadableHeaders, Rela, VAddr, P64};
+use log::{debug, info};
 use vspace::{Level1, Level2, Level3, Level4, TableLevel, VirtAddr};
 
 #[derive(Copy, Clone)]
@@ -211,7 +212,7 @@ fn initialize_init_cspace(cnode: &CNodeObj, cur_free_slot: &mut usize, bi: &Boot
             let sz = 1 << bit_sz;
 
             if sz > 1 << 4 {
-                kprintln!(
+                debug!(
                     "inserting memory 0x{:x}-0x{:x} with bit size {} @cptr {} is_device {}",
                     cur,
                     cur + sz,
@@ -223,7 +224,7 @@ fn initialize_init_cspace(cnode: &CNodeObj, cur_free_slot: &mut usize, bi: &Boot
                 cnode[*cptr].set(UntypedCap::mint(cur, bit_sz as usize, is_device));
                 *cptr += 1;
             } else {
-                kprintln!(
+                debug!(
                     "skipping memory 0x{:x}-0x{:x} with bit size {}",
                     cur,
                     cur + sz,
@@ -236,10 +237,9 @@ fn initialize_init_cspace(cnode: &CNodeObj, cur_free_slot: &mut usize, bi: &Boot
 
     let kernel_base = PHYS_BASE;
     let kernel_top = (SYMBOL!(crate::_end) - KERNEL_OFFSET).next_power_of_two();
-    kprintln!(
+    debug!(
         "Kernel memory is in range 0x{:x}-0x{:x}",
-        kernel_base,
-        kernel_top
+        kernel_base, kernel_top
     );
 
     // /* Insert Physical memory to CSpace */
@@ -477,7 +477,7 @@ fn run_secondary_cpus(entry: usize) {
 fn init_app_cpu() {
     use crate::scheduler::SCHEDULER;
 
-    kprintln!("Initializing Application CPU");
+    info!("Initializing Application CPU");
     IDLE_THREADS.get_mut().configure_idle_thread();
     SCHEDULER.get_mut().push(IDLE_THREADS.get());
 }
@@ -486,11 +486,11 @@ fn init_bsp_cpu(bi: &BootInfo) {
     use crate::scheduler::SCHEDULER;
 
     crate::plat::uart::init_uart();
-    kprintln!("Initializing Bootstrapping CPU");
+    info!("Initializing Bootstrapping CPU");
 
     for (i, entry) in bi.entries.iter().enumerate() {
         if let BootInfoEntry::RamEntry(e) = entry {
-            kprintln!("bi entry[{}]: {:?}", i, e);
+            debug!("bi entry[{}]: {:?}", i, e);
         }
     }
 
@@ -498,7 +498,7 @@ fn init_bsp_cpu(bi: &BootInfo) {
 
     let init_cnode_obj = unsafe {
         let cnode = INIT_CNODE.assume_init_mut();
-        kprintln!(
+        debug!(
             "Allocating init CNode object@{:p} size: {}",
             cnode,
             cnode.len()
@@ -529,7 +529,7 @@ fn init_bsp_cpu(bi: &BootInfo) {
             core::slice::from_raw_parts((e.base + KERNEL_OFFSET) as *const u8, e.size)
         })
         .expect("InitFS entry not found");
-    kprintln!(
+    debug!(
         "initfs@0x{:p}-0x{:x} len {}",
         init_fs_bytes,
         init_fs_bytes.as_ptr() as usize + init_fs_bytes.len(),
@@ -538,7 +538,7 @@ fn init_bsp_cpu(bi: &BootInfo) {
 
     let initfs = cpio::NewcReader::from_bytes(&init_fs_bytes);
     for (i, ent) in initfs.entries().enumerate() {
-        kprintln!(
+        debug!(
             "Init fs entry[{}]: {:?}",
             i,
             core::str::from_utf8(ent.name()).unwrap()
@@ -558,7 +558,7 @@ fn init_bsp_cpu(bi: &BootInfo) {
 
     run_secondary_cpus(crate::_start as usize);
 
-    kprintln!("Jumping to User Space!");
+    info!("Jumping to User Space!");
 
     IDLE_THREADS.get_mut().configure_idle_thread();
 

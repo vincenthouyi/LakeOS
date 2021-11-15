@@ -32,3 +32,4 @@ elfloader = "0.12.0"
 cpio = { path = "../lib/cpio" }
 vspace = { path = "../lib/vspace" }
 bootloader = { path = "../tools/bootloader" }
+log = "0.4.14"

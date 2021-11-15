@@ -1,4 +1,3 @@
-use crate::arch::cpuid;
 pub use crate::plat::uart::console_print;
 
 /// Like `println!`, but for kernel-space.

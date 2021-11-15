@@ -17,3 +17,4 @@ async-trait = "0.1.42"
 cpio = { path = "../../lib/cpio" }
 # std = { path = "../../lib/std" }
 lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
+log = "0.4.14"

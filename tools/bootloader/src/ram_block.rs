@@ -1,3 +1,5 @@
+use log::warn;
+
 #[derive(Copy, Clone, Debug)]
 pub struct RamBlock {
     pub base: usize,
@@ -54,7 +56,7 @@ impl<const N: usize> RamBlockList<N> {
                 return;
             }
         }
-        kprintln!("Insert failed!")
+        warn!("Insert failed!")
     }
 
     pub fn frame_alloc(&mut self, size: usize) -> Option<*mut u8> {

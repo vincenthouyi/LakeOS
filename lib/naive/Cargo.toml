@@ -23,3 +23,4 @@ serde_json = { version = "1.0.60", default-features = false, features = ["alloc"
 async-trait = "0.1.42"
 num-traits = { version = "0.2", default-features = false }
 lazy_static = { version = "1.4.0", features = ["spin_no_std"] }
+log = "0.4.14"

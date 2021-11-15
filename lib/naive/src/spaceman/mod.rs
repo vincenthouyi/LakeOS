@@ -16,6 +16,7 @@ use crate::objects::{
 };
 
 use vspace_man::{VSpaceEntry, VSpaceManError};
+use log::info;
 
 #[derive(Debug)]
 pub struct SpaceManager {
@@ -75,7 +76,7 @@ impl SpaceManager {
                         .map_frame(cap.into(), mapped_vaddr, Permission::writable(), 1, false)
                         .unwrap();
                 } else {
-                    kprintln!("TODO: frame bitsizes other than 12 are not supported yet");
+                    info!("TODO: frame bitsizes other than 12 are not supported yet");
                     core::mem::forget(slot);
                 }
             }

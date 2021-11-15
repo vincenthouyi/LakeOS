@@ -1,9 +1,9 @@
 use crate::objects::TcbObj;
-use crate::prelude::*;
 use crate::utils::percore::PerCore;
 use crate::utils::tcb_queue::TcbQueue;
 use crate::NCPU;
 use core::cell::UnsafeCell;
+use log::warn;
 
 const DEFAULT_SCHEDULER: UnsafeCell<Scheduler> = UnsafeCell::new(Scheduler::new());
 pub static SCHEDULER: PerCore<Scheduler, NCPU> = PerCore([DEFAULT_SCHEDULER; NCPU]);
@@ -41,7 +41,6 @@ impl Scheduler {
             if (head.timeslice()) == 0 {
                 let tcb = self.pop().unwrap();
                 self.push(tcb);
-                // kprintln!("switching {:p} -> {:p}: {:x?}", tcb, self.head().unwrap(), self.head().unwrap());
 
                 self.head()
                     .unwrap()
@@ -49,7 +48,7 @@ impl Scheduler {
             }
             self.head_mut().unwrap().activate();
         } else {
-            kprintln!("not schedulable TCB. wait for interrupt!");
+            warn!("not schedulable TCB. wait for interrupt!");
             loop {
                 crate::arch::wfe()
             }

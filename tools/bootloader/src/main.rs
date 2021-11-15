@@ -30,9 +30,11 @@ mod boot_info;
 mod ram_block;
 mod uart;
 
+use log::error;
+
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    kprintln!("Panic! {:?}", info);
+    error!("Panic! {:?}", info);
     loop {
         //     arch::wfe();
     }

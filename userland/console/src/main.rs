@@ -22,6 +22,7 @@ use naive::rpc::{ReadRequest, ReadResponse, RpcServer, WriteRequest, WriteRespon
 use pi::interrupt::Interrupt;
 
 use futures_util::StreamExt;
+use log::trace;
 
 pub async fn request_memory(paddr: usize, size: usize, maybe_device: bool) -> Result<RamCap, ()> {
     let client = ns_client();
@@ -71,7 +72,7 @@ impl naive::rpc::RpcRequestHandlers for ConsoleApi {
 
 #[naive::main]
 async fn main() {
-    kprintln!("console app start");
+    trace!("console app start");
     gpio::init_gpio_server().await;
     console::console_server_init().await;
 

@@ -1,7 +1,9 @@
 use crate::objects::CapSlot;
 use crate::space_manager::gsm;
+use log::{set_logger, set_max_level, LevelFilter};
 
 const MEMPOOL_SIZE: usize = usize::pow(2, 15);
+const DEFAULT_LOG_LEVEL: LevelFilter = LevelFilter::Trace;
 
 #[repr(align(4096))]
 struct InitMemPool([u8; MEMPOOL_SIZE]);
@@ -66,6 +68,10 @@ pub fn _start() -> ! {
     unsafe {
         r0::zero_bss(__bss_start__.as_mut_ptr(), __bss_end__.as_mut_ptr());
     }
+
+    set_logger(&rustyl4api::debug_printer::DEBUG_PRINTER)
+        .map(|()| set_max_level(DEFAULT_LOG_LEVEL))
+        .unwrap();
 
     initialize_mm();
 

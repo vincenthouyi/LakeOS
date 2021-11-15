@@ -1,3 +1,5 @@
+use log::trace;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RamType {
     Invalid = 0,
@@ -50,7 +52,7 @@ impl BootInfo {
     }
 
     pub fn append_entry(&mut self, entry: BootInfoEntry) {
-        // kprintln!("inserting entry[{}] {:?}", self.idx,entry);
+        trace!("inserting entry[{}] {:?}", self.idx, entry);
         if self.idx >= self.entries.len() {
             return;
         }

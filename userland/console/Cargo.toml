@@ -14,3 +14,4 @@ futures-util = { git = "https://github.com/vincenthouyi/futures-rs.git", branch 
 spin = "0.5.2"
 async-trait = "0.1.42"
 conquer-once = { version = "0.2.0", default-features = false }
+log = "0.4.14"

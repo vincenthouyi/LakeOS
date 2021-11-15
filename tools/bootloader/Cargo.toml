@@ -15,3 +15,4 @@ vspace = { path = "../../lib/vspace" }
 cpio = { path = "../../lib/cpio" }
 elf_rs = { git = "https://github.com/vincenthouyi/elf_rs" }
 elf-loader = { path = "../../lib/elf-loader" }
+log = "0.4.14"

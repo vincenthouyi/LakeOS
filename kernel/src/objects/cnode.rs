@@ -54,8 +54,6 @@ impl<'a> CNodeCap<'a> {
     //    const ADDR_OFFSET    : usize = Self::RADIX_OFFSET + Self::RADIX_SZ_BITS;
     //    pub const ADDR_MASK      : usize = !MASK!(15);
     pub fn mint(paddr: usize, radix_sz: usize, guard_sz: usize, guard: usize) -> CapRaw {
-        //        crate::kprintln!("paddr 0x{:x} sz {}", paddr, radix_sz);
-        //        assert!(paddr % (1 << (radix_sz + 5)) == 0);
         CapRaw::new(
             paddr,
             (guard_sz & MASK!(Self::GUARD_SZ_BITS)) << Self::GUARD_SZ_OFFSET

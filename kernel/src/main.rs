@@ -35,6 +35,8 @@ pub const TICK: u32 = 1000;
 pub const TIME_SLICE: isize = 1000;
 pub const NCPU: usize = 4;
 
+use log::error;
+
 mod prelude {
     pub use crate::console::{kprint, kprintln};
     pub use core::convert::TryFrom;
@@ -50,8 +52,7 @@ mod prelude {
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    use crate::prelude::*;
-    kprintln!("Panic! {:?}", info);
+    error!("Panic! {:?}", info);
     loop {
         arch::wfe();
     }

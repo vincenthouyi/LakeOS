@@ -74,6 +74,7 @@ dependencies = [
  "async-trait",
  "conquer-once",
  "futures-util",
+ "log",
  "naive",
  "pi",
  "rustyl4api",
@@ -182,6 +183,7 @@ dependencies = [
  "futures-util",
  "hashbrown",
  "lazy_static",
+ "log",
  "naive",
  "pi",
  "r0",
@@ -236,6 +238,7 @@ dependencies = [
  "futures-util",
  "hashbrown",
  "lazy_static",
+ "log",
  "naive-attributes",
  "num-traits",
  "r0",
@@ -332,6 +335,7 @@ checksum = "bd7a31eed1591dcbc95d92ad7161908e72f4677f8fabf2a32ca49b4237cbf211"
 name = "rustyl4api"
 version = "0.1.0"
 dependencies = [
+ "log",
  "num-derive",
  "num-traits",
  "spin",
@@ -381,6 +385,7 @@ version = "0.1.0"
 dependencies = [
  "conquer-once",
  "futures-util",
+ "log",
  "naive",
  "rustyl4api",
  "spin",
@@ -410,6 +415,7 @@ dependencies = [
  "async-trait",
  "conquer-once",
  "futures-util",
+ "log",
  "naive",
  "pi",
  "rustyl4api",

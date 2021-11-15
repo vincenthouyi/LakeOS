@@ -1,8 +1,6 @@
 #![no_std]
 #![no_main]
 
-#[macro_use]
-extern crate rustyl4api;
 extern crate alloc;
 
 use alloc::boxed::Box;
@@ -10,6 +8,7 @@ use alloc::vec::Vec;
 
 use async_trait::async_trait;
 
+use log::trace;
 use naive::lmp::LmpListener;
 use naive::ns::ns_client;
 use naive::objects::{CapSlot, RamCap};
@@ -48,7 +47,7 @@ impl naive::rpc::RpcRequestHandlers for TimerApi {
 
 #[naive::main]
 async fn main() {
-    kprintln!("Timer started");
+    trace!("Timer started");
 
     timer::init_timer_server().await;
 

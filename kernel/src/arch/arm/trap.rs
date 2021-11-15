@@ -3,9 +3,9 @@ use rustyl4api::fault::{Fault as SysFault, VmFaultKind};
 use super::cpuid;
 use super::trapframe::TrapFrame;
 use crate::arch;
-use crate::console::kprintln;
 use crate::interrupt::INTERRUPT_CONTROLLER;
 use crate::objects::TcbObj;
+use log::error;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Fault {
@@ -146,11 +146,11 @@ pub fn handle_vfault(tcb: &mut TcbObj, fault: SysFault) -> ! {
 pub unsafe extern "C" fn sync_handler() -> ! {
     use self::Syndrome::*;
 
-    kprintln!("Panic! kernel hitting exception!");
+    error!("Panic! kernel hitting exception!");
 
     match Syndrome::from(arch::get_esr()) {
         InstructionAbort { kind, level } => {
-            kprintln!(
+            error!(
                 "Instruction Abort: kind {:?} level {} syndrome {:?} elr {:x}",
                 kind,
                 level,
@@ -159,7 +159,7 @@ pub unsafe extern "C" fn sync_handler() -> ! {
             );
         }
         DataAbort { kind, level } => {
-            kprintln!(
+            error!(
                 "Data Abort: kind {:?} level {} syndrome {:?} elr 0x{:x} fault address 0x{:x}",
                 kind,
                 level,
@@ -169,7 +169,7 @@ pub unsafe extern "C" fn sync_handler() -> ! {
             );
         }
         syn => {
-            kprintln!("Unhandled synchronous trap: {:?}", syn);
+            error!("Unhandled synchronous trap: {:?}", syn);
         }
     }
 
@@ -224,7 +224,7 @@ pub unsafe extern "C" fn lower64_irq_handler(tf: &mut TrapFrame) -> ! {
 
 #[no_mangle]
 pub unsafe extern "C" fn unknown_exception_handler(tcb: &mut TcbObj) -> ! {
-    kprintln!("unknown exception! tcb: {:?}", tcb);
+    error!("unknown exception! tcb: {:?}", tcb);
     loop {}
 }
 

@@ -34,6 +34,7 @@ dependencies = [
  "elf-loader",
  "elf_rs",
  "elfloader",
+ "log",
  "pi",
  "spin",
  "vspace",

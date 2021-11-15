@@ -14,6 +14,8 @@ pub use inode::*;
 mod dcache;
 mod inode;
 
+use log::info;
+
 #[derive(Debug)]
 pub struct Vfs {
     mount_table: HashMap<PathBuf, Box<dyn FileSystem>>,
@@ -69,7 +71,7 @@ impl Vfs {
     }
 
     pub fn publish<P: AsRef<Path>>(&mut self, path: P, ep: EpRef) -> Result<(), ()> {
-        kprintln!("Registering path {:?}", path.as_ref());
+        info!("Registering path {:?}", path.as_ref());
         let parent = path.as_ref().parent().ok_or(())?;
         let filename = path.as_ref().file_stem().ok_or(())?;
         let parent_dentry = self.lookup(parent).ok_or(())?;

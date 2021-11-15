@@ -3,8 +3,6 @@
 
 extern crate alloc;
 #[macro_use]
-extern crate rustyl4api;
-#[macro_use]
 extern crate lazy_static;
 
 // mod rt;
@@ -31,6 +29,7 @@ use naive::space_manager::{copy_cap, gsm};
 use rustyl4api::init::InitCSpaceSlot;
 use spin::Mutex;
 
+use log::trace;
 use vfs::Vfs;
 
 lazy_static! {
@@ -123,7 +122,7 @@ lazy_static! {
 
 #[naive::main]
 async fn main() {
-    kprintln!("Init thread started");
+    trace!("Init thread started");
 
     let receiver = EP_SERVER.derive_receiver().unwrap();
     let listener = LmpListener::new(receiver);

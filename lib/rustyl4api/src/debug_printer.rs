@@ -2,11 +2,20 @@ use core::fmt::{Arguments, Result, Write};
 use spin::Mutex;
 
 use crate::syscall::{syscall, MsgInfo, SyscallOp};
+use crate::thread::{cpu_id, thread_id};
+use log::{Log, Metadata, Record};
 
-pub struct DebugPrinter {}
-pub static DEBUG_PRINTER: Mutex<DebugPrinter> = Mutex::new(DebugPrinter {});
+pub struct KernelConsole{}
+pub struct DebugPrinter(Mutex<KernelConsole>);
+pub static DEBUG_PRINTER: DebugPrinter = DebugPrinter::new();
 
-impl Write for DebugPrinter {
+impl DebugPrinter {
+    pub const fn new() -> Self {
+        Self(Mutex::new(KernelConsole{}))
+    }
+}
+
+impl Write for KernelConsole {
     fn write_str(&mut self, s: &str) -> Result {
         for c in s.chars() {
             let msg_len = 1;
@@ -19,9 +28,27 @@ impl Write for DebugPrinter {
     }
 }
 
+impl Log for DebugPrinter {
+    fn enabled(&self, _metadata: &Metadata) -> bool {
+        true
+    }
+
+    fn log(&self, record: &Record) {
+        if self.enabled(record.metadata()) {
+            self.0
+                .lock()
+                .write_fmt(format_args!("[Thread-{}:{:x}-{}] {}\n", cpu_id(), thread_id(), record.level(), record.args()))
+                .expect("fail to print to kernel console!");
+        }
+    }
+
+    fn flush(&self) {}
+}
+
 pub fn _print(args: Arguments) {
-    let mut debug_printer = DEBUG_PRINTER.lock();
-    debug_printer.write_fmt(args).unwrap();
+    DEBUG_PRINTER.0
+        .lock()
+        .write_fmt(args).unwrap();
 }
 
 #[macro_export]
