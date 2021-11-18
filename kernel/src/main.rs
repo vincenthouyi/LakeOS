@@ -28,6 +28,7 @@ mod plat;
 mod scheduler;
 mod syscall;
 mod utils;
+mod vspace;
 
 pub use scheduler::SCHEDULER;
 

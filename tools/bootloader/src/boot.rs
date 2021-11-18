@@ -109,7 +109,9 @@ use crate::ram_block;
 use elf_loader::ElfLoader;
 use elf_rs::{Elf, ElfFile, ProgramHeaderWrapper};
 use log::info;
-use vspace::{PhysAddr, VSpace, VirtAddr};
+use vspace::{PhysAddr, VirtAddr, arch::Aarch64PageTableEntry, Level1, Level2, Level3};
+
+type VSpace<'a> = vspace::arch::VSpace<'a, 0>;
 
 const KERNEL_OFFSET: usize = 0xffff0000_00000000;
 static INIT_FS: &[u8] = include_bytes!("../build/initfs.cpio");
@@ -117,7 +119,7 @@ static INIT_FS: &[u8] = include_bytes!("../build/initfs.cpio");
 struct KernelLoader<'a> {
     ram_blocks: &'a mut ram_block::RamBlockList<4>,
     boot_info: &'a mut BootInfo,
-    vspace: &'a mut VSpace<'a, 0>,
+    vspace: &'a mut VSpace<'a>,
 }
 
 impl<'a> KernelLoader<'a> {
@@ -161,7 +163,7 @@ impl<'a> ElfLoader for KernelLoader<'a> {
                     let pud_paddr = self
                         .frame_alloc(4096, RamType::KernelPageTable)
                         .expect("allocating frame failed");
-                    let pgde_entry = vspace::Entry::table_entry(PhysAddr(pud_paddr as usize));
+                    let pgde_entry = Aarch64PageTableEntry::table_entry(PhysAddr(pud_paddr as usize));
                     self.vspace
                         .map_entry::<vspace::Level4>(vaddr, pgde_entry)
                         .unwrap();
@@ -179,7 +181,7 @@ impl<'a> ElfLoader for KernelLoader<'a> {
                     let pud_paddr = self
                         .frame_alloc(4096, RamType::KernelPageTable)
                         .expect("allocating frame failed");
-                    let pgde_entry = vspace::Entry::table_entry(PhysAddr(pud_paddr as usize));
+                    let pgde_entry = Aarch64PageTableEntry::table_entry(PhysAddr(pud_paddr as usize));
                     self.vspace
                         .map_entry::<vspace::Level3>(vaddr, pgde_entry)
                         .unwrap();
@@ -190,16 +192,16 @@ impl<'a> ElfLoader for KernelLoader<'a> {
                 let vaddr = VirtAddr(page_base);
                 if self
                     .vspace
-                    .lookup_slot::<vspace::Level2>(vaddr)
+                    .lookup_slot::<Level2>(vaddr)
                     .map(|slot| !slot.is_valid())
                     .unwrap()
                 {
                     let pd_paddr = self
                         .frame_alloc(4096, RamType::KernelPageTable)
                         .expect("allocating frame failed");
-                    let pude_entry = vspace::Entry::table_entry(PhysAddr(pd_paddr as usize));
+                    let pude_entry = Aarch64PageTableEntry::table_entry(PhysAddr(pd_paddr as usize));
                     self.vspace
-                        .map_entry::<vspace::Level2>(vaddr, pude_entry)
+                        .map_entry::<Level2>(vaddr, pude_entry)
                         .unwrap();
                 }
             }
@@ -209,7 +211,7 @@ impl<'a> ElfLoader for KernelLoader<'a> {
                     .frame_alloc(4 * 1024, RamType::KernelPage)
                     .expect("allocating frame failed");
                 let frame_addr = PhysAddr(frame_ptr as usize);
-                let page_entry = vspace::Entry::page_entry(
+                let page_entry = Aarch64PageTableEntry::page_entry::<Level1>(
                     frame_addr,
                     true,
                     true,
@@ -254,25 +256,27 @@ impl<'a> ElfLoader for KernelLoader<'a> {
 }
 
 fn map_kernel_virtual_address_space<const O: usize>(
-    vspace: &mut VSpace<O>,
+    vspace: &mut VSpace,
     ram_blocks: &mut ram_block::RamBlockList<4>,
 ) {
     pub const PHYS_IO_BASE: usize = 0x3f000000;
     pub const IO_BASE: usize = PHYS_IO_BASE + KERNEL_OFFSET;
 
     let pud_paddr = ram_blocks.frame_alloc(4096).expect("alloc pud failed");
+    let pud_entry = Aarch64PageTableEntry::table_entry(PhysAddr(pud_paddr as usize));
     vspace
-        .map_table::<vspace::Level4>(VirtAddr(KERNEL_OFFSET), PhysAddr(pud_paddr as usize))
+        .map_entry::<vspace::Level4>(VirtAddr(KERNEL_OFFSET), pud_entry)
         .expect("mapping pud failed");
 
     let pd_paddr = ram_blocks.frame_alloc(4096).expect("alloc pd failed");
+    let pd_entry = Aarch64PageTableEntry::table_entry(PhysAddr(pd_paddr as usize));
     vspace
-        .map_table::<vspace::Level3>(VirtAddr(KERNEL_OFFSET), PhysAddr(pd_paddr as usize))
+        .map_entry::<vspace::Level3>(VirtAddr(KERNEL_OFFSET), pd_entry)
         .expect("mapping pd failed");
 
     for vaddr in (KERNEL_OFFSET..IO_BASE).step_by(2 * 1024 * 1024) {
-        let frame_entry = vspace::Entry::page_entry(
-            PhysAddr::<O>(vaddr - KERNEL_OFFSET),
+        let frame_entry = Aarch64PageTableEntry::page_entry::<Level2>(
+            PhysAddr(vaddr - KERNEL_OFFSET),
             true,
             true,
             true,
@@ -281,13 +285,13 @@ fn map_kernel_virtual_address_space<const O: usize>(
             vspace::arch::mmu::MemoryAttr::Normal,
         );
         vspace
-            .map_entry::<vspace::Level2>(VirtAddr(vaddr), frame_entry)
+            .map_entry::<Level2>(VirtAddr(vaddr), frame_entry)
             .expect("mapping normal pde failed");
     }
 
     for vaddr in (IO_BASE..0x40000000 + KERNEL_OFFSET).step_by(2 * 1024 * 1024) {
-        let frame_entry = vspace::Entry::page_entry(
-            PhysAddr::<O>(vaddr - KERNEL_OFFSET),
+        let frame_entry = Aarch64PageTableEntry::page_entry::<Level2>(
+            PhysAddr(vaddr - KERNEL_OFFSET),
             true,
             true,
             true,
@@ -296,13 +300,13 @@ fn map_kernel_virtual_address_space<const O: usize>(
             vspace::arch::mmu::MemoryAttr::DevicenGnRnE,
         );
         vspace
-            .map_entry::<vspace::Level2>(VirtAddr(vaddr), frame_entry)
+            .map_entry::<Level2>(VirtAddr(vaddr), frame_entry)
             .expect("mapping device pde failed");
     }
 
     {
-        let frame_entry = vspace::Entry::page_entry(
-            PhysAddr::<O>(0x40000000),
+        let frame_entry = Aarch64PageTableEntry::page_entry::<Level3>(
+            PhysAddr(0x40000000),
             true,
             true,
             true,
@@ -381,10 +385,10 @@ pub extern "C" fn bootloader_main() -> ! {
     let vspace_root_paddr = ram_blocks
         .frame_alloc(4096)
         .expect("Allocating root vspace frame failed!");
-    let vspace_root =
-        unsafe { vspace::Table::<vspace::arch::TopLevel, 0>::from_vaddr(vspace_root_paddr) };
-    let mut vspace = VSpace::from_root(vspace_root);
-    map_kernel_virtual_address_space(&mut vspace, &mut ram_blocks);
+    // let vspace_root =
+    //     unsafe { vspace::Table::<vspace::arch::TopLevel>::from_vaddr(vspace_root_paddr) };
+    let mut vspace = unsafe { VSpace::from_vaddr(vspace_root_paddr) };
+    map_kernel_virtual_address_space::<0>(&mut vspace, &mut ram_blocks);
 
     let mut kernel_loader = KernelLoader {
         ram_blocks: &mut ram_blocks,
@@ -413,7 +417,7 @@ pub extern "C" fn bootloader_main() -> ! {
     }
 
     unsafe {
-        vspace::arch::mmu::install_kernel_vspace(PhysAddr::<0>(vspace_root_paddr as usize));
+        vspace::arch::mmu::install_kernel_vspace(PhysAddr(vspace_root_paddr as usize));
     }
 
     unsafe { jump_to_kernel(kernel_elf.entry_point() as usize, bi_frame) }

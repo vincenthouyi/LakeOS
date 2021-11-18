@@ -10,7 +10,8 @@ use crate::objects::{EndpointCap, NullCap};
 use crate::syscall::{MsgInfo, RespInfo};
 use crate::utils::tcb_queue::TcbQueueNode;
 
-use vspace::{arch::TopLevel, Table, TableLevel, VSpace};
+use vspace::{Level, PhysAddr};
+use crate::vspace::{VSpace, PageGlobalDirectory, TopLevel, VirtAddr};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ThreadState {
@@ -98,10 +99,10 @@ impl TcbObj {
         Ok(CSpace(cap.as_object_mut()))
     }
 
-    pub fn vspace(&self) -> Option<VSpace<KERNEL_OFFSET>> {
+    pub fn vspace(&self) -> Option<VSpace> {
         let pgd_cap = VTableCap::try_from(&self.vspace).ok()?;
         let root_table = unsafe {
-            &mut *((pgd_cap.paddr() + KERNEL_OFFSET) as *mut Table<TopLevel, KERNEL_OFFSET>)
+            &mut *((pgd_cap.paddr() + KERNEL_OFFSET) as *mut PageGlobalDirectory)
         };
         Some(VSpace::from_root(root_table))
     }
@@ -113,8 +114,10 @@ impl TcbObj {
     pub unsafe fn switch_vspace(&self) -> SysResult<()> {
         let pgd_cap = VTableCap::try_from(&self.vspace)?;
         let asid = self.asid()?;
-        vspace::mmu::install_user_vspace(pgd_cap.as_table(), asid);
-        vspace::mmu::invalidate_tlb_by_asid(asid);
+        let root_vaddr: VirtAddr = PhysAddr(pgd_cap.paddr()).into();
+        let vspace = VSpace::from_vaddr(root_vaddr.0 as *mut u8);
+        vspace.install_user_vspace(asid);
+        vspace.invalidate_tlb_by_asid(asid);
         Ok(())
     }
 

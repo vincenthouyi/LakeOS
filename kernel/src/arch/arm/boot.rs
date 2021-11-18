@@ -17,7 +17,8 @@ use sysapi::vspace::{Permission, FRAME_BIT_SIZE, FRAME_SIZE};
 use bootloader::boot_info::{BootInfo, BootInfoEntry, RamType};
 use elfloader::{ElfBinary, ElfLoader, Flags, LoadableHeaders, Rela, VAddr, P64};
 use log::{debug, info};
-use vspace::{Level1, Level2, Level3, Level4, TableLevel, VirtAddr};
+use vspace::{Level1, Level2, Level3, Level4, Level, TableLevel};
+use crate::vspace::VirtAddr;
 
 #[derive(Copy, Clone)]
 #[repr(align(4096))]
@@ -303,7 +304,7 @@ where
 fn map_page_table<L: TableLevel>(tcb: &TcbObj, vaddr: usize, cur_free_slot: &mut usize) {
     let cspace = tcb.cspace().expect("Init CSpace not installed");
     let mut vspace = tcb.vspace().expect("Init VSpace not installed");
-    let vaddr = VirtAddr(vaddr);
+    let vaddr = VirtAddr::new(vaddr);
 
     if L::LEVEL <= Level4::LEVEL
         && !vspace
@@ -400,8 +401,8 @@ impl<'a> ElfLoader for InitThreadLoader<'a> {
         let mut frame_offset = (base as usize) % FRAME_SIZE;
 
         while region_offset < region.len() {
-            let frame_kvaddr: VirtAddr<KERNEL_OFFSET> = vspace
-                .lookup_slot::<Level1>(VirtAddr(vaddr))
+            let frame_kvaddr: VirtAddr = vspace
+                .lookup_slot::<Level1>(VirtAddr::new(vaddr))
                 .unwrap()
                 .vaddr();
             let frame =

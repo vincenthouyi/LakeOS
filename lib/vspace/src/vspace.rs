@@ -1,40 +1,45 @@
 use crate::{Error, Result};
 use crate::{VirtAddr, PhysAddr};
 use crate::common::*;
-use crate::permission::Permission;
-use crate::arch::{Table, Entry, clean_dcache_by_va, TopLevel};
+use crate::page_table::{Table, Entry, PageTableExt, PageTableEntry};
+use crate::arch::clean_dcache_by_va;
 
 #[derive(Debug)]
-pub struct VSpace<'a, const O: usize> {
-    root: &'a mut Table<TopLevel, O>,
+pub struct VSpace<'a, T: TableLevel, E: PageTableEntry, const O: usize> {
+    root: &'a mut Table<T, E>,
 }
 
-impl<'a, const O: usize> VSpace<'a, O> {
-    pub fn from_root(root: &'a mut Table<TopLevel, O>) -> Self {
+impl<'a, T: TableLevel, E: PageTableEntry, const O: usize> VSpace<'a, T, E, O> {
+    pub unsafe fn from_vaddr(vaddr: *mut u8) -> Self {
+        let root = Table::<T, E>::from_vaddr(vaddr);
+        Self{ root }
+    }
+
+    pub fn from_root(root: &'a mut Table<T, E>) -> Self {
         Self { root }
     }
 
-    pub fn into_root(self) -> &'a mut Table<TopLevel, O> {
+    pub fn into_root(self) -> &'a mut Table<T, E> {
         self.root
     }
 
-    pub fn root_paddr(&self) -> PhysAddr<O> {
-        self.root.paddr()
+    pub fn root_paddr(&self) -> PhysAddr {
+        self.root.paddr::<O>()
     }
 
-    pub fn lookup_slot<L: TableLevel>(&self, vaddr: VirtAddr<O>) -> Result<&Entry<L, O>> {
+    pub fn lookup_slot<L: TableLevel>(&self, vaddr: VirtAddr<O>) -> Result<&Entry<L, E>> {
         self.root
             .lookup_slot(vaddr)
     }
 
-    pub fn lookup_slot_mut<L: TableLevel>(&mut self, vaddr: VirtAddr<O>) -> Result<&mut Entry<L, O>> {
+    pub fn lookup_slot_mut<L: TableLevel>(&mut self, vaddr: VirtAddr<O>) -> Result<&mut Entry<L, E>> {
         self.root
             .lookup_slot_mut(vaddr)
     }
 
-    pub fn map_entry<L>(&mut self, vaddr: VirtAddr<O>, entry: Entry<L, O>)
+    pub fn map_entry<L>(&mut self, vaddr: VirtAddr<O>, entry: E)
         -> Result<()> where L: TableLevel {
-        let slot = self.lookup_slot_mut(vaddr)?;
+        let slot = self.lookup_slot_mut::<L>(vaddr)?;
         if slot.is_valid() {
             return Err(Error::SlotOccupied { level: L::LEVEL })
         }
@@ -48,44 +53,19 @@ impl<'a, const O: usize> VSpace<'a, O> {
         if !slot.is_valid() {
             return Err(Error::SlotEmpty);
         }
-        *slot = Entry::<L, O>::zero();
+        *slot = Entry::<L, E>::invalid_entry();
         clean_dcache_by_va(slot as *const _ as usize);
         Ok(())
     }
 
-    pub fn map_table<L: TableLevel>(&mut self, vaddr: VirtAddr<O>, table_paddr: PhysAddr<O>) -> Result<()> {
-        let entry = Entry::<L, O>::table_entry(table_paddr);
-        self.map_entry(vaddr, entry)
-    }
-
-    pub fn unmap_table<L: TableLevel>(&mut self, vaddr: VirtAddr<O>) -> Result<()> {
-        self.unmap_entry::<L>(vaddr)
-    }
-
-    pub fn map_normal_frame<L>(&mut self, vaddr: VirtAddr<O>, frame_paddr: PhysAddr<O>, perm: Permission) -> Result<()>
-        where L: PageLevel {
-        let entry = Entry::normal_page_entry(frame_paddr, perm);
-        self.map_entry::<L>(vaddr, entry)
-    }
-
-    pub fn map_device_frame<L>(&mut self, vaddr: VirtAddr<O>, frame_paddr: PhysAddr<O>, perm: Permission) -> Result<()>
-        where L: PageLevel {
-        let entry = Entry::device_page_entry(frame_paddr, perm);
-        self.map_entry::<L>(vaddr, entry)
-    }
-
-    pub fn unmap_frame<L: TableLevel>(&mut self, vaddr: VirtAddr<O>) -> Result<()> {
-        self.unmap_entry::<L>(vaddr)
-    }
-
-    pub fn paddr_of_vaddr(&self, vaddr: VirtAddr<O>) -> Option<PhysAddr<O>> {
+    pub fn paddr_of_vaddr(&self, vaddr: VirtAddr<O>) -> Option<PhysAddr> {
         let pgde = self.lookup_slot::<Level4>(vaddr).ok()?;
         if !pgde.is_table_entry() {
             return None
         }
 
-        let pud = pgde.as_table().unwrap();
-        let pude = pud.lookup_slot::<Level3>(vaddr).ok()?;
+        let pud = pgde.as_table::<O>().unwrap();
+        let pude: &Entry<Level3, E> = pud.lookup_slot::<O>(vaddr).ok()?;
         if !pude.is_valid() {
             return None
         }
@@ -93,8 +73,8 @@ impl<'a, const O: usize> VSpace<'a, O> {
             return Some(pude.paddr())
         }
 
-        let pd = pude.as_table().unwrap();
-        let pde = pd.lookup_slot::<Level2>(vaddr).ok()?;
+        let pd = pude.as_table::<O>().unwrap();
+        let pde: &Entry<Level2, E> = pd.lookup_slot::<O>(vaddr).ok()?;
         if !pde.is_valid() {
             return None
         }
@@ -102,8 +82,8 @@ impl<'a, const O: usize> VSpace<'a, O> {
             return Some(pde.paddr())
         }
 
-        let pt = pde.as_table().unwrap();
-        let pte = pt.lookup_slot::<Level1>(vaddr).ok()?;
+        let pt = pde.as_table::<O>().unwrap();
+        let pte: &Entry<Level1, E> = pt.lookup_slot::<O>(vaddr).ok()?;
         if !pte.is_valid() {
             return None
         }
