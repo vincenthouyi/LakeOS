@@ -32,8 +32,8 @@ mod vspace;
 
 pub use scheduler::SCHEDULER;
 
-pub const TICK: u32 = 1000;
-pub const TIME_SLICE: isize = 1000;
+pub const TICK: u32 = 100;
+pub const TIME_SLICE: isize = 100;
 pub const NCPU: usize = 4;
 
 use log::error;
