@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use hashbrown::{HashMap, HashSet};
 use spin::Mutex;
 
-use naive::ep_server::EP_SERVER;
+use naive::ep_server::{EP_SERVER, MsgReceiver};
 use naive::lmp::LmpListener;
 use naive::objects::{CapSlot, EpRef};
 use naive::path::{Path, PathBuf};
@@ -54,7 +54,7 @@ impl DirEntry {
             dentry: self.clone(),
         };
 
-        let receiver = EP_SERVER.derive_receiver().unwrap();
+        let receiver = MsgReceiver::new(&EP_SERVER);
         let listen_ep: EpRef = receiver.badged_ep().into();
         let listener = LmpListener::new(receiver);
         let file_svr = Box::new(RpcServer::new(listener, node));

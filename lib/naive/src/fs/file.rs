@@ -12,14 +12,13 @@ use futures_util::io::{AsyncRead, AsyncWrite};
 use futures_util::ready;
 
 use crate::{
-    ep_server::EP_SERVER,
+    ep_server::{EP_SERVER, MsgReceiver},
     io,
     ns::ns_client,
     objects::EpCap,
     path::{Path, PathBuf},
     rpc::RpcClient,
     Result,
-    Error,
 };
 
 pub struct File {
@@ -47,7 +46,7 @@ impl File {
     }
 
     pub async fn connect(ep: &EpCap) -> Result<Self> {
-        let receiver = EP_SERVER.derive_receiver().ok_or(Error::NoReceiver)?;
+        let receiver = MsgReceiver::new(&EP_SERVER);
         let cli = RpcClient::connect(ep, receiver).await?;
         Ok(Self::new(cli))
     }

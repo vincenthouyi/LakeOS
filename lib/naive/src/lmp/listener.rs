@@ -36,7 +36,7 @@ impl LmpListener {
         let c_ntf_ep = conn_msg.cap_transfer.ok_or(Error::ProtocolError)?;
         let c_ntf_ep = EpCap::new(c_ntf_ep);
 
-        let receiver = EP_SERVER.derive_receiver().ok_or(Error::NoReceiver)?;
+        let receiver = MsgReceiver::new(&EP_SERVER);
         let s_ntf_ep = receiver.badged_ep();
         c_ntf_ep.send(&[], Some(s_ntf_ep.into_slot())).unwrap();
 

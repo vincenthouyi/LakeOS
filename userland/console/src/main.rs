@@ -19,6 +19,7 @@ use naive::lmp::LmpListener;
 use naive::ns::ns_client;
 use naive::objects::{CapSlot, RamCap};
 use naive::rpc::{ReadRequest, ReadResponse, RpcServer, WriteRequest, WriteResponse};
+use naive::ep_server::MsgReceiver;
 use pi::interrupt::Interrupt;
 
 use futures_util::StreamExt;
@@ -78,7 +79,7 @@ async fn main() {
 
     let ep_server = &*EP_SERVER;
     let con = console::console();
-    let (_irq_badge, irq_ep) = ep_server.derive_badged_cap().unwrap();
+    let badged_ep = ep_server.handle_notification(Interrupt::Aux as usize, con.clone()).unwrap();
     let irq_cap = ns_client()
         .await
         .lock()
@@ -86,11 +87,10 @@ async fn main() {
         .await
         .unwrap();
     irq_cap
-        .attach_ep_to_irq(irq_ep.slot.slot(), Interrupt::Aux as usize)
+        .attach_ep_to_irq(badged_ep.ep().slot.slot(), Interrupt::Aux as usize)
         .unwrap();
-    ep_server.insert_notification(Interrupt::Aux as usize, con.clone());
 
-    let receiver = EP_SERVER.derive_receiver().unwrap();
+    let receiver = MsgReceiver::new(&EP_SERVER);
     let listener = LmpListener::new(receiver);
     let connector_ep = listener.derive_connector_ep().unwrap();
 

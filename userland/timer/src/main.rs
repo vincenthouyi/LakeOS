@@ -13,6 +13,7 @@ use naive::lmp::LmpListener;
 use naive::ns::ns_client;
 use naive::objects::{CapSlot, RamCap};
 use naive::rpc::{ReadRequest, ReadResponse, RpcServer};
+use naive::ep_server::MsgReceiver;
 
 mod timer;
 
@@ -51,7 +52,7 @@ async fn main() {
 
     timer::init_timer_server().await;
 
-    let receiver = EP_SERVER.derive_receiver().unwrap();
+    let receiver = MsgReceiver::new(&EP_SERVER);
     let listener = LmpListener::new(receiver);
     let connector_ep = listener.derive_connector_ep().unwrap();
 

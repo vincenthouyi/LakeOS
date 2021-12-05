@@ -4,6 +4,8 @@
 #![feature(const_fn_trait_bound)]
 #![feature(specialization)]
 
+#![allow(incomplete_features)]
+
 #[macro_use]
 mod utils;
 

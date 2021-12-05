@@ -11,7 +11,7 @@ use futures_util::io::{AsyncRead, AsyncWrite};
 use futures_util::stream::Stream;
 use spin::Mutex;
 
-use naive::ep_server::{EpNtfHandler, EpServer};
+use naive::ep_server::{EpServer, NotificationHandler};
 use naive::io;
 use pi::uart::{IrqStatus, MiniUart};
 
@@ -79,7 +79,7 @@ impl ConsoleExt {
     }
 }
 
-impl EpNtfHandler for ConsoleExt {
+impl NotificationHandler for ConsoleExt {
     fn handle_notification(&self, _ep_server: &EpServer, _ntf: usize) {
         let mut inner = self.inner.lock();
         match inner.irq_status() {

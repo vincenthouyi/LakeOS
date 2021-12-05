@@ -25,6 +25,7 @@ use naive::rpc::{
     RegisterServiceResponse, RequestIrqRequest, RequestIrqResponse, RequestMemoryRequest,
     RequestMemoryResponse, RpcServer,
 };
+use naive::ep_server::MsgReceiver;
 use naive::space_manager::{copy_cap, gsm};
 use rustyl4api::init::InitCSpaceSlot;
 use spin::Mutex;
@@ -124,7 +125,7 @@ lazy_static! {
 async fn main() {
     trace!("Init thread started");
 
-    let receiver = EP_SERVER.derive_receiver().unwrap();
+    let receiver = MsgReceiver::new(&EP_SERVER);
     let listener = LmpListener::new(receiver);
 
     VFS.lock().mount("/", rootfs::RootFs::new()).unwrap();

@@ -1,11 +1,11 @@
 
 mod ep_server;
 mod msg_receiver;
-mod fault_receiver;
+// mod fault_receiver;
 
-pub use ep_server::{EpServer, EpNtfHandler};
+pub use ep_server::{EpServer, MessageHandler, NotificationHandler};
 pub use msg_receiver::MsgReceiver;
-pub use fault_receiver::FaultReceiver;
+// pub use fault_receiver::FaultReceiver;
 
 lazy_static! {
     pub static ref EP_SERVER: EpServer = {

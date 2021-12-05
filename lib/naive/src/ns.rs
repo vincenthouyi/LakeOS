@@ -2,7 +2,7 @@ use alloc::sync::Arc;
 
 use spin::Mutex;
 
-use crate::ep_server::EP_SERVER;
+use crate::ep_server::{EP_SERVER, MsgReceiver};
 use crate::rpc::RpcClient;
 
 // lazy_static! {
@@ -21,7 +21,7 @@ use crate::rpc::RpcClient;
 pub async fn ns_client() -> Arc<Mutex<RpcClient>> {
     // TODO: create one ns client every time this function is called.
     // Should find some way to lazily store the client in async context.
-    let receiver = EP_SERVER.derive_receiver().unwrap();
+    let receiver = MsgReceiver::new(&EP_SERVER);
     let inner = RpcClient::connect(&crate::space_manager::NAME_SERVICE_CAP, receiver)
         .await
         .unwrap();
