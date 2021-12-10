@@ -12,7 +12,7 @@ use log::trace;
 use naive::lmp::LmpListener;
 use naive::ns::ns_client;
 use naive::objects::{CapSlot, RamCap};
-use naive::rpc::{ReadRequest, ReadResponse, RpcServer};
+use naive::rpc::{ReadRequest, ReadResponse, RpcServer, RpcServerHandler};
 use naive::ep_server::MsgReceiver;
 
 mod timer;
@@ -27,6 +27,7 @@ pub async fn request_memory(paddr: usize, size: usize, maybe_device: bool) -> Re
     Ok(cap.unwrap())
 }
 
+#[derive(Clone)]
 struct TimerApi;
 
 #[async_trait]
@@ -57,7 +58,8 @@ async fn main() {
     let connector_ep = listener.derive_connector_ep().unwrap();
 
     let timer_api = TimerApi {};
-    let timer_server = RpcServer::new(listener, timer_api);
+    let timer_api = RpcServerHandler::new(timer_api);
+    let mut timer_server = RpcServer::new(listener);
 
     ns_client()
         .await
@@ -66,7 +68,7 @@ async fn main() {
         .await
         .unwrap();
 
-    timer_server.run().await;
+    timer_server.run(timer_api).await;
 
     loop {}
 }

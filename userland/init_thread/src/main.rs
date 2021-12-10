@@ -23,7 +23,7 @@ use naive::objects::{CapSlot, EpCap, IrqRef, KernelObject, MonitorRef, RamCap, R
 use naive::rpc::{
     self, LookupServiceRequest, LookupServiceResponse, RegisterServiceRequest,
     RegisterServiceResponse, RequestIrqRequest, RequestIrqResponse, RequestMemoryRequest,
-    RequestMemoryResponse, RpcServer,
+    RequestMemoryResponse, RpcServer, RpcServerHandler
 };
 use naive::ep_server::MsgReceiver;
 use naive::space_manager::{copy_cap, gsm};
@@ -64,6 +64,7 @@ pub fn alloc_object_at<T: KernelObject>(
     ret
 }
 
+#[derive(Clone)]
 struct InitThreadApi;
 
 #[async_trait]
@@ -177,7 +178,8 @@ async fn main() {
     core::mem::forget(timer_proc);
 
     let rpc_api = InitThreadApi {};
-    let rpc_server = RpcServer::new(listener, rpc_api);
+    let rpc_api = RpcServerHandler::new(rpc_api);
+    let mut rpc_server = RpcServer::new(listener);
 
-    rpc_server.run().await;
+    rpc_server.run(rpc_api).await;
 }

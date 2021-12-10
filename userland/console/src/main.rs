@@ -18,7 +18,7 @@ use naive::io::AsyncWriteExt;
 use naive::lmp::LmpListener;
 use naive::ns::ns_client;
 use naive::objects::{CapSlot, RamCap};
-use naive::rpc::{ReadRequest, ReadResponse, RpcServer, WriteRequest, WriteResponse};
+use naive::rpc::{ReadRequest, ReadResponse, RpcServer, WriteRequest, WriteResponse, RpcServerHandler};
 use naive::ep_server::MsgReceiver;
 use pi::interrupt::Interrupt;
 
@@ -35,6 +35,7 @@ pub async fn request_memory(paddr: usize, size: usize, maybe_device: bool) -> Re
     Ok(cap.unwrap())
 }
 
+#[derive(Clone)]
 struct ConsoleApi;
 
 #[async_trait]
@@ -95,7 +96,8 @@ async fn main() {
     let connector_ep = listener.derive_connector_ep().unwrap();
 
     let console_api = ConsoleApi {};
-    let console_server = RpcServer::new(listener, console_api);
+    let console_api = RpcServerHandler::new(console_api);
+    let mut console_server = RpcServer::new(listener);
 
     ns_client()
         .await
@@ -104,7 +106,7 @@ async fn main() {
         .await
         .unwrap();
 
-    console_server.run().await;
+    console_server.run(console_api).await;
 
     loop {}
 }

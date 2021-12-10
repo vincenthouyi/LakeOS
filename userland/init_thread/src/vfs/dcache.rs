@@ -11,7 +11,7 @@ use naive::ep_server::{EP_SERVER, MsgReceiver};
 use naive::lmp::LmpListener;
 use naive::objects::{CapSlot, EpRef};
 use naive::path::{Path, PathBuf};
-use naive::rpc::{self, ReadDirRequest, ReadDirResponse, RpcServer};
+use naive::rpc::{self, ReadDirRequest, ReadDirResponse, RpcServer, RpcServerHandler};
 
 use crate::vfs::INode;
 
@@ -57,10 +57,14 @@ impl DirEntry {
         let receiver = MsgReceiver::new(&EP_SERVER);
         let listen_ep: EpRef = receiver.badged_ep().into();
         let listener = LmpListener::new(receiver);
-        let file_svr = Box::new(RpcServer::new(listener, node));
+        let node = RpcServerHandler::new(node);
+        let mut file_svr = RpcServer::new(listener);
+        let fut = || async move {
+            file_svr.run(node).await
+        };
 
         inner.cached_ep = Some(listen_ep.clone());
-        naive::task::spawn(file_svr.run());
+        naive::task::spawn(fut());
         Ok(Some(listen_ep))
     }
 
@@ -155,6 +159,7 @@ impl DirEntryImp {
     }
 }
 
+#[derive(Clone)]
 struct DentryNode {
     dentry: DirEntry,
 }
