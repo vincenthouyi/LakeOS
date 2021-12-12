@@ -1,5 +1,4 @@
 #![feature(asm)]
-#![feature(const_fn)]
 #![feature(llvm_asm)]
 #![feature(decl_macro)]
 #![feature(arbitrary_enum_discriminant)]

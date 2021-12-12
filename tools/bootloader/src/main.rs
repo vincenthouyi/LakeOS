@@ -8,6 +8,7 @@
 #![feature(naked_functions)]
 #![feature(asm)]
 #![feature(proc_macro_hygiene)]
+#![feature(asm_const)]
 
 #[macro_export]
 macro_rules! BIT {

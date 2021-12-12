@@ -1,6 +1,7 @@
 #[naked]
 #[no_mangle]
 #[link_section = ".text.startup"]
+#[allow(named_asm_labels)]
 unsafe extern "C" fn _start() {
     const TCR_T0SZ: usize = (64 - 48) << 0;
     const TCR_T1SZ: usize = (64 - 48) << 16;

@@ -145,6 +145,7 @@ lower64_irq:
 
 #[naked]
 #[no_mangle]
+#[allow(named_asm_labels)]
 unsafe extern "C" fn _start() {
     asm!(
         r#"
