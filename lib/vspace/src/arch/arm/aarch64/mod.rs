@@ -1,4 +1,3 @@
-
 mod page_table;
 pub use page_table::*;
 
@@ -11,7 +10,63 @@ pub fn clean_dcache_by_va(vaddr: usize) {
     asm::dc_clean_by_va_pou(vaddr)
 }
 
-use crate::{VSpace as _VSpace, Level1, Level2, Level3, Level4, Table as _Table, Entry as _Entry};
+use crate::{Entry as _Entry, Level, PageLevel, Table as _Table, TableLevel, VSpace as _VSpace};
+
+#[derive(Copy, Clone, Debug)]
+pub enum Level4 {}
+#[derive(Copy, Clone, Debug)]
+pub enum Level3 {}
+#[derive(Copy, Clone, Debug)]
+pub enum Level2 {}
+#[derive(Copy, Clone, Debug)]
+pub enum Level1 {}
+#[derive(Copy, Clone, Debug)]
+pub enum Level0 {}
+
+impl Level for Level4 {
+    const LEVEL: usize = 4;
+}
+impl Level for Level3 {
+    const LEVEL: usize = 3;
+}
+impl Level for Level2 {
+    const LEVEL: usize = 2;
+}
+impl Level for Level1 {
+    const LEVEL: usize = 1;
+}
+impl Level for Level0 {
+    const LEVEL: usize = 1;
+}
+
+impl TableLevel for Level4 {
+    type NextLevel = Level3;
+    const TABLE_ENTRIES: usize = 512;
+}
+impl TableLevel for Level3 {
+    type NextLevel = Level2;
+    const TABLE_ENTRIES: usize = 512;
+}
+impl TableLevel for Level2 {
+    type NextLevel = Level1;
+    const TABLE_ENTRIES: usize = 512;
+}
+impl TableLevel for Level1 {
+    type NextLevel = Level0;
+    const TABLE_ENTRIES: usize = 512;
+}
+
+impl PageLevel for Level2 {
+    const FRAME_BIT_SIZE: usize = 30;
+}
+
+impl PageLevel for Level1 {
+    const FRAME_BIT_SIZE: usize = 21;
+}
+
+impl PageLevel for Level0 {
+    const FRAME_BIT_SIZE: usize = 12;
+}
 
 pub type ArchEntry = page_table::Aarch64PageTableEntry;
 pub type Table<L> = _Table<L, ArchEntry>;

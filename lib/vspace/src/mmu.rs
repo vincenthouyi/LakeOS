@@ -1,4 +1,3 @@
-
 pub unsafe fn flush_all_tlb() {
     crate::arch::asm::flush_tlb_allel1_is()
 }

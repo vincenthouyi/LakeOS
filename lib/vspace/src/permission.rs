@@ -1,4 +1,3 @@
-
 bitflags! {
     pub struct Permission: u8 {
         const READABLE = 0b001;
@@ -51,8 +50,6 @@ impl Into<usize> for Permission {
 
 impl From<usize> for Permission {
     fn from(x: usize) -> Permission {
-        Permission {
-            bits: x as u8
-        }
+        Permission { bits: x as u8 }
     }
 }

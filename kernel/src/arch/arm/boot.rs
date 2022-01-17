@@ -14,11 +14,14 @@ use sysapi::process::{
 };
 use sysapi::vspace::{Permission, FRAME_BIT_SIZE, FRAME_SIZE};
 
+use crate::vspace::VirtAddr;
 use bootloader::boot_info::{BootInfo, BootInfoEntry, RamType};
 use elfloader::{ElfBinary, ElfLoader, Flags, LoadableHeaders, Rela, VAddr, P64};
 use log::{debug, info};
-use vspace::{Level1, Level2, Level3, Level4, Level, TableLevel};
-use crate::vspace::VirtAddr;
+use vspace::{
+    arch::{Level1, Level2, Level3, Level4},
+    Level, TableLevel,
+};
 
 #[derive(Copy, Clone)]
 #[repr(align(4096))]

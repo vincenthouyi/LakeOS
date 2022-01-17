@@ -4,7 +4,7 @@ use crate::objects::*;
 use crate::prelude::*;
 
 pub use sysapi::syscall::{MsgInfo, RespInfo, SyscallOp};
-use vspace::{Level1, VirtAddr};
+use vspace::{arch::Level1, VirtAddr};
 
 use core::convert::TryFrom;
 

@@ -15,6 +15,7 @@ use core::cell::Cell;
 use core::marker::PhantomData;
 use core::num::NonZeroUsize;
 use core::ptr::NonNull;
+use vspace::PhysAddr;
 
 pub use cnode::*;
 pub use endpoint::*;
@@ -54,12 +55,12 @@ impl<'a, T: KernelObject + ?Sized> CapRef<'a, T> {
         self.raw.get()
     }
 
-    pub fn paddr(&self) -> usize {
-        self.raw.get().paddr
+    pub fn paddr(&self) -> PhysAddr {
+        PhysAddr(self.raw.get().paddr)
     }
 
     pub fn vaddr(&self) -> usize {
-        self.paddr() + KERNEL_OFFSET
+        self.paddr().0 + KERNEL_OFFSET
     }
 
     fn _retype<U: KernelObject + ?Sized>(self) -> CapRef<'a, U> {

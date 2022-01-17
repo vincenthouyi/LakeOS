@@ -1,4 +1,3 @@
-
 pub fn dc_clean_by_va_pou(vaddr: usize) {
     unsafe {
         llvm_asm!("dc cvau, $0":: "r"(vaddr));

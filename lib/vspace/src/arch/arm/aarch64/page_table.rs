@@ -1,9 +1,9 @@
-use crate::{VirtAddr, PhysAddr};
 use crate::common::*;
+use crate::page_table_entry::PageTableEntry;
 use crate::permission::Permission;
-use crate::page_table::PageTableEntry;
+use crate::{PhysAddr, VirtAddr};
 
-use super::mmu::{MemoryAttr, AccessPermission, Shareability};
+use super::mmu::{AccessPermission, MemoryAttr, Shareability};
 
 const PADDR_MASK: usize = MASK!(48) & (!MASK!(12));
 const VALID_OFFSET: usize = 0;
@@ -62,29 +62,23 @@ impl Aarch64PageTableEntry {
                 | ap as usize                          // access permission
                 | (attr as usize) << ATTR_INDEX_OFFSET // mair index
                 | 1 << 1
-                | 1 << VALID_OFFSET
-                ) as u64
+                | 1 << VALID_OFFSET) as u64,
             )
         } else {
             Self(
-                (
-                (paddr.0 & PADDR_MASK)
+                ((paddr.0 & PADDR_MASK)
                 | (uxn as usize) << UXN_OFFSET         // universal execute never
                 | ((!global) as usize) << N_G_OFFSET   // nG bit
                 | (af as usize) << AF_OFFSET           // access flag
                 | share as usize                       // Shareability
                 | ap as usize                          // access permission
                 | (attr as usize) << ATTR_INDEX_OFFSET // mair index
-                | 1 << VALID_OFFSET
-                ) as u64
+                | 1 << VALID_OFFSET) as u64,
             )
         }
     }
 
-    pub fn normal_page_entry<L: TableLevel>(
-        paddr: PhysAddr,
-        perm: Permission,
-    ) -> Self {
+    pub fn normal_page_entry<L: TableLevel>(paddr: PhysAddr, perm: Permission) -> Self {
         let is_executable = perm.is_executable();
         Self::page_entry::<L>(
             paddr,
@@ -93,14 +87,11 @@ impl Aarch64PageTableEntry {
             true,
             Shareability::InnerSharable,
             perm.into(),
-            MemoryAttr::Normal
+            MemoryAttr::Normal,
         )
     }
 
-    pub fn device_page_entry<L: TableLevel>(
-        paddr: PhysAddr,
-        perm: Permission,
-    ) -> Self {
+    pub fn device_page_entry<L: TableLevel>(paddr: PhysAddr, perm: Permission) -> Self {
         Self::page_entry::<L>(
             paddr,
             true,
@@ -115,7 +106,7 @@ impl Aarch64PageTableEntry {
 
 impl PageTableEntry for Aarch64PageTableEntry {
     fn invalid_entry<L: TableLevel>() -> Self {
-        return Self(0)
+        return Self(0);
     }
 
     fn is_valid<L: TableLevel>(&self) -> bool {

@@ -83,7 +83,7 @@ impl<'a> CapRef<'a, UntypedObj> {
         }
 
         for (i, slot) in slots.iter().enumerate() {
-            let addr = self.paddr() + free_offset + i * obj_size;
+            let addr = self.paddr().0 + free_offset + i * obj_size;
             let cap = match obj_type {
                 ObjType::Untyped => CapRef::<UntypedObj>::mint(addr, bit_size, self.is_device()),
                 ObjType::CNode => {
@@ -120,7 +120,7 @@ impl<'a> CapRef<'a, UntypedObj> {
 
     pub fn identify(&self, tcb: &mut TcbObj) -> usize {
         tcb.set_mr(1, self.cap_type() as usize);
-        tcb.set_mr(2, self.paddr());
+        tcb.set_mr(2, self.paddr().0);
         tcb.set_mr(3, self.bit_size());
         tcb.set_mr(4, self.is_device() as usize);
         tcb.set_mr(5, self.free_offset());

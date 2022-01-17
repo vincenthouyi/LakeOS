@@ -1,8 +1,8 @@
 use super::*;
+use crate::vspace::{PageGlobalDirectory, VSpace};
+use ::vspace::{arch::Aarch64PageTableEntry, arch::Level1, Entry, TableLevel, VirtAddr};
 use core::convert::TryFrom;
 use sysapi::vspace::Permission;
-use ::vspace::{Entry, Level1, TableLevel, VirtAddr, PhysAddr, arch::Aarch64PageTableEntry};
-use crate::vspace::{VSpace, PageGlobalDirectory};
 
 /* Capability Entry Field Definition
  * -------------------------------------------------
@@ -113,15 +113,9 @@ impl<'a> CapRef<'a, RamObj> {
         rights: Permission,
     ) -> SysResult<()> {
         let entry = if self.is_device() {
-            Aarch64PageTableEntry::device_page_entry::<L>(
-                PhysAddr(self.paddr()),
-                rights,
-            )
+            Aarch64PageTableEntry::device_page_entry::<L>(self.paddr(), rights)
         } else {
-            Aarch64PageTableEntry::normal_page_entry::<L>(
-                PhysAddr(self.paddr()),
-                rights,
-            )
+            Aarch64PageTableEntry::normal_page_entry::<L>(self.paddr(), rights)
         };
         vspace.map_entry::<L>(VirtAddr(vaddr), entry)?;
 
@@ -134,7 +128,7 @@ impl<'a> CapRef<'a, RamObj> {
     pub fn unmap_page(&self) -> SysResult<()> {
         let asid = self.mapped_asid();
         let root_table =
-            unsafe { &mut *(((asid << 12) + KERNEL_OFFSET) as *mut PageGlobalDirectory) };
+            unsafe { PageGlobalDirectory::from_vaddr(((asid << 12) + KERNEL_OFFSET) as *mut u8) };
         let mut vspace = VSpace::from_root(root_table);
         let mapped_vaddr = self.mapped_vaddr();
 
@@ -158,7 +152,7 @@ impl<'a> CapRef<'a, RamObj> {
 
     pub fn derive(&self) -> CapRaw {
         Self::mint(
-            self.paddr(),
+            self.paddr().0,
             self.is_writable(),
             self.is_readable(),
             self.size(),

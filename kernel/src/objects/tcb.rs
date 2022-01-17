@@ -10,8 +10,8 @@ use crate::objects::{EndpointCap, NullCap};
 use crate::syscall::{MsgInfo, RespInfo};
 use crate::utils::tcb_queue::TcbQueueNode;
 
-use vspace::{Level, PhysAddr};
-use crate::vspace::{VSpace, PageGlobalDirectory, TopLevel, VirtAddr};
+use crate::vspace::{PageGlobalDirectory, TopLevel, VSpace, VirtAddr};
+use vspace::Level;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ThreadState {
@@ -88,7 +88,7 @@ impl TcbObj {
     }
 
     pub fn install_vspace(&mut self, vspace: VTableCap) {
-        let asid = (vspace.paddr() >> 12) & MASK!(16);
+        let asid = (vspace.paddr().0 >> 12) & MASK!(16);
         vspace.set_mapped_vaddr_asid(0, asid, 4);
         let raw = vspace.raw();
         self.vspace.set(raw);
@@ -102,7 +102,7 @@ impl TcbObj {
     pub fn vspace(&self) -> Option<VSpace> {
         let pgd_cap = VTableCap::try_from(&self.vspace).ok()?;
         let root_table = unsafe {
-            &mut *((pgd_cap.paddr() + KERNEL_OFFSET) as *mut PageGlobalDirectory)
+            PageGlobalDirectory::from_vaddr(VirtAddr::from(pgd_cap.paddr()).0 as *mut u8)
         };
         Some(VSpace::from_root(root_table))
     }
@@ -114,7 +114,7 @@ impl TcbObj {
     pub unsafe fn switch_vspace(&self) -> SysResult<()> {
         let pgd_cap = VTableCap::try_from(&self.vspace)?;
         let asid = self.asid()?;
-        let root_vaddr: VirtAddr = PhysAddr(pgd_cap.paddr()).into();
+        let root_vaddr: VirtAddr = pgd_cap.paddr().into();
         let vspace = VSpace::from_vaddr(root_vaddr.0 as *mut u8);
         vspace.install_user_vspace(asid);
         vspace.invalidate_tlb_by_asid(asid);
@@ -172,7 +172,7 @@ impl TcbObj {
     pub fn asid(&self) -> SysResult<usize> {
         // use PGD[28:12] bits as asid
         let pgd_cap = VTableCap::try_from(&self.vspace)?;
-        Ok((pgd_cap.paddr() >> 12) & MASK!(16))
+        Ok((pgd_cap.paddr().0 >> 12) & MASK!(16))
     }
 
     pub fn configure(
@@ -184,7 +184,7 @@ impl TcbObj {
         if let Some(vs) = vspace {
             let dst_vspace = NullCap::try_from(&self.vspace)?;
             vs.derive(&dst_vspace)?;
-            vs.set_mapped_vaddr_asid(0, dst_vspace.paddr() >> 12, TopLevel::LEVEL);
+            vs.set_mapped_vaddr_asid(0, dst_vspace.paddr().0 >> 12, TopLevel::LEVEL);
         }
 
         if let Some(cs) = cspace {

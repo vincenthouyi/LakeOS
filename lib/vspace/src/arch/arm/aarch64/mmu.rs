@@ -1,6 +1,6 @@
-use crate::PhysAddr;
-use crate::permission::Permission;
 use super::asm::*;
+use crate::permission::Permission;
+use crate::PhysAddr;
 
 #[allow(non_camel_case_types)]
 pub enum MairFlag {
@@ -50,7 +50,6 @@ pub enum Shareability {
     OuterSharable = 0b10 << SH_OFFSET,
     InnerSharable = 0b11 << SH_OFFSET,
 }
-
 
 #[inline(always)]
 pub unsafe fn init_mmu() {

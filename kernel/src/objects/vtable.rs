@@ -1,8 +1,11 @@
 use super::*;
 use core::convert::TryFrom;
 
-use vspace::{Level2, Level3, Level4, PhysAddr, TableLevel};
-use crate::vspace::{VSpace, Table, Aarch64PageTableEntry, VirtAddr};
+use crate::vspace::{Aarch64PageTableEntry, Table, VSpace, VirtAddr};
+use vspace::{
+    arch::{Level2, Level3, Level4},
+    TableLevel,
+};
 
 /* Capability Entry Field Definition
  * -------------------------------------------------
@@ -46,21 +49,16 @@ impl<'a> VTableCap<'a> {
         f.field("vaddr", &c.vaddr());
     }
 
-    pub fn map_vtable(
-        &self,
-        vspace: &mut VSpace,
-        vaddr: VirtAddr,
-        level: usize,
-    ) -> SysResult<()> {
+    pub fn map_vtable(&self, vspace: &mut VSpace, vaddr: VirtAddr, level: usize) -> SysResult<()> {
         match level {
             4 => vspace
-                .map_entry::<Level4>(vaddr, Aarch64PageTableEntry::table_entry(PhysAddr(self.paddr())))
+                .map_entry::<Level4>(vaddr, Aarch64PageTableEntry::table_entry(self.paddr()))
                 .map_err(|e| e.into()),
             3 => vspace
-                .map_entry::<Level3>(vaddr, Aarch64PageTableEntry::table_entry(PhysAddr(self.paddr())))
+                .map_entry::<Level3>(vaddr, Aarch64PageTableEntry::table_entry(self.paddr()))
                 .map_err(|e| e.into()),
             2 => vspace
-                .map_entry::<Level2>(vaddr, Aarch64PageTableEntry::table_entry(PhysAddr(self.paddr())))
+                .map_entry::<Level2>(vaddr, Aarch64PageTableEntry::table_entry(self.paddr()))
                 .map_err(|e| e.into()),
             _ => Err(SysError::InvalidValue),
         }?;
@@ -87,10 +85,10 @@ impl<'a> VTableCap<'a> {
     pub fn init(&self) {}
 
     pub fn as_table<L: TableLevel>(&self) -> &Table<L> {
-        unsafe { &*(self.vaddr() as *const Table<L>) }
+        unsafe { Table::<L>::from_vaddr(self.vaddr() as *mut u8) }
     }
 
     pub fn as_table_mut<L: TableLevel>(&self) -> &mut Table<L> {
-        unsafe { &mut *(self.vaddr() as *mut Table<L>) }
+        unsafe { Table::<L>::from_vaddr(self.vaddr() as *mut u8) }
     }
 }

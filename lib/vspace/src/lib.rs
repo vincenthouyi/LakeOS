@@ -3,7 +3,6 @@
 #![feature(bool_to_option)]
 #![feature(const_fn_trait_bound)]
 #![feature(specialization)]
-
 #![allow(incomplete_features)]
 
 #[macro_use]
@@ -24,8 +23,11 @@ pub mod permission;
 
 pub mod mmu;
 
+mod page_table_entry;
+pub use page_table_entry::Entry;
+
 mod page_table;
-pub use page_table::{Table, Entry};
+pub use page_table::Table;
 
 mod vspace;
 pub use vspace::VSpace;

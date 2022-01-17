@@ -306,7 +306,7 @@ impl<'a> EndpointCap<'a> {
 
     pub fn derive_badged(&self, badge: Option<NonZeroUsize>) -> CapRaw {
         if badge.is_some() {
-            EndpointCap::mint(self.paddr(), badge.map(|b| b.get()).unwrap_or(0))
+            EndpointCap::mint(self.paddr().0, badge.map(|b| b.get()).unwrap_or(0))
         } else {
             self.raw()
         }
