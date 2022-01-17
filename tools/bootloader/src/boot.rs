@@ -387,8 +387,6 @@ pub extern "C" fn bootloader_main() -> ! {
     let vspace_root_paddr = ram_blocks
         .frame_alloc(4096)
         .expect("Allocating root vspace frame failed!");
-    // let vspace_root =
-    //     unsafe { vspace::Table::<vspace::arch::TopLevel>::from_vaddr(vspace_root_paddr) };
     let mut vspace = unsafe { VSpace::from_vaddr(vspace_root_paddr) };
     map_kernel_virtual_address_space::<0>(&mut vspace, &mut ram_blocks);
 

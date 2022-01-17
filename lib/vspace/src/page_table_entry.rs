@@ -59,14 +59,16 @@ impl<L: TableLevel, E: PageTableEntry> Entry<L, E>
 where
     L::NextLevel: TableLevel,
 {
-    pub fn as_table<const O: usize>(&self) -> Option<&Table<L::NextLevel, E>> {
-        self.is_table_entry()
-            .then_some(unsafe { &*(self.vaddr::<O>().0 as *const _) })
+    pub fn as_table<const O: usize>(&self) -> Option<Table<L::NextLevel, E>> {
+        self.is_table_entry().then_some(unsafe {
+            Table::<L::NextLevel, E>::from_vaddr(self.vaddr::<O>().0 as *mut u8)
+        })
     }
 
-    pub fn as_table_mut<const O: usize>(&mut self) -> Option<&mut Table<L::NextLevel, E>> {
-        self.is_table_entry()
-            .then_some(unsafe { &mut *(self.vaddr::<O>().0 as *mut _) })
+    pub fn as_table_mut<const O: usize>(&mut self) -> Option<Table<L::NextLevel, E>> {
+        self.is_table_entry().then_some(unsafe {
+            Table::<L::NextLevel, E>::from_vaddr(self.vaddr::<O>().0 as *mut u8)
+        })
     }
 }
 

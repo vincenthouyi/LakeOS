@@ -84,11 +84,11 @@ impl<'a> VTableCap<'a> {
 
     pub fn init(&self) {}
 
-    pub fn as_table<L: TableLevel>(&self) -> &Table<L> {
+    pub fn as_table<L: TableLevel>(&self) -> Table<L> {
         unsafe { Table::<L>::from_vaddr(self.vaddr() as *mut u8) }
     }
 
-    pub fn as_table_mut<L: TableLevel>(&self) -> &mut Table<L> {
+    pub fn as_table_mut<L: TableLevel>(&self) -> Table<L> {
         unsafe { Table::<L>::from_vaddr(self.vaddr() as *mut u8) }
     }
 }

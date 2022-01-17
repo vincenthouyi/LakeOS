@@ -69,11 +69,11 @@ impl PageLevel for Level0 {
 }
 
 pub type ArchEntry = page_table::Aarch64PageTableEntry;
-pub type Table<L> = _Table<L, ArchEntry>;
-pub type PageTable = Table<Level1>;
-pub type PageDirectory = Table<Level2>;
-pub type PageUpperDirectory = Table<Level3>;
-pub type PageGlobalDirectory = Table<Level4>;
+pub type Table<'a, L> = _Table<'a, L, ArchEntry>;
+pub type PageTable<'a> = Table<'a, Level1>;
+pub type PageDirectory<'a> = Table<'a, Level2>;
+pub type PageUpperDirectory<'a> = Table<'a, Level3>;
+pub type PageGlobalDirectory<'a> = Table<'a, Level4>;
 pub type Entry<L> = _Entry<L, ArchEntry>;
 pub type PTE = Entry<Level1>;
 pub type PDE = Entry<Level2>;

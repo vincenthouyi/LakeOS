@@ -8,7 +8,7 @@ use crate::{PhysAddr, VirtAddr};
 
 #[derive(Debug)]
 pub struct VSpace<'a, T: TableLevel, E: PageTableEntry, const O: usize> {
-    root: &'a mut Table<T, E>,
+    root: Table<'a, T, E>,
 }
 
 impl<'a, T: TableLevel, E: PageTableEntry, const O: usize> VSpace<'a, T, E, O> {
@@ -17,11 +17,11 @@ impl<'a, T: TableLevel, E: PageTableEntry, const O: usize> VSpace<'a, T, E, O> {
         Self { root }
     }
 
-    pub fn from_root(root: &'a mut Table<T, E>) -> Self {
+    pub fn from_root(root: Table<'a, T, E>) -> Self {
         Self { root }
     }
 
-    pub fn into_root(self) -> &'a mut Table<T, E> {
+    pub fn into_root(self) -> Table<'a, T, E> {
         self.root
     }
 
