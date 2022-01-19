@@ -7,6 +7,8 @@ pub trait TableLevel: Level {
     const TABLE_ENTRIES: usize;
 }
 
+pub trait TopLevel: TableLevel {}
+
 pub trait PageLevel: Level {
     const FRAME_BIT_SIZE: usize;
 }

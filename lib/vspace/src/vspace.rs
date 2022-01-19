@@ -7,11 +7,11 @@ use crate::{Error, Result};
 use crate::{PhysAddr, VirtAddr};
 
 #[derive(Debug)]
-pub struct VSpace<'a, T: TableLevel, E: PageTableEntry, const O: usize> {
+pub struct VSpace<'a, T: TopLevel, E: PageTableEntry, const O: usize> {
     root: Table<'a, T, E>,
 }
 
-impl<'a, T: TableLevel, E: PageTableEntry, const O: usize> VSpace<'a, T, E, O> {
+impl<'a, T: TopLevel, E: PageTableEntry, const O: usize> VSpace<'a, T, E, O> {
     pub unsafe fn from_vaddr(vaddr: *mut u8) -> Self {
         let root = Table::<T, E>::from_vaddr(vaddr);
         Self { root }

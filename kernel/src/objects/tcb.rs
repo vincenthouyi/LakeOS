@@ -10,7 +10,7 @@ use crate::objects::{EndpointCap, NullCap};
 use crate::syscall::{MsgInfo, RespInfo};
 use crate::utils::tcb_queue::TcbQueueNode;
 
-use crate::vspace::{PageGlobalDirectory, TopLevel, VSpace, VirtAddr};
+use crate::vspace::{Aarch64TopLevel, PageGlobalDirectory, VSpace, VirtAddr};
 use vspace::Level;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -184,7 +184,7 @@ impl TcbObj {
         if let Some(vs) = vspace {
             let dst_vspace = NullCap::try_from(&self.vspace)?;
             vs.derive(&dst_vspace)?;
-            vs.set_mapped_vaddr_asid(0, dst_vspace.paddr().0 >> 12, TopLevel::LEVEL);
+            vs.set_mapped_vaddr_asid(0, dst_vspace.paddr().0 >> 12, Aarch64TopLevel::LEVEL);
         }
 
         if let Some(cs) = cspace {

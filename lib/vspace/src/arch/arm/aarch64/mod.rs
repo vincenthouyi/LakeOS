@@ -10,7 +10,9 @@ pub fn clean_dcache_by_va(vaddr: usize) {
     asm::dc_clean_by_va_pou(vaddr)
 }
 
-use crate::{Entry as _Entry, Level, PageLevel, Table as _Table, TableLevel, VSpace as _VSpace};
+use crate::{
+    Entry as _Entry, Level, PageLevel, Table as _Table, TableLevel, TopLevel, VSpace as _VSpace,
+};
 
 #[derive(Copy, Clone, Debug)]
 pub enum Level4 {}
@@ -43,6 +45,8 @@ impl TableLevel for Level4 {
     type NextLevel = Level3;
     const TABLE_ENTRIES: usize = 512;
 }
+impl TopLevel for Level4 {}
+
 impl TableLevel for Level3 {
     type NextLevel = Level2;
     const TABLE_ENTRIES: usize = 512;
@@ -79,8 +83,8 @@ pub type PTE = Entry<Level1>;
 pub type PDE = Entry<Level2>;
 pub type PUDE = Entry<Level3>;
 pub type PGDE = Entry<Level4>;
-pub type TopLevel = Level4;
-pub type VSpace<'a, const O: usize> = _VSpace<'a, TopLevel, ArchEntry, O>;
+pub type Aarch64TopLevel = Level4;
+pub type VSpace<'a, const O: usize> = _VSpace<'a, Aarch64TopLevel, ArchEntry, O>;
 
 impl<'a, const O: usize> VSpace<'a, O> {
     pub unsafe fn install_user_vspace(&self, asid: usize) {
