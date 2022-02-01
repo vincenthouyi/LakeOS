@@ -2,7 +2,6 @@ use crate::addr::{PhysAddr, VirtAddr};
 use crate::page_table::Table;
 use crate::TableLevel;
 use core::fmt::Debug;
-use core::marker::PhantomData;
 use core::ops::Deref;
 pub trait PageTableEntry: Copy + Clone + Debug {
     fn invalid_entry<L: TableLevel>() -> Self;
@@ -13,21 +12,17 @@ pub trait PageTableEntry: Copy + Clone + Debug {
 
 #[derive(Debug, Copy, Clone)]
 #[repr(transparent)]
-pub struct Entry<L, E> {
-    inner: E,
-    level: PhantomData<L>,
+pub struct Entry<L: TableLevel> {
+    inner: L::EntryType,
 }
 
-impl<L: TableLevel, E: PageTableEntry> Entry<L, E> {
-    pub fn new(entry: E) -> Self {
-        Self {
-            inner: entry,
-            level: PhantomData,
-        }
+impl<L: TableLevel> Entry<L> {
+    pub fn new(entry: L::EntryType) -> Self {
+        Self { inner: entry }
     }
 
     pub fn invalid_entry() -> Self {
-        Self::new(E::invalid_entry::<L>())
+        Self::new(L::EntryType::invalid_entry::<L>())
     }
 
     pub fn is_valid(&self) -> bool {
@@ -50,37 +45,29 @@ impl<L: TableLevel, E: PageTableEntry> Entry<L, E> {
         return self.inner.is_table_entry::<L>();
     }
 
-    pub fn raw(&self) -> E {
+    pub fn raw(&self) -> L::EntryType {
         self.inner
     }
 }
 
-impl<L: TableLevel, E: PageTableEntry> Entry<L, E>
+impl<L: TableLevel> Entry<L>
 where
     L::NextLevel: TableLevel,
 {
-    pub fn as_table<const O: usize>(&self) -> Option<Table<L::NextLevel, E>> {
-        self.is_table_entry().then_some(unsafe {
-            Table::<L::NextLevel, E>::from_vaddr(self.vaddr::<O>().0 as *mut u8)
-        })
+    pub fn as_table<const O: usize>(&self) -> Option<Table<L::NextLevel>> {
+        self.is_table_entry()
+            .then_some(unsafe { Table::<L::NextLevel>::from_vaddr(self.vaddr::<O>().0 as *mut u8) })
     }
 
-    pub fn as_table_mut<const O: usize>(&mut self) -> Option<Table<L::NextLevel, E>> {
-        self.is_table_entry().then_some(unsafe {
-            Table::<L::NextLevel, E>::from_vaddr(self.vaddr::<O>().0 as *mut u8)
-        })
+    pub fn as_table_mut<const O: usize>(&mut self) -> Option<Table<L::NextLevel>> {
+        self.is_table_entry()
+            .then_some(unsafe { Table::<L::NextLevel>::from_vaddr(self.vaddr::<O>().0 as *mut u8) })
     }
 }
 
-impl<L: TableLevel, E: PageTableEntry> Deref for Entry<L, E> {
-    type Target = E;
+impl<L: TableLevel> Deref for Entry<L> {
+    type Target = L::EntryType;
     fn deref(&self) -> &Self::Target {
         &self.inner
-    }
-}
-
-impl<L: TableLevel, E: PageTableEntry> From<E> for Entry<L, E> {
-    fn from(inner: E) -> Self {
-        Self::new(inner)
     }
 }

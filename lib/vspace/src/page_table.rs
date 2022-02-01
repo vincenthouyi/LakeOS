@@ -1,37 +1,37 @@
-use crate::page_table_entry::{Entry, PageTableEntry};
+use crate::page_table_entry::Entry;
 use crate::{Error, PhysAddr, Result, TableLevel, VirtAddr};
 use core::fmt::{self, Debug, Formatter};
 use core::ops::{Index, IndexMut};
 use core::slice;
 
 #[repr(transparent)]
-pub struct Table<'a, L: TableLevel, E: PageTableEntry> {
-    entries: &'a mut [Entry<L, E>],
+pub struct Table<'a, L: TableLevel> {
+    entries: &'a mut [Entry<L>],
 }
 
-impl<'a, L: TableLevel, E: PageTableEntry> Index<usize> for Table<'a, L, E> {
-    type Output = Entry<L, E>;
+impl<'a, L: TableLevel> Index<usize> for Table<'a, L> {
+    type Output = Entry<L>;
     fn index(&self, index: usize) -> &Self::Output {
         &self.entries[index]
     }
 }
 
-impl<'a, L: TableLevel, E: PageTableEntry> IndexMut<usize> for Table<'a, L, E> {
+impl<'a, L: TableLevel> IndexMut<usize> for Table<'a, L> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.entries[index]
     }
 }
 
-impl<'a, L: TableLevel, E: PageTableEntry> Debug for Table<'a, L, E> {
+impl<'a, L: TableLevel> Debug for Table<'a, L> {
     fn fmt(&self, _f: &mut Formatter) -> fmt::Result {
         Ok(())
     }
 }
 
-impl<'a, L: TableLevel, E: PageTableEntry> Table<'a, L, E> {
+impl<'a, L: TableLevel> Table<'a, L> {
     pub unsafe fn from_vaddr(ptr: *mut u8) -> Self {
         Self {
-            entries: slice::from_raw_parts_mut(ptr as *mut Entry<L, E>, L::TABLE_ENTRIES),
+            entries: slice::from_raw_parts_mut(ptr as *mut Entry<L>, L::TABLE_ENTRIES),
         }
     }
 
@@ -44,19 +44,19 @@ impl<'a, L: TableLevel, E: PageTableEntry> Table<'a, L, E> {
     }
 }
 
-pub trait PageTableExt<E: PageTableEntry, M: TableLevel> {
+pub trait PageTableExt<M: TableLevel> {
     fn lookup_slot_mut<'b, const O: usize>(
         &mut self,
         vaddr: VirtAddr<O>,
-    ) -> Result<&'b mut Entry<M, E>>;
-    fn lookup_slot<'b, const O: usize>(&self, vaddr: VirtAddr<O>) -> Result<&'b Entry<M, E>>;
+    ) -> Result<&'b mut Entry<M>>;
+    fn lookup_slot<'b, const O: usize>(&self, vaddr: VirtAddr<O>) -> Result<&'b Entry<M>>;
 }
 
-impl<'a, L: TableLevel, M: TableLevel, E: PageTableEntry> PageTableExt<E, M> for Table<'a, L, E> {
+impl<'a, L: TableLevel, M: TableLevel> PageTableExt<M> for Table<'a, L> {
     default fn lookup_slot_mut<'b, const O: usize>(
         &mut self,
         vaddr: VirtAddr<O>,
-    ) -> Result<&'b mut Entry<M, E>> {
+    ) -> Result<&'b mut Entry<M>> {
         let idx = vaddr.table_index::<L>();
         let entry = &mut self[idx];
         if M::LEVEL == L::LEVEL {
@@ -66,10 +66,7 @@ impl<'a, L: TableLevel, M: TableLevel, E: PageTableEntry> PageTableExt<E, M> for
         }
     }
 
-    default fn lookup_slot<'b, const O: usize>(
-        &self,
-        vaddr: VirtAddr<O>,
-    ) -> Result<&'b Entry<M, E>> {
+    default fn lookup_slot<'b, const O: usize>(&self, vaddr: VirtAddr<O>) -> Result<&'b Entry<M>> {
         let idx = vaddr.table_index::<L>();
         let entry = &self[idx];
         if M::LEVEL == L::LEVEL {
@@ -80,14 +77,14 @@ impl<'a, L: TableLevel, M: TableLevel, E: PageTableEntry> PageTableExt<E, M> for
     }
 }
 
-impl<'a, L: TableLevel, M: TableLevel, E: PageTableEntry> PageTableExt<E, M> for Table<'a, L, E>
+impl<'a, L: TableLevel, M: TableLevel> PageTableExt<M> for Table<'a, L>
 where
     L::NextLevel: TableLevel,
 {
     fn lookup_slot_mut<'b, const O: usize>(
         &mut self,
         vaddr: VirtAddr<O>,
-    ) -> Result<&'b mut Entry<M, E>> {
+    ) -> Result<&'b mut Entry<M>> {
         let idx = vaddr.table_index::<L>();
         let entry = &mut self[idx];
         if M::LEVEL == L::LEVEL {
@@ -102,7 +99,7 @@ where
         }
     }
 
-    fn lookup_slot<'b, const O: usize>(&self, vaddr: VirtAddr<O>) -> Result<&'b Entry<M, E>> {
+    fn lookup_slot<'b, const O: usize>(&self, vaddr: VirtAddr<O>) -> Result<&'b Entry<M>> {
         let idx = vaddr.table_index::<L>();
         let entry = &self[idx];
         if M::LEVEL == L::LEVEL {

@@ -106,7 +106,7 @@ impl<'a> CapRef<'a, RamObj> {
         }
     }
 
-    pub fn map_page<L: TableLevel>(
+    pub fn map_page<L: TableLevel<EntryType = Aarch64PageTableEntry>>(
         &self,
         vspace: &mut VSpace,
         vaddr: usize,

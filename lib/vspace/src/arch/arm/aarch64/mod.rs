@@ -43,20 +43,24 @@ impl Level for Level0 {
 
 impl TableLevel for Level4 {
     type NextLevel = Level3;
+    type EntryType = page_table::Aarch64PageTableEntry;
     const TABLE_ENTRIES: usize = 512;
 }
 impl TopLevel for Level4 {}
 
 impl TableLevel for Level3 {
     type NextLevel = Level2;
+    type EntryType = page_table::Aarch64PageTableEntry;
     const TABLE_ENTRIES: usize = 512;
 }
 impl TableLevel for Level2 {
     type NextLevel = Level1;
+    type EntryType = page_table::Aarch64PageTableEntry;
     const TABLE_ENTRIES: usize = 512;
 }
 impl TableLevel for Level1 {
     type NextLevel = Level0;
+    type EntryType = page_table::Aarch64PageTableEntry;
     const TABLE_ENTRIES: usize = 512;
 }
 
@@ -73,18 +77,18 @@ impl PageLevel for Level0 {
 }
 
 pub type ArchEntry = page_table::Aarch64PageTableEntry;
-pub type Table<'a, L> = _Table<'a, L, ArchEntry>;
+pub type Table<'a, L> = _Table<'a, L>;
 pub type PageTable<'a> = Table<'a, Level1>;
 pub type PageDirectory<'a> = Table<'a, Level2>;
 pub type PageUpperDirectory<'a> = Table<'a, Level3>;
 pub type PageGlobalDirectory<'a> = Table<'a, Level4>;
-pub type Entry<L> = _Entry<L, ArchEntry>;
+pub type Entry<L> = _Entry<L>;
 pub type PTE = Entry<Level1>;
 pub type PDE = Entry<Level2>;
 pub type PUDE = Entry<Level3>;
 pub type PGDE = Entry<Level4>;
 pub type Aarch64TopLevel = Level4;
-pub type VSpace<'a, const O: usize> = _VSpace<'a, Aarch64TopLevel, ArchEntry, O>;
+pub type VSpace<'a, const O: usize> = _VSpace<'a, Aarch64TopLevel, O>;
 
 impl<'a, const O: usize> VSpace<'a, O> {
     pub unsafe fn install_user_vspace(&self, asid: usize) {
