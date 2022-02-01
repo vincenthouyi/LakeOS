@@ -2,6 +2,7 @@ use crate::addr::{PhysAddr, VirtAddr};
 use crate::page_table::Table;
 use crate::TableLevel;
 use core::fmt::Debug;
+use core::mem;
 use core::ops::Deref;
 pub trait PageTableEntry: Copy + Clone + Debug {
     fn invalid_entry<L: TableLevel>() -> Self;
@@ -47,6 +48,22 @@ impl<L: TableLevel> Entry<L> {
 
     pub fn raw(&self) -> L::EntryType {
         self.inner
+    }
+
+    pub fn transmute<'a, M: TableLevel>(&self) -> &'a Entry<M> {
+        if M::LEVEL == L::LEVEL {
+            return unsafe { mem::transmute(self) };
+        } else {
+            panic!()
+        }
+    }
+
+    pub fn transmute_mut<'a, M: TableLevel>(&mut self) -> &'a mut Entry<M> {
+        if M::LEVEL == L::LEVEL {
+            return unsafe { mem::transmute(self) };
+        } else {
+            panic!()
+        }
     }
 }
 

@@ -59,21 +59,13 @@ impl<'a, L: TableLevel, M: TableLevel> PageTableExt<M> for Table<'a, L> {
     ) -> Result<&'b mut Entry<M>> {
         let idx = vaddr.table_index::<L>();
         let entry = &mut self[idx];
-        if M::LEVEL == L::LEVEL {
-            return Ok(unsafe { core::mem::transmute(entry) });
-        } else {
-            panic!()
-        }
+        Ok(entry.transmute_mut())
     }
 
     default fn lookup_slot<'b, const O: usize>(&self, vaddr: VirtAddr<O>) -> Result<&'b Entry<M>> {
         let idx = vaddr.table_index::<L>();
         let entry = &self[idx];
-        if M::LEVEL == L::LEVEL {
-            return Ok(unsafe { core::mem::transmute(entry) });
-        } else {
-            panic!()
-        }
+        Ok(entry.transmute())
     }
 }
 
@@ -88,12 +80,12 @@ where
         let idx = vaddr.table_index::<L>();
         let entry = &mut self[idx];
         if M::LEVEL == L::LEVEL {
-            return Ok(unsafe { core::mem::transmute(entry) });
+            Ok(entry.transmute_mut())
         } else if M::LEVEL < L::LEVEL {
-            let mut next_table = entry
+            entry
                 .as_table_mut::<O>()
-                .ok_or(Error::TableMiss { level: L::LEVEL })?;
-            return next_table.lookup_slot_mut(vaddr);
+                .ok_or(Error::TableMiss { level: L::LEVEL })
+                .and_then(|mut e| e.lookup_slot_mut(vaddr))
         } else {
             panic!()
         }
@@ -103,12 +95,12 @@ where
         let idx = vaddr.table_index::<L>();
         let entry = &self[idx];
         if M::LEVEL == L::LEVEL {
-            return Ok(unsafe { core::mem::transmute(entry) });
+            Ok(entry.transmute())
         } else if M::LEVEL < L::LEVEL {
-            let next_table = entry
+            entry
                 .as_table::<O>()
-                .ok_or(Error::TableMiss { level: L::LEVEL })?;
-            return next_table.lookup_slot(vaddr);
+                .ok_or(Error::TableMiss { level: L::LEVEL })
+                .and_then(|e| e.lookup_slot(vaddr))
         } else {
             panic!()
         }
