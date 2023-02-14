@@ -8,6 +8,7 @@ use alloc::sync::Arc;
 use core::fmt;
 use core::mem;
 use core::str;
+use core::str::from_utf8_unchecked;
 // use crate::sys_common::bytestring::debug_fmt_bytestring;
 // use crate::sys_common::{AsInner, FromInner, IntoInner};
 use crate::alloc::borrow::ToOwned;
@@ -15,10 +16,8 @@ use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-// use core::str::lossy::Utf8Lossy;
-
 use core::fmt::{Formatter, Write};
-use core::str::lossy::{Utf8Lossy, Utf8LossyChunk};
+use core::str::Utf8Chunks;
 #[doc(hidden)]
 pub trait AsInner<Inner: ?Sized> {
     fn as_inner(&self) -> &Inner;
@@ -52,9 +51,10 @@ pub fn debug_fmt_bytestring(slice: &[u8], f: &mut Formatter<'_>) -> core::fmt::R
     }
 
     f.write_str("\"")?;
-    for Utf8LossyChunk { valid, broken } in Utf8Lossy::from_bytes(slice).chunks() {
-        write_str_escaped(f, valid)?;
-        for b in broken {
+    // for Utf8LossyChunk { valid, broken } in Utf8Lossy::from_bytes(slice).chunks() {
+    for chunk in Utf8Chunks::new(slice) {
+        write_str_escaped(f, chunk.valid())?;
+        for b in chunk.invalid() {
             write!(f, "\\x{:02X}", b)?;
         }
     }
@@ -85,7 +85,7 @@ impl fmt::Debug for Slice {
 
 impl fmt::Display for Slice {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&Utf8Lossy::from_bytes(&self.inner), formatter)
+        unsafe { fmt::Display::fmt(from_utf8_unchecked(&self.inner), formatter) }
     }
 }
 

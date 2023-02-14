@@ -1,7 +1,4 @@
 #![no_std]
-#![feature(llvm_asm)]
-#![feature(bool_to_option)]
-#![feature(const_fn_trait_bound)]
 #![feature(specialization)]
 #![allow(incomplete_features)]
 

@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use core::arch::{asm, global_asm};
 use core::cell::{Cell, UnsafeCell};
 use core::convert::TryFrom;
 use core::mem::MaybeUninit;
@@ -585,7 +586,7 @@ pub extern "C" fn kmain(bi_frame: usize) -> ! {
     }
 
     unsafe {
-        llvm_asm!("msr tpidrro_el0, $0"::"r"(cpuid));
+        asm!("msr tpidrro_el0, {cpuid}", cpuid = in(reg) cpuid, options(nomem));
     }
 
     let mut timer = crate::arch::generic_timer::Timer::new();

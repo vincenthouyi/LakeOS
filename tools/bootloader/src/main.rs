@@ -4,9 +4,7 @@
 
 #![no_std]
 #![no_main]
-#![feature(global_asm)]
 #![feature(naked_functions)]
-#![feature(asm)]
 #![feature(proc_macro_hygiene)]
 #![feature(asm_const)]
 

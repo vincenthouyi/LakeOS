@@ -1,3 +1,4 @@
+use core::arch::asm;
 use core::fmt::{Debug, Error, Formatter};
 use core::mem::size_of;
 
@@ -124,7 +125,7 @@ impl TcbObj {
     pub fn activate(&mut self) -> ! {
         unsafe {
             let cpuid = crate::arch::cpuid() << 48;
-            llvm_asm!("msr tpidrro_el0, $0"::"r"(cpuid | self.thread_id()));
+            asm!("msr tpidrro_el0, {cpuid}", cpuid = in(reg) (cpuid | self.thread_id()), options(nomem));
             self.switch_vspace().unwrap_or(()); // explicitly ignore error for idle thread
             self.tf.restore();
         }

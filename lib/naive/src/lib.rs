@@ -1,16 +1,11 @@
-#![feature(asm)]
 #![feature(decl_macro)]
 #![feature(alloc_error_handler)]
 #![feature(allocator_api)]
-// #![feature(const_saturating_int_methods)]
 #![feature(linked_list_cursors)]
-#![feature(llvm_asm)]
 #![feature(extend_one)]
-#![feature(toowned_clone_into)]
 #![feature(str_internals)]
 #![feature(exact_size_is_empty)]
-#![feature(bool_to_option)]
-#![feature(const_fn_trait_bound)]
+#![feature(utf8_chunks)]
 #![no_std]
 
 extern crate alloc;

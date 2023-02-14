@@ -1,6 +1,7 @@
 use crate::objects::TcbObj;
 use crate::prelude::*;
 use crate::syscall::{MsgInfo, RespInfo};
+use core::arch::asm;
 use core::fmt::{Debug, Error, Formatter};
 
 const EL1h: usize = 0b0101;
@@ -67,9 +68,9 @@ impl TrapFrame {
     }
 
     pub unsafe fn restore(&mut self) -> ! {
-        llvm_asm! {
+        asm! {
             "
-            mov     sp, $0
+            mov     sp, {base} 
             ldp     x22, x23, [sp, #16 * 16]
             ldp     x30, x21, [sp, #16 * 15]
             msr     spsr_el1, x23
@@ -91,8 +92,7 @@ impl TrapFrame {
             ldp     x2,  x3,  [sp, #16 * 1 ]
             ldp     x0,  x1,  [sp, #16 * 0 ]
             eret
-            "
-            ::"r"(self):"memory": "volatile"
+            ", base = in(reg)self,
         }
 
         unreachable!();

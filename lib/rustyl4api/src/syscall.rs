@@ -1,3 +1,4 @@
+use core::arch::asm;
 use core::convert::{From, TryFrom};
 
 use crate::error::{SysErrno, SysError, SysResult};
@@ -210,13 +211,14 @@ pub fn syscall(
     let info: usize = msg_info.into();
 
     unsafe {
-        llvm_asm! {"svc 1"
-        : "={x0}"(badge), "={x1}"(args[0]), "={x2}"(args[1]), "={x3}"(args[2]),
-          "={x4}"(args[3]), "={x5}"(args[4]), "={x6}"(ret)
-        : "{x0}"(args[0]), "{x1}"(args[1]), "{x2}"(args[2]),
-          "{x3}"(args[3]), "{x4}"(args[4]), "{x5}"(args[5]), "{x6}"(info)
-        : "memory"
-        : "volatile"
+        asm! {"svc 1",
+        inlateout("x0") args[0] => badge,
+        inlateout("x1") args[1] => args[0],
+        inlateout("x2") args[2] => args[1],
+        inlateout("x3") args[3] => args[2],
+        inlateout("x4") args[4] => args[3],
+        inlateout("x5") args[5] => args[4],
+        inlateout("x6") info => ret
         }
     };
 
@@ -249,6 +251,6 @@ pub fn syscall(
 
 pub fn nop() {
     unsafe {
-        llvm_asm! {"nop"}
+        asm! {"nop", options(nomem)}
     }
 }

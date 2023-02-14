@@ -1,23 +1,25 @@
+use core::arch::asm;
+
 pub fn dc_clean_by_va_pou(vaddr: usize) {
     unsafe {
-        llvm_asm!("dc cvau, $0":: "r"(vaddr));
+        asm!("dc cvau, {vaddr}", vaddr = in(reg) vaddr, options(nomem));
     }
     dsb();
 }
 
 pub fn isb() {
-    unsafe { llvm_asm!("isb":::"memory") }
+    unsafe { asm!("isb", options(nomem)) }
 }
 
 #[inline(always)]
 pub fn dsb() {
-    unsafe { llvm_asm!("dsb sy":::"memory") }
+    unsafe { asm!("dsb sy", options(nomem)) }
 }
 
 #[inline(always)]
 pub fn dmb() {
     unsafe {
-        llvm_asm!("dmb sy" ::: "memory": "volatile");
+        asm!("dmb sy", options(nomem));
     }
 }
 
@@ -34,12 +36,13 @@ pub fn dmb() {
 #[inline(always)]
 pub unsafe fn flush_tlb_allel1_is() {
     dsb();
-    llvm_asm!(
+    asm!(
         "
         dsb ishst
         tlbi vmalle1is
         dsb ish
-    "
+    ",
+        options(nomem),
     );
     isb();
 }
@@ -53,9 +56,7 @@ pub unsafe fn flush_tlb_allel1_is() {
 
 #[inline(always)]
 pub unsafe fn set_mair(mair: usize) {
-    llvm_asm!("msr mair_el1, $0"
-         :
-         : "r"(mair)
-         : "memory");
+    asm!("msr mair_el1, {mair}",
+         mair = in(reg) mair, options(nomem));
     isb();
 }

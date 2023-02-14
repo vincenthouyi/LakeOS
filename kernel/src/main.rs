@@ -1,13 +1,10 @@
 #![allow(incomplete_features)]
 #![feature(decl_macro)]
-#![feature(asm)]
-#![feature(llvm_asm)]
 #![allow(non_snake_case)]
 #![no_std]
 #![no_main]
 #![allow(non_upper_case_globals)]
 #![feature(naked_functions)]
-#![feature(global_asm)]
 
 #[macro_use]
 extern crate static_assertions;

@@ -59,10 +59,10 @@ clean:
 	rm -rf $(BUILD_DIR)
 
 qemu-debug: $(BOOTLOADER).bin
-	qemu-system-aarch64 -nographic -M raspi3 -serial null -serial mon:stdio -kernel $(BOOTLOADER).bin -gdb tcp::1234 -S
+	qemu-system-aarch64 -nographic -M raspi3b -serial null -serial mon:stdio -kernel $(BOOTLOADER).bin -gdb tcp::1234 -S
 
 qemu: $(BOOTLOADER).bin
-	qemu-system-aarch64 -nographic -M raspi3 -serial null -serial mon:stdio -kernel $(BOOTLOADER).bin
+	qemu-system-aarch64 -nographic -M raspi3b -serial null -serial mon:stdio -kernel $(BOOTLOADER).bin
 
 gdb:
 	$(GDB)

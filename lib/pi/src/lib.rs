@@ -1,9 +1,7 @@
 #![no_std]
 #![feature(core_intrinsics)]
-#![feature(asm)]
 #![feature(decl_macro)]
 #![feature(never_type)]
-#![feature(llvm_asm)]
 
 //#![cfg_attr(not(feature = "std"), no_std)]
 

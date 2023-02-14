@@ -1,7 +1,4 @@
-#![feature(asm)]
-#![feature(llvm_asm)]
 #![feature(decl_macro)]
-#![feature(arbitrary_enum_discriminant)]
 #![no_std]
 
 extern crate num_traits;

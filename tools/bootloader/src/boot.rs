@@ -1,3 +1,5 @@
+use core::arch::asm;
+
 #[naked]
 #[no_mangle]
 #[link_section = ".text.startup"]

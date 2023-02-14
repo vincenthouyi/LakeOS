@@ -1,3 +1,4 @@
+use core::arch::asm;
 use volatile::Volatile;
 
 /// The base address for the ARM generic timer registers.
@@ -45,27 +46,26 @@ pub struct Timer {
 
 pub fn set_cntp_ctl_el0(x: u64) {
     unsafe {
-        llvm_asm!("msr cntp_ctl_el0, $0" :: "r"(x));
+        asm!("msr cntp_ctl_el0, {x}", x = in(reg) x, options(nomem));
     }
 }
 
 pub fn set_cntk_ctl_el1(x: u64) {
     unsafe {
-        llvm_asm!("msr cntkctl_el1, $0" :: "r"(x));
+        asm!("msr cntkctl_el1, {x}", x = in(reg) x, options(nomem));
     }
 }
 
 pub fn set_cntp_tval_el0(x: u64) {
     unsafe {
-        llvm_asm!("msr cntp_tval_el0, $0" :: "r"(x));
+        asm!("msr cntp_tval_el0, {x}", x = in(reg) x, options(nomem));
     }
 }
 
 pub fn get_cntfrq_el0() -> u64 {
     let x: u64;
     unsafe {
-        llvm_asm!("mrs $0, cntfrq_el0"
-            : "=r"(x));
+        asm!("mrs {x}, cntfrq_el0", x = out(reg) x, options(nomem));
     }
     x
 }
@@ -73,9 +73,9 @@ pub fn get_cntfrq_el0() -> u64 {
 pub fn get_cntpct_el0() -> u64 {
     let x: u64;
     unsafe {
-        llvm_asm!("isb
-              mrs $0, cntpct_el0"
-            : "=r"(x) : : : "volatile");
+        asm!("isb
+              mrs {x}, cntpct_el0",
+            x = out(reg) x, options(nomem));
     }
     x
 }
