@@ -9,10 +9,9 @@ edition = "2018"
 spin = "0.5.2"
 pi = { path = "../../lib/pi" }
 align-data = "0.1.0"
-elfloader = "0.12.0"
 atags = { path = "../../lib/atags" }
 vspace = { path = "../../lib/vspace" }
 cpio = { path = "../../lib/cpio" }
-elf_rs = { git = "https://github.com/vincenthouyi/elf_rs" }
+elf_rs = "0.3"
 elf-loader = { path = "../../lib/elf-loader" }
 log = "0.4.14"

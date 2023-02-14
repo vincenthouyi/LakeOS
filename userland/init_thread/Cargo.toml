@@ -9,8 +9,15 @@ rustyl4api = { path = "../../lib/rustyl4api" }
 naive = { path = "../../lib/naive" }
 pi = { path = "../../lib/pi" }
 hashbrown = "0.8"
-futures-util = { git = "https://github.com/vincenthouyi/futures-rs.git", branch = "lakeos", default-features = false, features = ["alloc", "async-await", "async-await-macro", "io"] }
-crossbeam-queue = { version = "0.2.1", default-features = false, features = ["alloc"] }
+futures-util = { git = "https://github.com/vincenthouyi/futures-rs.git", branch = "lakeos", default-features = false, features = [
+    "alloc",
+    "async-await",
+    "async-await-macro",
+    "io",
+] }
+crossbeam-queue = { version = "0.3", default-features = false, features = [
+    "alloc",
+] }
 spin = "0.5.2"
 r0 = "1.0.0"
 async-trait = "0.1.42"

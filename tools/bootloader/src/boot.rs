@@ -110,7 +110,7 @@ jump_to_el1:
 use crate::boot_info::{BootInfo, BootInfoEntry, RamInfo, RamType};
 use crate::ram_block;
 use elf_loader::ElfLoader;
-use elf_rs::{Elf, ElfFile, ProgramHeaderWrapper};
+use elf_rs::{Elf, ElfFile, ProgramHeaderEntry};
 use log::info;
 use vspace::{
     arch::Aarch64PageTableEntry,
@@ -153,7 +153,7 @@ pub const fn align_up(addr: usize, align: usize) -> usize {
 impl<'a> ElfLoader for KernelLoader<'a> {
     fn allocate(
         &mut self,
-        load_headers: &mut dyn Iterator<Item = ProgramHeaderWrapper>,
+        load_headers: &mut dyn Iterator<Item = ProgramHeaderEntry>,
     ) -> Result<(), &'static str> {
         for header in load_headers {
             let base = align_down(header.vaddr() as usize, 4096);
@@ -237,12 +237,12 @@ impl<'a> ElfLoader for KernelLoader<'a> {
     //     unimplemented!()
     // }
 
-    fn load(&mut self, program_header: ProgramHeaderWrapper) -> Result<(), &'static str> {
+    fn load(&mut self, program_header: ProgramHeaderEntry) -> Result<(), &'static str> {
         let base = program_header.vaddr();
         let mut vaddr = align_down(base as usize, 4096);
         let mut region_offset = 0;
         let mut frame_offset = (base as usize) % 4096;
-        let region = program_header.content();
+        let region = program_header.content().unwrap();
 
         while region_offset < region.len() {
             let frame_base = self.vspace.paddr_of_vaddr(VirtAddr(vaddr)).unwrap();

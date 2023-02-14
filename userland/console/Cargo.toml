@@ -10,8 +10,13 @@ edition = "2018"
 rustyl4api = { path = "../../lib/rustyl4api" }
 naive = { path = "../../lib/naive" }
 pi = { path = "../../lib/pi" }
-futures-util = { git = "https://github.com/vincenthouyi/futures-rs.git", branch = "lakeos", default-features = false, features = ["alloc", "async-await", "async-await-macro", "io"] }
+futures-util = { git = "https://github.com/vincenthouyi/futures-rs.git", branch = "lakeos", default-features = false, features = [
+    "alloc",
+    "async-await",
+    "async-await-macro",
+    "io",
+] }
 spin = "0.5.2"
 async-trait = "0.1.42"
-conquer-once = { version = "0.2.0", default-features = false }
+conquer-once = { version = "0.3", default-features = false }
 log = "0.4.14"

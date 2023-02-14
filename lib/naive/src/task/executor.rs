@@ -36,7 +36,7 @@ impl Executor {
             waker_cache,
         } = self;
 
-        while let Ok(task_id) = task_queue.pop() {
+        while let Some(task_id) = task_queue.pop() {
             let mut task = match tasks.lock().remove(&task_id) {
                 Some(task) => task,
                 None => continue, // task no longer exists

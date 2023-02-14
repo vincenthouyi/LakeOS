@@ -33,7 +33,6 @@ dependencies = [
  "cpio",
  "elf-loader",
  "elf_rs",
- "elfloader",
  "log",
  "pi",
  "spin",
@@ -59,22 +58,12 @@ dependencies = [
 
 [[package]]
 name = "elf_rs"
-version = "0.1.3"
-source = "git+https://github.com/vincenthouyi/elf_rs#9f4ea033d56283452704f085f0c47f428022ee3d"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9cf723f70efb0373c0b2501d943cf20ac1adbbd8e7c8eef926b2be545e5a33e8"
 dependencies = [
  "bitflags",
  "num-traits",
-]
-
-[[package]]
-name = "elfloader"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e368ef542ceca07d3910510e7b0741e8bb531a684d604af8ef8a963eeb5fb1c7"
-dependencies = [
- "bitflags",
- "log",
- "xmas-elf",
 ]
 
 [[package]]
@@ -121,18 +110,3 @@ dependencies = [
  "bitflags",
  "log",
 ]
-
-[[package]]
-name = "xmas-elf"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e74de9a366f6ab8c405fa6b371d9ac24943921fa14b3d64afcb202065c405f11"
-dependencies = [
- "zero",
-]
-
-[[package]]
-name = "zero"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f1bc8a6b2005884962297587045002d8cfb8dcec9db332f4ca216ddc5de82c5"
