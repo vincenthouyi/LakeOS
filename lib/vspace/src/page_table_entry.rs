@@ -73,12 +73,12 @@ where
 {
     pub fn as_table<const O: usize>(&self) -> Option<Table<L::NextLevel>> {
         self.is_table_entry()
-            .then_some(unsafe { Table::<L::NextLevel>::from_vaddr(self.vaddr::<O>().0 as *mut u8) })
+            .then(|| unsafe { Table::<L::NextLevel>::from_vaddr(self.vaddr::<O>().0 as *mut u8) })
     }
 
     pub fn as_table_mut<const O: usize>(&mut self) -> Option<Table<L::NextLevel>> {
         self.is_table_entry()
-            .then_some(unsafe { Table::<L::NextLevel>::from_vaddr(self.vaddr::<O>().0 as *mut u8) })
+            .then(|| unsafe { Table::<L::NextLevel>::from_vaddr(self.vaddr::<O>().0 as *mut u8) })
     }
 }
 
